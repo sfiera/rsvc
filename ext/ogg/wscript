@@ -1,0 +1,32 @@
+# -*- mode: python -*-
+
+def common(ctx):
+    ctx.load("compiler_c")
+    ctx.load("core", tooldir="ext/waf-sfiera")
+
+def options(opt):
+    common(opt)
+
+def configure(cnf):
+    common(cnf)
+
+def build(bld):
+    common(bld)
+
+    bld.stlib(
+        target="ogg/libogg",
+        features="universal",
+        source=[
+            "libogg-1.3.0/src/bitwise.c",
+            "libogg-1.3.0/src/framing.c",
+        ],
+        includes="libogg-1.3.0/include",
+        export_includes="libogg-1.3.0/include",
+    )
+
+    bld.platform(
+        target="ogg/libogg",
+        platform="darwin",
+        includes="darwin",
+        export_includes="darwin",
+    )

@@ -1,0 +1,50 @@
+# -*- mode: python -*-
+
+WARNINGS = ["-Wno-conversion", "-Wno-sizeof-pointer-memaccess"]
+
+def common(ctx):
+    ctx.load("compiler_c")
+    ctx.load("core", tooldir="ext/waf-sfiera")
+    ctx.external("ogg")
+
+def options(opt):
+    common(opt)
+
+def configure(cnf):
+    common(cnf)
+
+def build(bld):
+    common(bld)
+
+    bld.stlib(
+        target="flac/libflac",
+        features="universal",
+        source=[
+            "flac-1.2.1/src/libFLAC/bitmath.c",
+            "flac-1.2.1/src/libFLAC/bitreader.c",
+            "flac-1.2.1/src/libFLAC/bitwriter.c",
+            "flac-1.2.1/src/libFLAC/cpu.c",
+            "flac-1.2.1/src/libFLAC/crc.c",
+            "flac-1.2.1/src/libFLAC/fixed.c",
+            "flac-1.2.1/src/libFLAC/float.c",
+            "flac-1.2.1/src/libFLAC/format.c",
+            "flac-1.2.1/src/libFLAC/lpc.c",
+            "flac-1.2.1/src/libFLAC/md5.c",
+            "flac-1.2.1/src/libFLAC/memory.c",
+            "flac-1.2.1/src/libFLAC/metadata_iterators.c",
+            "flac-1.2.1/src/libFLAC/metadata_object.c",
+            "flac-1.2.1/src/libFLAC/ogg_decoder_aspect.c",
+            "flac-1.2.1/src/libFLAC/ogg_encoder_aspect.c",
+            "flac-1.2.1/src/libFLAC/ogg_helper.c",
+            "flac-1.2.1/src/libFLAC/ogg_mapping.c",
+            "flac-1.2.1/src/libFLAC/stream_decoder.c",
+            "flac-1.2.1/src/libFLAC/stream_encoder.c",
+            "flac-1.2.1/src/libFLAC/stream_encoder_framing.c",
+            "flac-1.2.1/src/libFLAC/window.c",
+        ],
+        defines="VERSION=\"1.2.1\"",
+        includes="flac-1.2.1/include flac-1.2.1/src/libFLAC/include",
+        export_includes="flac-1.2.1/include",
+        cflags=WARNINGS,
+        use="ogg/libogg",
+    )
