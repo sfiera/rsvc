@@ -10,7 +10,7 @@ def common(ctx):
     ctx.default_compiler = "clang"
     ctx.load("compiler_c")
     ctx.load("core externals", tooldir="ext/waf-sfiera")
-    ctx.external("flac discid")
+    ctx.external("discid flac vorbis")
 
 def dist(dst):
     dst.algo = "zip"
@@ -38,7 +38,8 @@ def build(bld):
         includes="include",
         cflags=WARNINGS,
         use=[
-            "flac/libflac",
             "discid/libdiscid",
+            "flac/libflac",
+            "vorbis/libvorbis",
         ],
     )

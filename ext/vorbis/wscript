@@ -1,0 +1,56 @@
+# -*- mode: python -*-
+
+WARNINGS = ["-Wno-comment"]
+
+def common(ctx):
+    ctx.load("compiler_c")
+    ctx.load("core", tooldir="ext/waf-sfiera")
+    ctx.external("ogg")
+
+def options(opt):
+    common(opt)
+
+def configure(cnf):
+    common(cnf)
+
+def build(bld):
+    common(bld)
+
+    bld.stlib(
+        target="vorbis/libvorbis",
+        features="universal",
+        source=[
+            "libvorbis-1.3.2/lib/analysis.c",
+            "libvorbis-1.3.2/lib/bitrate.c",
+            "libvorbis-1.3.2/lib/block.c",
+            "libvorbis-1.3.2/lib/codebook.c",
+            "libvorbis-1.3.2/lib/envelope.c",
+            "libvorbis-1.3.2/lib/floor0.c",
+            "libvorbis-1.3.2/lib/floor1.c",
+            "libvorbis-1.3.2/lib/info.c",
+            "libvorbis-1.3.2/lib/lookup.c",
+            "libvorbis-1.3.2/lib/lpc.c",
+            "libvorbis-1.3.2/lib/lsp.c",
+            "libvorbis-1.3.2/lib/mapping0.c",
+            "libvorbis-1.3.2/lib/mdct.c",
+            "libvorbis-1.3.2/lib/psy.c",
+            "libvorbis-1.3.2/lib/registry.c",
+            "libvorbis-1.3.2/lib/res0.c",
+            "libvorbis-1.3.2/lib/smallft.c",
+            "libvorbis-1.3.2/lib/synthesis.c",
+            "libvorbis-1.3.2/lib/vorbisenc.c",
+            "libvorbis-1.3.2/lib/vorbisfile.c",
+            "libvorbis-1.3.2/lib/window.c",
+        ],
+        includes="libvorbis-1.3.2/include libvorbis-1.3.2/lib",
+        export_includes="libvorbis-1.3.2/include",
+        cflags=WARNINGS,
+        use="ogg/libogg",
+    )
+
+    bld.platform(
+        target="vorbis/libvorbis",
+        platform="darwin",
+        includes="darwin",
+        export_includes="darwin",
+    )
