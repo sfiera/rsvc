@@ -22,6 +22,7 @@
 
 #include <IOKit/storage/IOCDTypes.h>
 #include <IOKit/storage/IOCDMediaBSDClient.h>
+#include <discid/discid.h>
 #include <dispatch/dispatch.h>
 #include <fcntl.h>
 #include <stdint.h>
@@ -34,6 +35,7 @@ struct rsvc_cd {
     dispatch_queue_t queue;
 
     int fd;
+    DiscId* discid;
     CDMCN mcn;
 
     size_t nsessions;
@@ -79,6 +81,7 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
     rsvc_cd_t cd    = malloc(sizeof(struct rsvc_cd));
     cd->queue       = dispatch_queue_create("net.sfiera.ripservice.cd", NULL);
     cd->fd          = fd;
+    cd->discid      = discid_new();
     cd->mcn[0]      = '\0';
     cd->ntracks     = 0;
 
@@ -180,6 +183,18 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
             (cd->sessions[i].track_end - 1)->sector_end = cd->sessions[i].lead_out;
         }
 
+        // Calculate the discid for MusicBrainz.
+        int offsets[100] = {};
+        offsets[0] = cd->tracks[cd->ntracks - 1].sector_end + 150;
+        for(int i = 0; i < cd->ntracks; ++i) {
+            offsets[i + 1] = cd->tracks[i].sector_begin + 150;
+        }
+        if (!discid_put(cd->discid, 1, cd->ntracks, offsets)) {
+            rsvc_const_error(^(rsvc_error_t error){
+                done(NULL, error);
+            }, __FILE__, __LINE__, "discid failure");
+        }
+
         rsvc_strerror(^(rsvc_error_t error){
             done(cd, NULL);
         }, __FILE__, __LINE__);
@@ -189,6 +204,7 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
 void rsvc_cd_destroy(rsvc_cd_t cd) {
     free(cd->tracks);
     free(cd->sessions);
+    discid_free(cd->discid);
     close(cd->fd);
     dispatch_release(cd->queue);
     free(cd);
@@ -196,6 +212,10 @@ void rsvc_cd_destroy(rsvc_cd_t cd) {
 
 const char* rsvc_cd_mcn(rsvc_cd_t cd) {
     return cd->mcn;
+}
+
+const char* rsvc_cd_discid(rsvc_cd_t cd) {
+    return discid_get_id(cd->discid);
 }
 
 void rsvc_cd_each_session(rsvc_cd_t cd, void (^block)(rsvc_cd_session_t, rsvc_stop_t stop)) {

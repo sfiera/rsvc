@@ -43,6 +43,9 @@ typedef struct rsvc_comments* rsvc_comments_t;
 #define RSVC_MCN        "MCN"
 #define RSVC_ENCODER    "ENCODER"
 
+#define RSVC_MUSICBRAINZ_DISCID \
+                        "MUSICBRAINZ_DISCID"
+
 rsvc_comments_t         rsvc_comments_create();
 rsvc_comments_t         rsvc_comments_copy(rsvc_comments_t comments);
 void                    rsvc_comments_destroy(rsvc_comments_t comments);

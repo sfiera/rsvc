@@ -1,0 +1,41 @@
+# -*- mode: python -*-
+
+def common(ctx):
+    ctx.load("compiler_c")
+    ctx.load("core", tooldir="ext/waf-sfiera")
+
+def options(opt):
+    common(opt)
+
+def configure(cnf):
+    common(cnf)
+
+    cnf.env.append_value("FRAMEWORK_discid/system/core-foundation", "CoreFoundation")
+    cnf.env.append_value("FRAMEWORK_discid/system/io-kit", "IOKit")
+
+def build(bld):
+    common(bld)
+
+    bld.stlib(
+        target="discid/libdiscid",
+        features="universal",
+        source=[
+            "libdiscid-0.2.2/src/base64.c",
+            "libdiscid-0.2.2/src/disc.c",
+            "libdiscid-0.2.2/src/sha1.c",
+        ],
+        includes="libdiscid-0.2.2/include",
+        export_includes="libdiscid-0.2.2/include",
+    )
+
+    bld.platform(
+        target="discid/libdiscid",
+        platform="darwin",
+        source="libdiscid-0.2.2/src/disc_darwin.c",
+        includes="darwin",
+        export_includes="darwin",
+        use=[
+            "discid/system/core-foundation",
+            "discid/system/io-kit",
+        ],
+    )

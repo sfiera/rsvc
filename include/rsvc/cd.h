@@ -35,6 +35,7 @@ typedef enum rsvc_cd_track_type_t {
 
 void                    rsvc_cd_create(char* path, void (^done)(rsvc_cd_t, rsvc_error_t));
 void                    rsvc_cd_destroy(rsvc_cd_t cd);
+const char*             rsvc_cd_discid(rsvc_cd_t cd);
 const char*             rsvc_cd_mcn(rsvc_cd_t cd);
 void                    rsvc_cd_each_session(rsvc_cd_t,
                                              void (^block)(rsvc_cd_session_t, rsvc_stop_t));
