@@ -64,7 +64,7 @@ bool                    rsvc_comments_get(rsvc_comments_t comments, const char* 
 size_t                  rsvc_comments_count(rsvc_comments_t comments, const char* name);
 bool                    rsvc_comments_find(rsvc_comments_t comments, const char* name,
                                            const char* values[], size_t* nvalues);
-void                    rsvc_comments_each(rsvc_comments_t comments,
+bool                    rsvc_comments_each(rsvc_comments_t comments,
                                            void (^block)(const char*, const char*, rsvc_stop_t));
 
 #endif  // RSVC_COMMENT_H_

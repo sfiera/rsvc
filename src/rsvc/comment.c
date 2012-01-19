@@ -163,11 +163,13 @@ bool rsvc_comments_find(rsvc_comments_t comments,
     return true;
 }
 
-void rsvc_comments_each(rsvc_comments_t comments,
+bool rsvc_comments_each(rsvc_comments_t comments,
                         void (^block)(const char*, const char*, rsvc_stop_t)) {
-    for (__block struct rsvc_comment* curr = comments->head; curr; curr = curr->next) {
+    __block bool loop = true;
+    for (struct rsvc_comment* curr = comments->head; curr && loop; curr = curr->next) {
         block(curr->name, curr->value, ^{
-            curr = NULL;
+            loop = false;
         });
     }
+    return loop;
 }

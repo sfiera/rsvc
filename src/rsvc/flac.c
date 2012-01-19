@@ -71,18 +71,22 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
             return;
         }
 
-        rsvc_comments_each(comments, ^(const char* name, const char* value, rsvc_stop_t stop){
+        if (!rsvc_comments_each(comments, ^(const char* name, const char* value, rsvc_stop_t stop){
             FLAC__StreamMetadata_VorbisComment_Entry entry;
             if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(
                         &entry, name, value) ||
                 !FLAC__metadata_object_vorbiscomment_append_comment(
                         comment_metadata, entry, false)) {
                 rsvc_const_error(done, __FILE__, __LINE__, "comment failure");
+                stop();
             }
-        });
+        })) {
+            return;
+        }
         FLAC__StreamMetadata* metadata[2] = {comment_metadata, padding_metadata};
         if (!FLAC__stream_encoder_set_metadata(encoder, metadata, 2)) {
             rsvc_const_error(done, __FILE__, __LINE__, "comment failure");
+            return;
         }
 
         int fd = file;
