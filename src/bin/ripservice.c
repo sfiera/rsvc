@@ -251,16 +251,17 @@ static void rsvc_command_print(print_options_t options,
                 printf("- Session: %ld\n", rsvc_cd_session_number(session));
                 rsvc_cd_session_each_track(session, ^(rsvc_cd_track_t track, rsvc_stop_t stop){
                     printf("  - Track: %ld\n", rsvc_cd_track_number(track));
+                    size_t sectors = rsvc_cd_track_nsectors(track);
                     switch (rsvc_cd_track_type(track)) {
                         case RSVC_CD_TRACK_DATA: {
                             printf("    Type: data\n");
+                            printf("    Sectors: %lu\n", sectors);
                         }
                         break;
                         case RSVC_CD_TRACK_AUDIO: {
-                            int sectors = rsvc_cd_track_nsectors(track);
                             printf("    Type: audio\n");
                             printf("    Channels: %ld\n", rsvc_cd_track_nchannels(track));
-                            printf("    Duration: %d:%02d.%03d\n",
+                            printf("    Duration: %lu:%02lu.%03lu\n",
                                    sectors / (75 * 60),
                                    (sectors / 75) % 60,
                                    ((sectors % 75) * 1000) / 75);
