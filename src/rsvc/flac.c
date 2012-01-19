@@ -61,33 +61,26 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
             return;
         }
 
-        FLAC__StreamMetadata *metadata[2] = {
-            FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT),
-            FLAC__metadata_object_new(FLAC__METADATA_TYPE_PADDING),
-        };
-        metadata[1]->length = 1024;
-        if (!metadata[0] || !metadata[1]) {
+        FLAC__StreamMetadata* comment_metadata =
+            FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
+        FLAC__StreamMetadata* padding_metadata =
+            FLAC__metadata_object_new(FLAC__METADATA_TYPE_PADDING);
+        padding_metadata->length = 1024;
+        if (!comment_metadata || !padding_metadata) {
             rsvc_const_error(done, __FILE__, __LINE__, "comment failure");
             return;
         }
 
-        size_t ncomments = rsvc_comments_size(comments);
-        const char** names = calloc(ncomments, sizeof(const char*));
-        const char** values = calloc(ncomments, sizeof(const char*));
-        if (!rsvc_comments_get(comments, names, values, &ncomments)) {
-            rsvc_const_error(done, __FILE__, __LINE__, "comment failure");
-            return;
-        }
-        for (size_t i = 0; i < ncomments; ++i) {
+        rsvc_comments_each(comments, ^(const char* name, const char* value, rsvc_stop_t stop){
             FLAC__StreamMetadata_VorbisComment_Entry entry;
             if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(
-                        &entry, names[i], values[i]) ||
-                !FLAC__metadata_object_vorbiscomment_append_comment(metadata[0], entry, false)) {
+                        &entry, name, value) ||
+                !FLAC__metadata_object_vorbiscomment_append_comment(
+                        comment_metadata, entry, false)) {
                 rsvc_const_error(done, __FILE__, __LINE__, "comment failure");
             }
-        }
-        free(names);
-        free(values);
+        });
+        FLAC__StreamMetadata* metadata[2] = {comment_metadata, padding_metadata};
         if (!FLAC__stream_encoder_set_metadata(encoder, metadata, 2)) {
             rsvc_const_error(done, __FILE__, __LINE__, "comment failure");
         }
@@ -143,8 +136,8 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
             rsvc_const_error(done, __FILE__, __LINE__, message);
             return;
         }
-        FLAC__metadata_object_delete(metadata[0]);
-        FLAC__metadata_object_delete(metadata[1]);
+        FLAC__metadata_object_delete(comment_metadata);
+        FLAC__metadata_object_delete(padding_metadata);
         FLAC__stream_encoder_delete(encoder);
         done(NULL);
     });
