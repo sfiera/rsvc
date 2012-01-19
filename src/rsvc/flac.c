@@ -131,6 +131,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
                     rsvc_const_error(done, __FILE__, __LINE__, message);
                     return;
                 }
+                memcpy(buffer, buffer + result, remainder);
             }
             start = remainder;
         }

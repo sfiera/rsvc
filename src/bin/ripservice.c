@@ -33,6 +33,7 @@
 #include <rsvc/cd.h>
 #include <rsvc/comment.h>
 #include <rsvc/flac.h>
+#include <rsvc/vorbis.h>
 
 typedef enum command {
     NONE,
@@ -363,7 +364,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         int write_pipe = pipe_fd[1];
         int read_pipe = pipe_fd[0];
         char filename[256];
-        sprintf(filename, "%02ld.flac", track_number);
+        sprintf(filename, "%02ld.ogv", track_number);
         int file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (file < 0) {
             rsvc_strerror(done, __FILE__, __LINE__);
@@ -395,7 +396,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         if (*isrc) {
             rsvc_comments_add(comments, RSVC_ISRC, isrc);
         }
-        rsvc_flac_encode(read_pipe, file, nsamples, comments, ^(rsvc_error_t error){
+        rsvc_vorbis_encode(read_pipe, file, nsamples, comments, ^(rsvc_error_t error){
             if (error) {
                 done(error);
                 return;

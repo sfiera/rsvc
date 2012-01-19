@@ -34,6 +34,7 @@ def build(bld):
             "src/rsvc/comment.c",
             "src/rsvc/common.c",
             "src/rsvc/flac.c",
+            "src/rsvc/vorbis.c",
         ],
         includes="include",
         cflags=WARNINGS,
