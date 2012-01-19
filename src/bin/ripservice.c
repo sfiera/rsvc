@@ -36,9 +36,9 @@
 #include <rsvc/vorbis.h>
 
 typedef enum command {
-    NONE,
-    PRINT,
-    RIP,
+    COMMAND_NONE,
+    COMMAND_PRINT,
+    COMMAND_RIP,
 } command_t;
 
 struct print_options {
@@ -49,10 +49,16 @@ static void rsvc_command_print(print_options_t options,
                                void (^usage)(const char* message),
                                void (^check_error)(rsvc_error_t));
 
+typedef enum rip_format {
+    FORMAT_NONE,
+    FORMAT_FLAC,
+    FORMAT_VORBIS,
+} rip_format_t;
 struct rip_options {
     char* disk;
 
-    rsvc_comments_t comments;
+    rip_format_t format;
+    int bitrate;
 };
 typedef struct rip_options* rip_options_t;
 static void rsvc_command_rip(rip_options_t options,
@@ -60,10 +66,12 @@ static void rsvc_command_rip(rip_options_t options,
                              void (^check_error)(rsvc_error_t));
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error_t error));
+static bool read_format(const char* in, rip_format_t* out);
+static bool read_si_number(const char* in, int* out);
 
 static void rsvc_usage(const char* progname, command_t command) {
     switch (command) {
-      case NONE:
+      case COMMAND_NONE:
         fprintf(stderr,
                 "usage: %s COMMAND [OPTIONS]\n"
                 "\n"
@@ -73,21 +81,17 @@ static void rsvc_usage(const char* progname, command_t command) {
                 progname);
         break;
 
-      case PRINT:
+      case COMMAND_PRINT:
         fprintf(stderr, "usage: %s print DEVICE\n", progname);
         break;
 
-      case RIP:
+      case COMMAND_RIP:
         fprintf(stderr,
-                "usage: %s rip [OPTIONS] DEVICE\n"
+                "usage: %s rip -f FORMAT [OPTIONS] DEVICE\n"
                 "\n"
                 "Options:\n"
-                "  -a, --artist ARTIST   add ARTIST comment\n"
-                "  -A, --album ALBUM     add ALBUM comment\n"
-                "  -g, --genre GENRE     add GENRE comment\n"
-                "  -y, --year DATE       add DATE comment\n"
-                "  -d, --discnumber DISC add DISCNUMBER comment\n"
-                "  -D, --disctotal TOTAL add DISCTOTAL comment\n",
+                "  -f, --format FORMAT   choose format (flac or vorbis)\n"
+                "  -b, --bitrate BPS     set bitrate (allows k, M, or G suffix)\n",
                 progname);
         break;
     }
@@ -95,7 +99,7 @@ static void rsvc_usage(const char* progname, command_t command) {
 }
 
 static void rsvc_main(int argc, char* const* argv) {
-    __block command_t command = NONE;
+    __block command_t command = COMMAND_NONE;
     __block struct print_options print_options = {};
     __block struct rip_options rip_options = {};
 
@@ -109,35 +113,27 @@ static void rsvc_main(int argc, char* const* argv) {
     option_callbacks_t callbacks = {
         .short_option = ^bool (char opt, char* (^value)()){
             switch (command) {
-              case PRINT:
+              case COMMAND_PRINT:
                 break;
 
-              case RIP:
+              case COMMAND_RIP:
                 switch (opt) {
-                  case 'A':
-                    rsvc_comments_add(rip_options.comments, RSVC_ALBUM, value());
+                  case 'b':
+                    if (!read_si_number(value(), &rip_options.bitrate)) {
+                        usage("invalid bitrate");
+                    }
                     return true;
-                  case 'a':
-                    rsvc_comments_add(rip_options.comments, RSVC_ARTIST, value());
-                    return true;
-                  case 'd':
-                    rsvc_comments_add(rip_options.comments, RSVC_DISCNUMBER, value());
-                    return true;
-                  case 'D':
-                    rsvc_comments_add(rip_options.comments, RSVC_DISCTOTAL, value());
-                    return true;
-                  case 'g':
-                    rsvc_comments_add(rip_options.comments, RSVC_GENRE, value());
-                    return true;
-                  case 'y':
-                    rsvc_comments_add(rip_options.comments, RSVC_DATE, value());
+                  case 'f':
+                    if (!read_format(value(), &rip_options.format)) {
+                        usage("invalid format");
+                    }
                     return true;
                   default:
                     break;
                 }
                 break;
 
-              case NONE:
+              case COMMAND_NONE:
                 break;
             }
             return false;
@@ -145,30 +141,22 @@ static void rsvc_main(int argc, char* const* argv) {
 
         .long_option = ^bool (char* opt, char* (^value)()){
             switch (command) {
-              case PRINT:
+              case COMMAND_PRINT:
                 break;
-              case RIP:
-                if (strcmp(opt, "album") == 0) {
-                    rsvc_comments_add(rip_options.comments, RSVC_ALBUM, value());
+              case COMMAND_RIP:
+                if (strcmp(opt, "bitrate") == 0) {
+                    if (!read_si_number(value(), &rip_options.bitrate)) {
+                        usage("invalid bitrate");
+                    }
                     return true;
-                } else if (strcmp(opt, "artist") == 0) {
-                    rsvc_comments_add(rip_options.comments, RSVC_ARTIST, value());
-                    return true;
-                } else if (strcmp(opt, "discnumber") == 0) {
-                    rsvc_comments_add(rip_options.comments, RSVC_DISCNUMBER, value());
-                    return true;
-                } else if (strcmp(opt, "disctotal") == 0) {
-                    rsvc_comments_add(rip_options.comments, RSVC_DISCTOTAL, value());
-                    return true;
-                } else if (strcmp(opt, "genre") == 0) {
-                    rsvc_comments_add(rip_options.comments, RSVC_GENRE, value());
-                    return true;
-                } else if (strcmp(opt, "date") == 0) {
-                    rsvc_comments_add(rip_options.comments, RSVC_DATE, value());
+                } else if (strcmp(opt, "format") == 0) {
+                    if (!read_format(value(), &rip_options.format)) {
+                        usage("invalid format");
+                    }
                     return true;
                 }
                 break;
-              case NONE:
+              case COMMAND_NONE:
                 break;
             }
             return false;
@@ -176,26 +164,27 @@ static void rsvc_main(int argc, char* const* argv) {
 
         .argument = ^bool (char* arg){
             switch (command) {
-              case PRINT:
+              case COMMAND_PRINT:
                 if (!print_options.disk) {
                     print_options.disk = arg;
                     return true;
                 }
                 break;
 
-              case RIP:
+              case COMMAND_RIP:
                 if (!rip_options.disk) {
                     rip_options.disk = arg;
                     return true;
                 }
                 break;
 
-              case NONE:
+              case COMMAND_NONE:
                 if (strcmp(arg, "print") == 0) {
-                    command = PRINT;
+                    command = COMMAND_PRINT;
                 } else if (strcmp(arg, "rip") == 0) {
-                    command = RIP;
-                    rip_options.comments = rsvc_comments_create();
+                    command = COMMAND_RIP;
+                    rip_options.format = FORMAT_NONE;
+                    rip_options.bitrate = 0;
                 } else {
                     char* message;
                     asprintf(&message, "illegal command: %s\n", arg);
@@ -220,14 +209,14 @@ static void rsvc_main(int argc, char* const* argv) {
     };
 
     switch (command) {
-      case NONE:
+      case COMMAND_NONE:
         callbacks.usage(NULL);
 
-      case PRINT:
+      case COMMAND_PRINT:
         rsvc_command_print(&print_options, callbacks.usage, check_error);
         break;
 
-      case RIP:
+      case COMMAND_RIP:
         rsvc_command_rip(&rip_options, callbacks.usage, check_error);
         break;
     }
@@ -288,12 +277,14 @@ static void rsvc_command_rip(rip_options_t options,
     if (!options->disk) {
         usage(NULL);
     }
+    if (!options->format) {
+        usage("must choose format");
+    }
     rsvc_cd_create(options->disk, ^(rsvc_cd_t cd, rsvc_error_t error){
         check_error(error);
         dispatch_async(dispatch_get_main_queue(), ^{
             rip_all(cd, options, ^(rsvc_error_t error){
                 check_error(error);
-                rsvc_comments_destroy(options->comments);
                 rsvc_cd_destroy(cd);
                 exit(EX_OK);
             });
@@ -385,7 +376,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         // Encode the current track.  If that fails, bail.  If it
         // succeeds, decrement the number of pending operations.
         size_t nsamples = rsvc_cd_track_nsamples(track);
-        rsvc_comments_t comments = rsvc_comments_copy(options->comments);
+        rsvc_comments_t comments = rsvc_comments_create();
         rsvc_comments_add(comments, RSVC_ENCODER, "ripservice " RSVC_VERSION);
         rsvc_comments_add(comments, RSVC_MUSICBRAINZ_DISCID, rsvc_cd_discid(cd));
         rsvc_comments_add_int(comments, RSVC_TRACKNUMBER, track_number);
@@ -396,7 +387,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         if (*isrc) {
             rsvc_comments_add(comments, RSVC_ISRC, isrc);
         }
-        rsvc_vorbis_encode(read_pipe, file, nsamples, comments, ^(rsvc_error_t error){
+        void (^encode_done)(rsvc_error_t) = ^(rsvc_error_t error){
             if (error) {
                 done(error);
                 return;
@@ -404,9 +395,52 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
             close(read_pipe);
             printf("track %ld/%ld done.\n", rsvc_cd_track_number(track), ntracks);
             decrement_pending();
-        });
+        };
+        switch (options->format) {
+          case FORMAT_NONE:
+            abort();
+          case FORMAT_FLAC:
+            rsvc_flac_encode(read_pipe, file, nsamples, comments, encode_done);
+            return;
+          case FORMAT_VORBIS:
+            rsvc_vorbis_encode(read_pipe, file, nsamples, comments, encode_done);
+            return;
+        }
     });
     rip_track(0);
+}
+
+static bool read_format(const char* in, rip_format_t* out) {
+    if (strcmp(in, "flac") == 0) {
+        *out = FORMAT_FLAC;
+        return true;
+    } else if (strcmp(in, "vorbis") == 0) {
+        *out = FORMAT_VORBIS;
+        return true;
+    }
+    return false;
+}
+
+static bool read_si_number(const char* in, int* out) {
+    char* end;
+    *out = strtol(in, &end, 10);
+    if (*end == 0) {
+        return true;
+    } else if (end[1] != 0) {
+        return false;
+    } else {
+        switch (*end) {
+          case 'G':
+            *out *= 1000;
+          case 'M':
+            *out *= 1000;
+          case 'k':
+            *out *= 1000;
+            return true;
+          default:
+            return false;
+        }
+    }
 }
 
 int main(int argc, char* const* argv) {
