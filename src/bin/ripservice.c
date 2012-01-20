@@ -354,7 +354,16 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         int write_pipe = pipe_fd[1];
         int read_pipe = pipe_fd[0];
         char filename[256];
-        sprintf(filename, "%02ld.ogv", track_number);
+        switch (options->format) {
+          case FORMAT_NONE:
+            abort();
+          case FORMAT_FLAC:
+            sprintf(filename, "%02ld.flac", track_number);
+            break;
+          case FORMAT_VORBIS:
+            sprintf(filename, "%02ld.ogv", track_number);
+            break;
+        }
         int file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (file < 0) {
             rsvc_strerror(done, __FILE__, __LINE__);
