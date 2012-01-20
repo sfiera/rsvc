@@ -20,6 +20,7 @@
 
 #include <rsvc/flac.h>
 
+#include <Block.h>
 #include <FLAC/metadata.h>
 #include <FLAC/stream_encoder.h>
 #include <dispatch/dispatch.h>
@@ -42,11 +43,16 @@ static tell_status_t    flac_tell(const FLAC__StreamEncoder* encoder,
 
 void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_comments_t comments,
                       void (^done)(rsvc_error_t error)) {
+    done = Block_copy(done);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        FLAC__StreamEncoder *encoder = FLAC__stream_encoder_new();
+        FLAC__StreamEncoder *encoder = NULL;
+        FLAC__StreamMetadata* comment_metadata = NULL;
+        FLAC__StreamMetadata* padding_metadata = NULL;
+
+        encoder = FLAC__stream_encoder_new();
         if (encoder == NULL) {
             rsvc_const_error(done, __FILE__, __LINE__, "couldn't allocate FLAC encoder");
-            return;
+            goto encode_cleanup;
         }
 
         if (!(FLAC__stream_encoder_set_verify(encoder, true) &&
@@ -58,17 +64,15 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
             FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
             const char* message = FLAC__StreamEncoderStateString[state];
             rsvc_const_error(done, __FILE__, __LINE__, message);
-            return;
+            goto encode_cleanup;
         }
 
-        FLAC__StreamMetadata* comment_metadata =
-            FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
-        FLAC__StreamMetadata* padding_metadata =
-            FLAC__metadata_object_new(FLAC__METADATA_TYPE_PADDING);
+        comment_metadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
+        padding_metadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_PADDING);
         padding_metadata->length = 1024;
         if (!comment_metadata || !padding_metadata) {
             rsvc_const_error(done, __FILE__, __LINE__, "comment failure");
-            return;
+            goto encode_cleanup;
         }
 
         if (!rsvc_comments_each(comments, ^(const char* name, const char* value, rsvc_stop_t stop){
@@ -81,12 +85,12 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
                 stop();
             }
         })) {
-            return;
+            goto encode_cleanup;
         }
         FLAC__StreamMetadata* metadata[2] = {comment_metadata, padding_metadata};
         if (!FLAC__stream_encoder_set_metadata(encoder, metadata, 2)) {
             rsvc_const_error(done, __FILE__, __LINE__, "comment failure");
-            return;
+            goto encode_cleanup;
         }
 
         int fd = file;
@@ -101,7 +105,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
                 message = FLAC__StreamEncoderInitStatusString[init_status];
             }
             rsvc_const_error(done, __FILE__, __LINE__, message);
-            return;
+            goto encode_cleanup;
         }
 
         size_t start = 0;
@@ -110,7 +114,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
             ssize_t result = read(read_fd, buffer + start, 4096 - start);
             if (result < 0) {
                 rsvc_strerror(done, __FILE__, __LINE__);
-                break;
+                goto encode_cleanup;
             } else if (result == 0) {
                 break;
             }
@@ -129,7 +133,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
                     FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
                     const char* message = FLAC__StreamEncoderStateString[state];
                     rsvc_const_error(done, __FILE__, __LINE__, message);
-                    return;
+                    goto encode_cleanup;
                 }
                 memcpy(buffer, buffer + result, remainder);
             }
@@ -139,12 +143,14 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
             FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
             const char* message = FLAC__StreamEncoderStateString[state];
             rsvc_const_error(done, __FILE__, __LINE__, message);
-            return;
+            goto encode_cleanup;
         }
-        FLAC__metadata_object_delete(comment_metadata);
-        FLAC__metadata_object_delete(padding_metadata);
-        FLAC__stream_encoder_delete(encoder);
         done(NULL);
+encode_cleanup:
+        if (encoder) FLAC__stream_encoder_delete(encoder);
+        if (padding_metadata) FLAC__metadata_object_delete(padding_metadata);
+        if (comment_metadata) FLAC__metadata_object_delete(comment_metadata);
+        Block_release(done);
     });
 }
 

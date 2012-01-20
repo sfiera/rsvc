@@ -20,6 +20,7 @@
 
 #include <rsvc/cd.h>
 
+#include <Block.h>
 #include <IOKit/storage/IOCDTypes.h>
 #include <IOKit/storage/IOCDMediaBSDClient.h>
 #include <discid/discid.h>
@@ -85,6 +86,7 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
     cd->mcn[0]      = '\0';
     cd->ntracks     = 0;
 
+    done = Block_copy(done);
     dispatch_async(cd->queue, ^{
         // Read the CD's MCN, if it has one.
         dk_cd_read_mcn_t cd_read_mcn;
@@ -106,7 +108,7 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
             rsvc_strerror(^(rsvc_error_t error){
                 done(NULL, error);
             }, __FILE__, __LINE__);
-            return;
+            goto create_cleanup;
         }
         CDTOC* toc = (CDTOC*)buffer;
 
@@ -193,11 +195,14 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
             rsvc_const_error(^(rsvc_error_t error){
                 done(NULL, error);
             }, __FILE__, __LINE__, "discid failure");
+            goto create_cleanup;
         }
 
         rsvc_strerror(^(rsvc_error_t error){
             done(cd, NULL);
         }, __FILE__, __LINE__);
+create_cleanup:
+        Block_release(done);
     });
 }
 
@@ -289,6 +294,7 @@ const char* rsvc_cd_track_isrc(rsvc_cd_track_t track) {
 }
 
 void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd_out, void (^done)(rsvc_error_t)) {
+    done = Block_copy(done);
     dispatch_async(track->cd->queue, ^{
         uint8_t buffer[kCDSectorSizeCDDA];
         dk_cd_read_t cd_read;
@@ -309,7 +315,7 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd_out, void (^done)(rsvc_erro
 
             if (ioctl(track->cd->fd, DKIOCCDREAD, &cd_read) < 0) {
                 rsvc_strerror(done, __FILE__, __LINE__);
-                return;
+                goto rip_cleanup;
             }
 
             size_t written = 0;
@@ -319,10 +325,10 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd_out, void (^done)(rsvc_erro
                 // TODO(sfiera): 0 is not an error, but we must break early.
                 if (result < 0) {
                     rsvc_strerror(done, __FILE__, __LINE__);
-                    return;
+                    goto rip_cleanup;
                 } else if (result == 0) {
                     rsvc_const_error(done, __FILE__, __LINE__, "pipe closed");
-                    return;
+                    goto rip_cleanup;
                 } else {
                     written += result;
                     remaining -= result;
@@ -331,5 +337,7 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd_out, void (^done)(rsvc_erro
             offset += cd_read.bufferLength;
         }
         done(NULL);
+rip_cleanup:
+        Block_release(done);
     });
 }

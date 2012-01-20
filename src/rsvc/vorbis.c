@@ -20,6 +20,7 @@
 
 #include <rsvc/vorbis.h>
 
+#include <Block.h>
 #include <vorbis/vorbisenc.h>
 #include <dispatch/dispatch.h>
 #include <stdlib.h>
@@ -29,6 +30,7 @@
 
 void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
                         rsvc_comments_t comments, int bitrate, void (^done)(rsvc_error_t error)) {
+    done = Block_copy(done);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // Largely cribbed from libvorbis's examples/encoder_example.c.
         // Some comments there imply that it is doing things a certain
@@ -48,7 +50,7 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
         ret = vorbis_encode_init(&vi, 2, 44100, -1, bitrate, -1);
         if (ret != 0 ) {
             rsvc_const_error(done, __FILE__, __LINE__, "couldn't init vorbis encoder");
-            return;
+            goto encode_cleanup;
         }
         vorbis_analysis_init(&vd, &vi);
         vorbis_block_init(&vd, &vb);
@@ -93,7 +95,7 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
             ssize_t size = read(read_fd, in, sizeof(in));
             if (size < 0) {
                 rsvc_strerror(done, __FILE__, __LINE__);
-                return;
+                goto encode_cleanup;
             } else if (size == 0) {
                 vorbis_analysis_wrote(&vd, 0);
             } else {
@@ -142,5 +144,7 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
         vorbis_info_clear(&vi);
 
         done(NULL);
+encode_cleanup:
+        Block_release(done);
     });
 }

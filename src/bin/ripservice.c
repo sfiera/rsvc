@@ -304,22 +304,20 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
     // appropriate cleanup when it reaches 0.  Can't keep the blocks on
     // the stack.
     __block size_t pending = 1;
-    __block void (^increment_pending)() = Block_copy(^{
+    void (^increment_pending)() = ^{
         dispatch_async(dispatch_get_main_queue(), ^{
             ++pending;
         });
-    });
-    __block void (^decrement_pending)() = Block_copy(^{
+    };
+    void (^decrement_pending)() = ^{
         dispatch_async(dispatch_get_main_queue(), ^{
             if (--pending == 0) {
                 printf("all rips done.\n");
                 done(NULL);
                 Block_release(rip_track);
-                Block_release(increment_pending);
-                Block_release(decrement_pending);
             }
         });
-    });
+    };
 
     // Rip via a recursive block.  When each track has been ripped,
     // recursively calls itself to rip the next track (or to to
