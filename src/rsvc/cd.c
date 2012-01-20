@@ -36,7 +36,6 @@ struct rsvc_cd {
     dispatch_queue_t queue;
 
     int fd;
-    DiscId* discid;
     CDMCN mcn;
 
     size_t nsessions;
@@ -51,6 +50,7 @@ struct rsvc_cd_session {
     rsvc_cd_track_t track_begin;
     rsvc_cd_track_t track_end;
     size_t lead_out;
+    DiscId* discid;
 };
 
 struct rsvc_cd_track {
@@ -82,7 +82,6 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
     rsvc_cd_t cd    = malloc(sizeof(struct rsvc_cd));
     cd->queue       = dispatch_queue_create("net.sfiera.ripservice.cd", NULL);
     cd->fd          = fd;
-    cd->discid      = discid_new();
     cd->mcn[0]      = '\0';
     cd->ntracks     = 0;
 
@@ -116,8 +115,10 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
         cd->nsessions       = (toc->sessionLast - toc->sessionFirst) + 1;
         cd->sessions        = calloc(cd->nsessions, sizeof(struct rsvc_cd_session));
         for (size_t i = 0; i < cd->nsessions; ++i) {
-            memset(&cd->sessions[i], 0, sizeof(struct rsvc_cd_session));
-            cd->sessions[i].number = toc->sessionFirst + i;
+            rsvc_cd_session_t session = &cd->sessions[i];
+            memset(session, 0, sizeof(struct rsvc_cd_session));
+            session->number = toc->sessionFirst + i;
+            session->discid = discid_new();
         }
 
         // Count the number of normal tracks.
@@ -186,16 +187,22 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
         }
 
         // Calculate the discid for MusicBrainz.
-        int offsets[100] = {};
-        offsets[0] = cd->tracks[cd->ntracks - 1].sector_end + 150;
-        for(int i = 0; i < cd->ntracks; ++i) {
-            offsets[i + 1] = cd->tracks[i].sector_begin + 150;
-        }
-        if (!discid_put(cd->discid, 1, cd->ntracks, offsets)) {
-            rsvc_const_error(^(rsvc_error_t error){
-                done(NULL, error);
-            }, __FILE__, __LINE__, "discid failure");
-            goto create_cleanup;
+        for (size_t i = 0; i < cd->nsessions; ++i) {
+            rsvc_cd_session_t session = &cd->sessions[i];
+            int offsets[101] = {};
+            int* offset = offsets;
+            *(offset++) = (session->track_end - 1)->sector_end + 150;
+            for (rsvc_cd_track_t track = session->track_begin;
+                 track != session->track_end; ++track) {
+                *(offset++) = track->sector_begin + 150;
+            }
+            size_t ntracks = session->track_end - session->track_begin;
+            if (!discid_put(session->discid, 1, ntracks, offsets)) {
+                rsvc_const_error(^(rsvc_error_t error){
+                    done(NULL, error);
+                }, __FILE__, __LINE__, "discid failure");
+                goto create_cleanup;
+            }
         }
 
         rsvc_strerror(^(rsvc_error_t error){
@@ -207,9 +214,11 @@ create_cleanup:
 }
 
 void rsvc_cd_destroy(rsvc_cd_t cd) {
+    for (size_t i = 0; i < cd->nsessions; ++i) {
+        discid_free(cd->sessions[i].discid);
+    }
     free(cd->tracks);
     free(cd->sessions);
-    discid_free(cd->discid);
     close(cd->fd);
     dispatch_release(cd->queue);
     free(cd);
@@ -219,8 +228,12 @@ const char* rsvc_cd_mcn(rsvc_cd_t cd) {
     return cd->mcn;
 }
 
-const char* rsvc_cd_discid(rsvc_cd_t cd) {
-    return discid_get_id(cd->discid);
+size_t rsvc_cd_nsessions(rsvc_cd_t cd) {
+    return cd->nsessions;
+}
+
+rsvc_cd_session_t rsvc_cd_session(rsvc_cd_t cd, size_t n) {
+    return cd->sessions + n;
 }
 
 void rsvc_cd_each_session(rsvc_cd_t cd, void (^block)(rsvc_cd_session_t, rsvc_stop_t stop)) {
@@ -255,8 +268,16 @@ size_t rsvc_cd_session_lead_out(rsvc_cd_session_t session) {
     return session->lead_out;
 }
 
+const char* rsvc_cd_session_discid(rsvc_cd_session_t session) {
+    return discid_get_id(session->discid);
+}
+
 size_t rsvc_cd_session_ntracks(rsvc_cd_session_t session) {
     return session->track_end - session->track_begin;
+}
+
+rsvc_cd_track_t rsvc_cd_session_track(rsvc_cd_session_t session, size_t n) {
+    return session->track_begin + n;
 }
 
 void rsvc_cd_session_each_track(rsvc_cd_session_t session,

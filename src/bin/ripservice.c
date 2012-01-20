@@ -294,7 +294,8 @@ static void rsvc_command_rip(rip_options_t options,
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error_t error)) {
     printf("Ripping…\n");
-    const size_t ntracks = rsvc_cd_ntracks(cd);
+    rsvc_cd_session_t session = rsvc_cd_session(cd, 0);
+    const size_t ntracks = rsvc_cd_session_ntracks(session);
     __block void (^rip_track)(size_t n);
 
     // Track the number of pending operations: 1 for each track that we
@@ -328,7 +329,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
             decrement_pending();
             return;
         }
-        rsvc_cd_track_t track = rsvc_cd_track(cd, n);
+        rsvc_cd_track_t track = rsvc_cd_session_track(session, n);
         size_t track_number = rsvc_cd_track_number(track);
         const char* mcn = rsvc_cd_mcn(cd);
         const char* isrc = rsvc_cd_track_isrc(track);
@@ -376,7 +377,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         size_t nsamples = rsvc_cd_track_nsamples(track);
         rsvc_comments_t comments = rsvc_comments_create();
         rsvc_comments_add(comments, RSVC_ENCODER, "ripservice " RSVC_VERSION);
-        rsvc_comments_add(comments, RSVC_MUSICBRAINZ_DISCID, rsvc_cd_discid(cd));
+        rsvc_comments_add(comments, RSVC_MUSICBRAINZ_DISCID, rsvc_cd_session_discid(session));
         rsvc_comments_add_int(comments, RSVC_TRACKNUMBER, track_number);
         rsvc_comments_add_int(comments, RSVC_TRACKTOTAL, ntracks);
         if (*mcn) {
