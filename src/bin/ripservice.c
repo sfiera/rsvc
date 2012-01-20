@@ -67,7 +67,7 @@ static void rsvc_command_rip(rip_options_t options,
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error_t error));
 static bool read_format(const char* in, rip_format_t* out);
-static bool read_si_number(const char* in, int* out);
+static bool read_number(const char* in, int* out);
 
 static void rsvc_usage(const char* progname, command_t command) {
     switch (command) {
@@ -91,7 +91,7 @@ static void rsvc_usage(const char* progname, command_t command) {
                 "\n"
                 "Options:\n"
                 "  -f, --format FORMAT   choose format (flac or vorbis)\n"
-                "  -b, --bitrate BPS     set bitrate (allows k, M, or G suffix)\n",
+                "  -b, --bitrate KBPS    set bitrate in kBps (ignored if lossless)\n",
                 progname);
         break;
     }
@@ -119,7 +119,7 @@ static void rsvc_main(int argc, char* const* argv) {
               case COMMAND_RIP:
                 switch (opt) {
                   case 'b':
-                    if (!read_si_number(value(), &rip_options.bitrate)) {
+                    if (!read_number(value(), &rip_options.bitrate)) {
                         usage("invalid bitrate");
                     }
                     return true;
@@ -145,7 +145,7 @@ static void rsvc_main(int argc, char* const* argv) {
                 break;
               case COMMAND_RIP:
                 if (strcmp(opt, "bitrate") == 0) {
-                    if (!read_si_number(value(), &rip_options.bitrate)) {
+                    if (!read_number(value(), &rip_options.bitrate)) {
                         usage("invalid bitrate");
                     }
                     return true;
@@ -403,7 +403,8 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
             rsvc_flac_encode(read_pipe, file, nsamples, comments, encode_done);
             return;
           case FORMAT_VORBIS:
-            rsvc_vorbis_encode(read_pipe, file, nsamples, comments, encode_done);
+            rsvc_vorbis_encode(read_pipe, file, nsamples, comments, options->bitrate * 1000,
+                               encode_done);
             return;
         }
     });
@@ -421,26 +422,10 @@ static bool read_format(const char* in, rip_format_t* out) {
     return false;
 }
 
-static bool read_si_number(const char* in, int* out) {
+static bool read_number(const char* in, int* out) {
     char* end;
     *out = strtol(in, &end, 10);
-    if (*end == 0) {
-        return true;
-    } else if (end[1] != 0) {
-        return false;
-    } else {
-        switch (*end) {
-          case 'G':
-            *out *= 1000;
-          case 'M':
-            *out *= 1000;
-          case 'k':
-            *out *= 1000;
-            return true;
-          default:
-            return false;
-        }
-    }
+    return *end == 0;
 }
 
 int main(int argc, char* const* argv) {

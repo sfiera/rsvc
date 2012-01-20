@@ -28,7 +28,7 @@
 #include <unistd.h>
 
 void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
-                        rsvc_comments_t comments, void (^done)(rsvc_error_t error)) {
+                        rsvc_comments_t comments, int bitrate, void (^done)(rsvc_error_t error)) {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // Largely cribbed from libvorbis's examples/encoder_example.c.
         // Some comments there imply that it is doing things a certain
@@ -45,7 +45,7 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
 
         // Initialize the encoder.
         vorbis_info_init(&vi);
-        ret = vorbis_encode_init(&vi, 2, 44100, -1, 192000, -1);
+        ret = vorbis_encode_init(&vi, 2, 44100, -1, bitrate, -1);
         if (ret != 0 ) {
             rsvc_const_error(done, __FILE__, __LINE__, "couldn't init vorbis encoder");
             return;
