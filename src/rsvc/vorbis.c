@@ -109,9 +109,10 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
                 }
                 float** out = vorbis_analysis_buffer(&vd, sizeof(in));
                 float* channels[] = {out[0], out[1]};
-                for (uint8_t* p = in; p < in + size; p += 4) {
-                    *(channels[0]++) = (p[0] | ((int)(int8_t)p[1] << 8)) / 32768.f;
-                    *(channels[1]++) = (p[2] | ((int)(int8_t)p[3] << 8)) / 32768.f;
+                int16_t* in16 = (int16_t*)in;
+                for (int16_t* p = in16; p < in16 + (nsamples * 2); p += 2) {
+                    *(channels[0]++) = p[0] / 32768.f;
+                    *(channels[1]++) = p[1] / 32768.f;
                 }
                 vorbis_analysis_wrote(&vd, size / 4);
                 memcpy(in, in + size, start);

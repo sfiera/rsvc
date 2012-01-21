@@ -109,9 +109,10 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
         }
 
         size_t start = 0;
-        uint8_t buffer[4096];
+        static const int kSamples = 4096;
+        uint8_t buffer[kSamples];
         while (true) {
-            ssize_t result = read(read_fd, buffer + start, 4096 - start);
+            ssize_t result = read(read_fd, buffer + start, sizeof(buffer) - start);
             if (result < 0) {
                 rsvc_strerror(done, __FILE__, __LINE__);
                 goto encode_cleanup;
@@ -126,8 +127,9 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
             if (result > 0) {
                 FLAC__int32 samples[2048];
                 FLAC__int32* sp = samples;
-                for (uint8_t* p = buffer; p < buffer + result; p += 2) {
-                    *(sp++) = (p[0] | ((int)(int8_t)p[1] << 8));
+                int16_t* buffer16 = (int16_t*)buffer;
+                for (int16_t* p = buffer16; p < buffer16 + (nsamples * 2); ++p) {
+                    *(sp++) = *p;
                 }
                 if (!FLAC__stream_encoder_process_interleaved(encoder, samples, nsamples)) {
                     FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);

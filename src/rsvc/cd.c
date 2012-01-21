@@ -339,15 +339,16 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd_out, void (^done)(rsvc_erro
                 goto rip_cleanup;
             }
 
+            // TODO(sfiera): swap on big-endian, I guess.
             size_t written = 0;
             size_t remaining = cd_read.bufferLength;
             while (remaining > 0) {
                 int result = write(fd_out, buffer + written, remaining);
-                // TODO(sfiera): 0 is not an error, but we must break early.
                 if (result < 0) {
                     rsvc_strerror(done, __FILE__, __LINE__);
                     goto rip_cleanup;
                 } else if (result == 0) {
+                    // TODO(sfiera): 0 is not an error, but we must break early.
                     rsvc_const_error(done, __FILE__, __LINE__, "pipe closed");
                     goto rip_cleanup;
                 } else {
