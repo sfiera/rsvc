@@ -29,8 +29,11 @@
 #include <unistd.h>
 
 void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
-                        rsvc_comments_t comments, int bitrate, void (^done)(rsvc_error_t error)) {
+                        rsvc_comments_t comments, int bitrate,
+                        void (^progress)(double fraction),
+                        void (^done)(rsvc_error_t error)) {
     done = Block_copy(done);
+    progress = Block_copy(progress);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // Largely cribbed from libvorbis's examples/encoder_example.c.
         // Some comments there imply that it is doing things a certain
@@ -44,6 +47,7 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
         vorbis_dsp_state    vd;
         vorbis_block        vb;
         int                 ret;
+        size_t              samples_per_channel_read = 0;
 
         // Initialize the encoder.
         vorbis_info_init(&vi);
@@ -107,6 +111,7 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
                 if (nsamples == 0) {
                     continue;
                 }
+                samples_per_channel_read += nsamples;
                 float** out = vorbis_analysis_buffer(&vd, sizeof(in));
                 float* channels[] = {out[0], out[1]};
                 int16_t* in16 = (int16_t*)in;
@@ -136,6 +141,7 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
                     }
                 }
             }
+            progress(samples_per_channel_read * 1.0 / samples_per_channel);
         }
 
         ogg_stream_clear(&os);
@@ -146,6 +152,7 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
 
         done(NULL);
 encode_cleanup:
+        Block_release(progress);
         Block_release(done);
     });
 }

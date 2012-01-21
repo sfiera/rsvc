@@ -324,7 +324,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
     // recursively calls itself to rip the next track (or to to
     // terminate when `n == ntracks`).  Can't keep the block on the
     // stack, since we exit this function immediately.
-    rip_track = Block_copy(^(size_t n) {
+    rip_track = ^(size_t n){
         if (n == ntracks) {
             decrement_pending();
             return;
@@ -395,6 +395,14 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         if (*isrc) {
             rsvc_comments_add(comments, RSVC_ISRC, isrc);
         }
+        __block int last_progress = -1;
+        void (^encode_progress)(double) = ^(double progress){
+            int int_progress = progress * 100;
+            if (last_progress != int_progress) {
+                last_progress = int_progress;
+                printf("%d%%\n", last_progress);
+            }
+        };
         void (^encode_done)(rsvc_error_t) = ^(rsvc_error_t error){
             if (error) {
                 done(error);
@@ -408,14 +416,15 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
           case FORMAT_NONE:
             abort();
           case FORMAT_FLAC:
-            rsvc_flac_encode(read_pipe, file, nsamples, comments, encode_done);
+            rsvc_flac_encode(read_pipe, file, nsamples, comments, encode_progress, encode_done);
             return;
           case FORMAT_VORBIS:
             rsvc_vorbis_encode(read_pipe, file, nsamples, comments, options->bitrate * 1000,
-                               encode_done);
+                               encode_progress, encode_done);
             return;
         }
-    });
+    };
+    rip_track = Block_copy(rip_track);
     rip_track(0);
 }
 

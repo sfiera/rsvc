@@ -42,12 +42,15 @@ static tell_status_t    flac_tell(const FLAC__StreamEncoder* encoder,
 
 
 void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_comments_t comments,
+                      void (^progress)(double fraction),
                       void (^done)(rsvc_error_t error)) {
     done = Block_copy(done);
+    progress = Block_copy(progress);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         FLAC__StreamEncoder *encoder = NULL;
         FLAC__StreamMetadata* comment_metadata = NULL;
         FLAC__StreamMetadata* padding_metadata = NULL;
+        size_t samples_per_channel_read = 0;
 
         encoder = FLAC__stream_encoder_new();
         if (encoder == NULL) {
@@ -124,6 +127,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
             size_t remainder = result % 4;
             result -= remainder;
             size_t nsamples = result / 4;
+            samples_per_channel_read += nsamples;
             if (result > 0) {
                 FLAC__int32 samples[2048];
                 FLAC__int32* sp = samples;
@@ -140,6 +144,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
                 memcpy(buffer, buffer + result, remainder);
             }
             start = remainder;
+            progress(samples_per_channel_read * 1.0 / samples_per_channel);
         }
         if (!FLAC__stream_encoder_finish(encoder)) {
             FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
@@ -152,6 +157,7 @@ encode_cleanup:
         if (encoder) FLAC__stream_encoder_delete(encoder);
         if (padding_metadata) FLAC__metadata_object_delete(padding_metadata);
         if (comment_metadata) FLAC__metadata_object_delete(comment_metadata);
+        Block_release(progress);
         Block_release(done);
     });
 }
