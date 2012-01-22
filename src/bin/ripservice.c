@@ -292,10 +292,108 @@ static void rsvc_command_rip(rip_options_t options,
     });
 }
 
+static void* memdup(void* data, size_t size) {
+    void* copy = malloc(size);
+    memcpy(copy, data, size);
+    return copy;
+}
+
+struct progress_node {
+    char* name;
+    int percent;
+    struct progress* parent;
+    struct progress_node* prev;
+    struct progress_node* next;
+};
+typedef struct progress_node* progress_node_t;
+
+struct progress {
+    progress_node_t head;
+    progress_node_t tail;
+};
+typedef struct progress* progress_t;
+
+static progress_t progress_create() {
+    struct progress p = {NULL, NULL};
+    return (progress_t)memdup(&p, sizeof(p));
+}
+
+static void progress_destroy(progress_t progress) {
+    free(progress);
+}
+
+// main queue only.
+static void progress_hide(progress_t progress) {
+    for (progress_node_t curr = progress->head; curr; curr = curr->next) {
+        printf("\033[1A\033[2K");
+    }
+}
+
+// main queue only.
+static void progress_show(progress_t progress) {
+    for (progress_node_t curr = progress->head; curr; curr = curr->next) {
+        printf("%4d%%   %s\n", curr->percent, curr->name);
+    }
+}
+
+static void progress_update(progress_node_t node, double fraction) {
+    int percent = fraction * 100;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (node->percent == percent) {
+            return;
+        }
+        progress_hide(node->parent);
+        node->percent = percent;
+        progress_show(node->parent);
+    });
+}
+
+static void progress_done(progress_node_t node) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        progress_hide(node->parent);
+        printf(" done   %s\n", node->name);
+        free(node->name);
+        if (node->prev) {
+            node->prev->next = node->next;
+        } else {
+            node->parent->head = node->next;
+        }
+        if (node->next) {
+            node->next->prev = node->prev;
+        } else {
+            node->parent->tail = node->prev;
+        }
+        free(node);
+        progress_show(node->parent);
+    });
+}
+
+static progress_node_t progress_start(progress_t progress, const char* name) {
+    progress_node_t node = malloc(sizeof(struct progress_node));
+    node->name = strdup(name);
+    node->percent = 0;
+    node->parent = progress;
+    node->prev = node->next = NULL;
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        progress_hide(progress);
+        if (progress->tail) {
+            progress->tail->next = node;
+        } else {
+            progress->head = node;
+        }
+        node->prev = progress->tail;
+        progress->tail = node;
+        progress_show(progress);
+    });
+    return node;
+}
+
 static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error_t error)) {
     printf("Ripping…\n");
     rsvc_cd_session_t session = rsvc_cd_session(cd, 0);
     const size_t ntracks = rsvc_cd_session_ntracks(session);
+    progress_t progress = progress_create();
     __block void (^rip_track)(size_t n);
 
     // Track the number of pending operations: 1 for each track that we
@@ -316,6 +414,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
                 printf("all rips done.\n");
                 done(NULL);
                 Block_release(rip_track);
+                progress_destroy(progress);
             }
         });
     };
@@ -383,6 +482,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
 
         // Encode the current track.  If that fails, bail.  If it
         // succeeds, decrement the number of pending operations.
+        progress_node_t node = progress_start(progress, filename);
         size_t nsamples = rsvc_cd_track_nsamples(track);
         rsvc_comments_t comments = rsvc_comments_create();
         rsvc_comments_add(comments, RSVC_ENCODER, "ripservice " RSVC_VERSION);
@@ -395,32 +495,27 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         if (*isrc) {
             rsvc_comments_add(comments, RSVC_ISRC, isrc);
         }
-        __block int last_progress = -1;
-        void (^encode_progress)(double) = ^(double progress){
-            int int_progress = progress * 100;
-            if (last_progress != int_progress) {
-                last_progress = int_progress;
-                printf("%d%%\n", last_progress);
-            }
-        };
         void (^encode_done)(rsvc_error_t) = ^(rsvc_error_t error){
             if (error) {
                 done(error);
                 return;
             }
             close(read_pipe);
-            printf("track %ld/%ld done.\n", rsvc_cd_track_number(track), ntracks);
+            progress_done(node);
             decrement_pending();
+        };
+        void (^progress)(double) = ^(double fraction){
+            progress_update(node, fraction);
         };
         switch (options->format) {
           case FORMAT_NONE:
             abort();
           case FORMAT_FLAC:
-            rsvc_flac_encode(read_pipe, file, nsamples, comments, encode_progress, encode_done);
+            rsvc_flac_encode(read_pipe, file, nsamples, comments, progress, encode_done);
             return;
           case FORMAT_VORBIS:
             rsvc_vorbis_encode(read_pipe, file, nsamples, comments, options->bitrate * 1000,
-                               encode_progress, encode_done);
+                               progress, encode_done);
             return;
         }
     };
