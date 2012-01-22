@@ -38,11 +38,11 @@ void                    rsvc_cd_destroy(rsvc_cd_t cd);
 const char*             rsvc_cd_mcn(rsvc_cd_t cd);
 size_t                  rsvc_cd_nsessions(rsvc_cd_t cd);
 rsvc_cd_session_t       rsvc_cd_session(rsvc_cd_t cd, size_t n);
-void                    rsvc_cd_each_session(rsvc_cd_t,
+bool                    rsvc_cd_each_session(rsvc_cd_t,
                                              void (^block)(rsvc_cd_session_t, rsvc_stop_t));
 size_t                  rsvc_cd_ntracks(rsvc_cd_t cd);
 rsvc_cd_track_t         rsvc_cd_track(rsvc_cd_t cd, size_t n);
-void                    rsvc_cd_each_track(rsvc_cd_t cd,
+bool                    rsvc_cd_each_track(rsvc_cd_t cd,
                                            void (^block)(rsvc_cd_track_t, rsvc_stop_t));
 
 size_t                  rsvc_cd_session_number(rsvc_cd_session_t session);
@@ -50,7 +50,7 @@ size_t                  rsvc_cd_session_lead_out(rsvc_cd_session_t session);
 const char*             rsvc_cd_session_discid(rsvc_cd_session_t session);
 size_t                  rsvc_cd_session_ntracks(rsvc_cd_session_t session);
 rsvc_cd_track_t         rsvc_cd_session_track(rsvc_cd_session_t session, size_t n);
-void                    rsvc_cd_session_each_track(rsvc_cd_session_t session,
+bool                    rsvc_cd_session_each_track(rsvc_cd_session_t session,
                                                    void (^block)(rsvc_cd_track_t, rsvc_stop_t));
 
 size_t                  rsvc_cd_track_number(rsvc_cd_track_t track);
