@@ -535,6 +535,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
             }
             close(read_pipe);
             progress_done(node);
+            rsvc_tags_destroy(tags);
             decrement_pending();
         };
         void (^progress)(double) = ^(double fraction){
