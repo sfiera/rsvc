@@ -29,7 +29,7 @@
 #include <unistd.h>
 
 void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
-                        rsvc_comments_t comments, int bitrate,
+                        rsvc_tags_t tags, int bitrate,
                         void (^progress)(double fraction),
                         void (^done)(rsvc_error_t error)) {
     done = Block_copy(done);
@@ -65,10 +65,10 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
         unsigned seed = time(NULL);
         ogg_stream_init(&os, rand_r(&seed));
 
-        // Copy `comments` into `vc`.
+        // Copy `tags` into `vc`.
         vorbis_comment_init(&vc);
         vorbis_comment* vcp = &vc;
-        rsvc_comments_each(comments, ^(const char* name, const char* value, rsvc_stop_t stop){
+        rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
             vorbis_comment_add_tag(vcp, name, value);
         });
 

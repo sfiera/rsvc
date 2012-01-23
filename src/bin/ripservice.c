@@ -32,7 +32,7 @@
 #include <unistd.h>
 
 #include <rsvc/cd.h>
-#include <rsvc/comment.h>
+#include <rsvc/tag.h>
 #include <rsvc/flac.h>
 #include <rsvc/vorbis.h>
 
@@ -517,16 +517,16 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         // succeeds, decrement the number of pending operations.
         progress_node_t node = progress_start(progress, filename);
         size_t nsamples = rsvc_cd_track_nsamples(track);
-        rsvc_comments_t comments = rsvc_comments_create();
-        rsvc_comments_add(comments, RSVC_ENCODER, "ripservice " RSVC_VERSION);
-        rsvc_comments_add(comments, RSVC_MUSICBRAINZ_DISCID, rsvc_cd_session_discid(session));
-        rsvc_comments_add_int(comments, RSVC_TRACKNUMBER, track_number);
-        rsvc_comments_add_int(comments, RSVC_TRACKTOTAL, ntracks);
+        rsvc_tags_t tags = rsvc_tags_create();
+        rsvc_tags_add(tags, RSVC_ENCODER, "ripservice " RSVC_VERSION);
+        rsvc_tags_add(tags, RSVC_MUSICBRAINZ_DISCID, rsvc_cd_session_discid(session));
+        rsvc_tags_add_int(tags, RSVC_TRACKNUMBER, track_number);
+        rsvc_tags_add_int(tags, RSVC_TRACKTOTAL, ntracks);
         if (*mcn) {
-            rsvc_comments_add(comments, RSVC_MCN, mcn);
+            rsvc_tags_add(tags, RSVC_MCN, mcn);
         }
         if (*isrc) {
-            rsvc_comments_add(comments, RSVC_ISRC, isrc);
+            rsvc_tags_add(tags, RSVC_ISRC, isrc);
         }
         void (^encode_done)(rsvc_error_t) = ^(rsvc_error_t error){
             if (error) {
@@ -544,10 +544,10 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
           case FORMAT_NONE:
             abort();
           case FORMAT_FLAC:
-            rsvc_flac_encode(read_pipe, file, nsamples, comments, progress, encode_done);
+            rsvc_flac_encode(read_pipe, file, nsamples, tags, progress, encode_done);
             return;
           case FORMAT_VORBIS:
-            rsvc_vorbis_encode(read_pipe, file, nsamples, comments, options->bitrate,
+            rsvc_vorbis_encode(read_pipe, file, nsamples, tags, options->bitrate,
                                progress, encode_done);
             return;
         }

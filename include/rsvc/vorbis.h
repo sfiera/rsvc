@@ -22,11 +22,11 @@
 #define RSVC_VORBIS_H_
 
 #include <stdlib.h>
-#include <rsvc/comment.h>
+#include <rsvc/tag.h>
 #include <rsvc/common.h>
 
 void                    rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
-                                           rsvc_comments_t comments, int bitrate,
+                                           rsvc_tags_t tags, int bitrate,
                                            void (^progress)(double fraction),
                                            void (^done)(rsvc_error_t error));
 
