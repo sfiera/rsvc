@@ -1,4 +1,4 @@
 /.lock-wafbuild
 /.waf-*
 /build
-/doc
+*.h.rst
