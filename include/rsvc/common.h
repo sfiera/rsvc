@@ -24,12 +24,18 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
+/// Common Utilities
+/// ================
+///
 /// ..  macro:: RSVC_VERSION
 ///
 ///     A string constant declaring the version of Rip Service compiled
 ///     against.
 #define RSVC_VERSION "0.0.0"
 
+/// Iteration
+/// ---------
+///
 /// ..  type:: void (^rsvc_stop_t)()
 ///
 ///     Indicates that a for-each loop should stop.  A typical for-each
@@ -51,6 +57,9 @@
 ///
 typedef void (^rsvc_stop_t)();
 
+/// Error Handling
+/// --------------
+///
 /// ..  type:: rsvc_error_t
 ///
 ///     Contains error information.  Typically provided as an argument
@@ -115,6 +124,9 @@ void                    rsvc_errorf(void (^callback)(rsvc_error_t),
 void                    rsvc_strerrorf(void (^callback)(rsvc_error_t),
                                        const char* file, int lineno, const char* format, ...);
 
+/// Option Parsing
+/// --------------
+///
 /// ..  type:: option_callbacks_t
 ///
 ///     A struct of blocks that can be used with :func:`rsvc_options()`.
