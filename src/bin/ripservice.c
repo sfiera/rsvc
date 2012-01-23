@@ -19,6 +19,7 @@
 //
 
 #include <Block.h>
+#include <ctype.h>
 #include <dispatch/dispatch.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -46,7 +47,7 @@ struct print_options {
 };
 typedef struct print_options* print_options_t;
 static void rsvc_command_print(print_options_t options,
-                               void (^usage)(const char* message),
+                               void (^usage)(const char* message, ...),
                                void (^check_error)(rsvc_error_t));
 
 typedef enum rip_format {
@@ -58,16 +59,17 @@ struct rip_options {
     char* disk;
 
     rip_format_t format;
-    int bitrate;
+    bool has_bitrate;
+    int64_t bitrate;
 };
 typedef struct rip_options* rip_options_t;
 static void rsvc_command_rip(rip_options_t options,
-                             void (^usage)(const char* message),
+                             void (^usage)(const char* message, ...),
                              void (^check_error)(rsvc_error_t));
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error_t error));
 static bool read_format(const char* in, rip_format_t* out);
-static bool read_number(const char* in, int* out);
+static bool read_si_number(const char* in, int64_t* out);
 
 static void rsvc_usage(const char* progname, command_t command) {
     switch (command) {
@@ -82,16 +84,19 @@ static void rsvc_usage(const char* progname, command_t command) {
         break;
 
       case COMMAND_PRINT:
-        fprintf(stderr, "usage: %s print DEVICE\n", progname);
+        fprintf(stderr, "usage: %s DEVICE\n", progname);
         break;
 
       case COMMAND_RIP:
         fprintf(stderr,
-                "usage: %s rip -f FORMAT [OPTIONS] DEVICE\n"
+                "usage: %s -f FORMAT [OPTIONS] DEVICE\n"
                 "\n"
                 "Options:\n"
-                "  -f, --format FORMAT   choose format (flac or vorbis)\n"
-                "  -b, --bitrate KBPS    set bitrate in kBps (ignored if lossless)\n",
+                "  -f, --format FORMAT   choose format\n"
+                "  -b, --bitrate KBPS    set bitrate for lossy codecs\n"
+                "\n"
+                "Formats:\n"
+                "  flac, vorbis\n",
                 progname);
         break;
     }
@@ -99,14 +104,19 @@ static void rsvc_usage(const char* progname, command_t command) {
 }
 
 static void rsvc_main(int argc, char* const* argv) {
-    __block command_t command = COMMAND_NONE;
     __block struct print_options print_options = {};
     __block struct rip_options rip_options = {};
 
-    const char* progname = basename(argv[0]);
-    void (^usage)(const char* message) = ^(const char* message){
+    __block char* progname = strdup(basename(argv[0]));
+    __block command_t command = COMMAND_NONE;
+    void (^usage)(const char* message, ...) = ^(const char* message, ...){
         if (message) {
-            fprintf(stderr, "%s: %s\n", progname, message);
+            fprintf(stderr, "%s: ", progname);
+            va_list vl;
+            va_start(vl, message);
+            vfprintf(stderr, message, vl);
+            va_end(vl);
+            fprintf(stderr, "\n");
         }
         rsvc_usage(progname, command);
     };
@@ -119,13 +129,14 @@ static void rsvc_main(int argc, char* const* argv) {
               case COMMAND_RIP:
                 switch (opt) {
                   case 'b':
-                    if (!read_number(value(), &rip_options.bitrate)) {
-                        usage("invalid bitrate");
+                    if (!read_si_number(value(), &rip_options.bitrate)) {
+                        usage("invalid bitrate: %s", value());
                     }
+                    rip_options.has_bitrate = true;
                     return true;
                   case 'f':
                     if (!read_format(value(), &rip_options.format)) {
-                        usage("invalid format");
+                        usage("invalid format: %s", value());
                     }
                     return true;
                   default:
@@ -145,13 +156,14 @@ static void rsvc_main(int argc, char* const* argv) {
                 break;
               case COMMAND_RIP:
                 if (strcmp(opt, "bitrate") == 0) {
-                    if (!read_number(value(), &rip_options.bitrate)) {
-                        usage("invalid bitrate");
+                    if (!read_si_number(value(), &rip_options.bitrate)) {
+                        usage("invalid bitrate: %s", value());
                     }
+                    rip_options.has_bitrate = true;
                     return true;
                 } else if (strcmp(opt, "format") == 0) {
                     if (!read_format(value(), &rip_options.format)) {
-                        usage("invalid format");
+                        usage("invalid format: %s", value());
                     }
                     return true;
                 }
@@ -179,17 +191,20 @@ static void rsvc_main(int argc, char* const* argv) {
                 break;
 
               case COMMAND_NONE:
-                if (strcmp(arg, "print") == 0) {
-                    command = COMMAND_PRINT;
-                } else if (strcmp(arg, "rip") == 0) {
-                    command = COMMAND_RIP;
-                    rip_options.format = FORMAT_NONE;
-                    rip_options.bitrate = 0;
-                } else {
-                    char* message;
-                    asprintf(&message, "illegal command: %s\n", arg);
-                    usage(message);
-                    free(message);
+                {
+                    if (strcmp(arg, "print") == 0) {
+                        command = COMMAND_PRINT;
+                    } else if (strcmp(arg, "rip") == 0) {
+                        command = COMMAND_RIP;
+                        rip_options.format = FORMAT_NONE;
+                        rip_options.has_bitrate = false;
+                        rip_options.bitrate = 0;
+                    } else {
+                        usage("illegal command: %s", arg);
+                    }
+                    char* oldprogname = progname;
+                    asprintf(&progname, "%s %s", oldprogname, arg);
+                    free(oldprogname);
                 }
                 return true;
             }
@@ -225,7 +240,7 @@ static void rsvc_main(int argc, char* const* argv) {
 }
 
 static void rsvc_command_print(print_options_t options,
-                               void (^usage)(const char* message),
+                               void (^usage)(const char* message, ...),
                                void (^check_error)(rsvc_error_t)) {
     if (options->disk == NULL) {
         usage(NULL);
@@ -272,13 +287,31 @@ static void rsvc_command_print(print_options_t options,
 }
 
 static void rsvc_command_rip(rip_options_t options,
-                             void (^usage)(const char* message),
+                             void (^usage)(const char* message, ...),
                              void (^check_error)(rsvc_error_t)) {
     if (!options->disk) {
         usage(NULL);
     }
     if (!options->format) {
         usage("must choose format");
+    }
+    switch (options->format) {
+      case FORMAT_NONE:
+        abort();
+      case FORMAT_FLAC:
+        if (options->has_bitrate) {
+            usage("bitrate provided for lossless format");
+        }
+        break;
+      case FORMAT_VORBIS:
+        if (!options->has_bitrate) {
+            usage("must choose bitrate");
+        } else if (options->bitrate < 48000) {
+            usage("bitrate too low: %lld", options->bitrate);
+        } else if (options->bitrate > 480000) {
+            usage("bitrate too high: %lld", options->bitrate);
+        }
+        break;
     }
     rsvc_cd_create(options->disk, ^(rsvc_cd_t cd, rsvc_error_t error){
         check_error(error);
@@ -514,7 +547,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
             rsvc_flac_encode(read_pipe, file, nsamples, comments, progress, encode_done);
             return;
           case FORMAT_VORBIS:
-            rsvc_vorbis_encode(read_pipe, file, nsamples, comments, options->bitrate * 1000,
+            rsvc_vorbis_encode(read_pipe, file, nsamples, comments, options->bitrate,
                                progress, encode_done);
             return;
         }
@@ -534,10 +567,39 @@ static bool read_format(const char* in, rip_format_t* out) {
     return false;
 }
 
-static bool read_number(const char* in, int* out) {
+static bool multiply_safe(int64_t* value, int64_t by) {
+    if ((INT64_MAX / by) < *value) {
+        return false;
+    }
+    *value *= by;
+    return true;
+}
+
+static bool read_si_number(const char* in, int64_t* out) {
     char* end;
     *out = strtol(in, &end, 10);
-    return *end == 0;
+    if (end[0] == '\0') {
+        return true;
+    } else if (end[1] == '\0') {
+        switch (tolower(end[0])) {
+          case 'k': return multiply_safe(out, 1e3);
+          case 'm': return multiply_safe(out, 1e6);
+          case 'g': return multiply_safe(out, 1e9);
+          case 't': return multiply_safe(out, 1e12);
+          case 'p': return multiply_safe(out, 1e15);
+          case 'e': return multiply_safe(out, 1e18);
+        }
+    } else if ((end[2] == '\0') && (end[1] == 'i')) {
+        switch (tolower(end[0])) {
+          case 'k': return multiply_safe(out, 1LL << 10);
+          case 'm': return multiply_safe(out, 1LL << 20);
+          case 'g': return multiply_safe(out, 1LL << 30);
+          case 't': return multiply_safe(out, 1LL << 40);
+          case 'p': return multiply_safe(out, 1LL << 50);
+          case 'e': return multiply_safe(out, 1LL << 60);
+        }
+    }
+    return false;
 }
 
 int main(int argc, char* const* argv) {

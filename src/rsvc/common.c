@@ -42,75 +42,70 @@ void rsvc_const_error(void (^callback)(rsvc_error_t),
 }
 
 void rsvc_options(size_t argc, char* const* argv, option_callbacks_t* callbacks) {
-    __block char* message = NULL;
-    void (^options_failure)() = ^{
-        callbacks->usage(message);
-        free(message);
-        exit(EX_USAGE);
-    };
-    __block size_t i;
-    for (i = 1; i < argc; ++i) {
+    __block size_t i = 1;
+    for ( ; i < argc; ++i) {
         char* arg = argv[i];
-        if (arg[0] == '-') {
-            if (arg[1] == '-') {
-                if (arg[2] == '\0') {
-                    break;
-                }
-                char* opt = strdup(arg + 2);
-                char* eq = strchr(opt, '=');
-                if (eq) {
-                    *eq = '\0';
-                    char* value = eq + 1;
-                    __block bool used_value = false;
-                    if (!callbacks->long_option(opt, ^{
-                        used_value = true;
-                        return value;
-                    })) {
-                        asprintf(&message, "illegal option: --%s", opt);
-                        options_failure();
-                    };
-                    if (!used_value) {
-                        asprintf(&message, "option --%s: no argument permitted", opt);
-                        options_failure();
+        if (strcmp(arg, "--") == 0) {
+            // --
+            ++i;
+            break;
+        } else if (strncmp(arg, "--", 2) == 0) {
+            char* opt = strdup(arg + 2);
+            char* eq = strchr(opt, '=');
+            __block char* value = NULL;
+            if (eq) {
+                // --option=value
+                *eq = '\0';
+                value = eq + 1;
+                if (!callbacks->long_option(opt, ^{
+                    if (!value) {
+                        value = eq + 1;
                     }
-                } else {
-                    if (!callbacks->long_option(opt, ^{
-                        if (++i == argc) {
-                            asprintf(&message, "option --%s: argument required", opt);
-                            options_failure();
-                        }
-                        return argv[i];
-                    })) {
-                        asprintf(&message, "illegal option: --%s", opt);
-                        options_failure();
-                    };
+                    return value;
+                })) {
+                    callbacks->usage("illegal option: --%s", opt);
                 }
-                free(opt);
+                if (!value) {
+                    callbacks->usage("option --%s: no argument permitted", opt);
+                }
             } else {
-                __block bool used_value = false;
-                for (char* ch = arg + 1; *ch && !used_value; ++ch) {
-                    if (!callbacks->short_option(*ch, ^{
-                        used_value = true;
-                        char* value = ch + 1;
-                        if (*value) {
-                            return value;
-                        } else {
-                            if (++i == argc) {
-                                asprintf(&message, "option -%c: argument required", *ch);
-                                options_failure();
-                            }
-                            return argv[i];
+                // --option; --option value
+                if (!callbacks->long_option(opt, ^{
+                    if (!value) {
+                        if (++i == argc) {
+                            callbacks->usage("option --%s: argument required", opt);
                         }
-                    })) {
-                        asprintf(&message, "illegal option: -%c", *ch);
-                        options_failure();
-                    };
-                }
+                        value = argv[i];
+                    }
+                    return value;
+                })) {
+                    callbacks->usage("illegal option: --%s", opt);
+                };
+            }
+            free(opt);
+        } else if ((arg[0] == '-') && (arg[1] != '\0')) {
+            // -abco; -abcovalue; -abco value
+            __block char* value = NULL;
+            for (char* ch = arg + 1; *ch && !value; ++ch) {
+                if (!callbacks->short_option(*ch, ^{
+                    if (!value) {
+                        value = ch + 1;
+                        if (!*value) {
+                            if (++i == argc) {
+                                callbacks->usage("option -%c: argument required", *ch);
+                            }
+                            value = argv[i];
+                        }
+                    }
+                    return value;
+                })) {
+                    callbacks->usage("illegal option: -%c", *ch);
+                };
             }
         } else {
+            // argument
             if (!callbacks->argument(arg)) {
-                asprintf(&message, "too many arguments");
-                options_failure();
+                callbacks->usage("too many arguments");
             }
         }
     }
@@ -118,8 +113,7 @@ void rsvc_options(size_t argc, char* const* argv, option_callbacks_t* callbacks)
     // Catch arguments after --.
     for ( ; i < argc; ++i) {
         if (!callbacks->argument(argv[i])) {
-            asprintf(&message, "too many arguments");
-            options_failure();
+            callbacks->usage("too many arguments");
         }
     }
 }

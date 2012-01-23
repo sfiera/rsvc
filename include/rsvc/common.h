@@ -43,7 +43,7 @@ typedef struct option_callbacks {
     bool (^short_option)(char opt, char* (^)());
     bool (^long_option)(char* opt, char* (^)());
     bool (^argument)(char* arg);
-    void (^usage)(const char* message);
+    void (^usage)(const char* message, ...);
 } option_callbacks_t;
 
 void                    rsvc_options(size_t argc, char* const* argv,
