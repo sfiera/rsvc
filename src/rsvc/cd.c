@@ -269,10 +269,6 @@ size_t rsvc_cd_session_number(rsvc_cd_session_t session) {
     return session->number;
 }
 
-size_t rsvc_cd_session_lead_out(rsvc_cd_session_t session) {
-    return session->lead_out;
-}
-
 const char* rsvc_cd_session_discid(rsvc_cd_session_t session) {
     return discid_get_id(session->discid);
 }
@@ -321,7 +317,7 @@ const char* rsvc_cd_track_isrc(rsvc_cd_track_t track) {
     return track->isrc;
 }
 
-void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd_out, void (^done)(rsvc_error_t)) {
+void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, void (^done)(rsvc_error_t)) {
     done = Block_copy(done);
     dispatch_async(track->cd->queue, ^{
         uint8_t buffer[kCDSectorSizeCDDA];
@@ -350,7 +346,7 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd_out, void (^done)(rsvc_erro
             size_t written = 0;
             size_t remaining = cd_read.bufferLength;
             while (remaining > 0) {
-                int result = write(fd_out, buffer + written, remaining);
+                int result = write(fd, buffer + written, remaining);
                 if (result < 0) {
                     rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
                     goto rip_cleanup;
