@@ -2,8 +2,11 @@
 
 set -o errexit
 
+mkdir -p doc
+find doc -name '*.h.rst' | xargs rm
+
 cd include
-find . -type f | while read IN; do
+find . -name '*.h' | while read IN; do
     OUT=../doc/$IN.rst
     mkdir -p $(dirname ../doc/$IN)
     cat $IN \
