@@ -53,7 +53,7 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
         vorbis_info_init(&vi);
         ret = vorbis_encode_init(&vi, 2, 44100, -1, bitrate, -1);
         if (ret != 0 ) {
-            rsvc_const_error(done, __FILE__, __LINE__, "couldn't init vorbis encoder");
+            rsvc_errorf(done, __FILE__, __LINE__, "couldn't init vorbis encoder");
             goto encode_cleanup;
         }
         vorbis_analysis_init(&vd, &vi);
@@ -98,7 +98,7 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
         while (!eos) {
             ssize_t size = read(read_fd, in, sizeof(in));
             if (size < 0) {
-                rsvc_strerror(done, __FILE__, __LINE__);
+                rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
                 goto encode_cleanup;
             } else if (size == 0) {
                 vorbis_analysis_wrote(&vd, 0);

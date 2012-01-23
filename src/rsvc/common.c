@@ -21,24 +21,41 @@
 #include <rsvc/common.h>
 
 #include <errno.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sysexits.h>
 
-void rsvc_strerror(void (^callback)(rsvc_error_t), const char* file, int lineno) {
-    size_t buflen = strerror_r(errno, NULL, 0);
-    char* msg = malloc(buflen);
-    strerror_r(errno, msg, buflen);
-    struct rsvc_error error = {msg, file, lineno};
-    callback(&error);
-    free(msg);
-}
-
-void rsvc_const_error(void (^callback)(rsvc_error_t),
-                      const char* file, int lineno, const char* message) {
+void rsvc_errorf(void (^callback)(rsvc_error_t),
+                 const char* file, int lineno, const char* format, ...) {
+    char* message;
+    va_list vl;
+    va_start(vl, format);
+    vasprintf(&message, format, vl);
+    va_end(vl);
     struct rsvc_error error = {message, file, lineno};
     callback(&error);
+    free(message);
+}
+
+void rsvc_strerrorf(void (^callback)(rsvc_error_t),
+                    const char* file, int lineno, const char* format, ...) {
+    size_t buflen = strerror_r(errno, NULL, 0);
+    char* strerror = malloc(buflen);
+    strerror_r(errno, strerror, buflen);
+    if (format) {
+        char* message;
+        va_list vl;
+        va_start(vl, format);
+        vasprintf(&message, format, vl);
+        va_end(vl);
+        rsvc_errorf(callback, file, lineno, "%s: %s", message, strerror);
+        free(message);
+    } else {
+        rsvc_errorf(callback, file, lineno, "%s", strerror);
+    }
+    free(strerror);
 }
 
 void rsvc_options(size_t argc, char* const* argv, option_callbacks_t* callbacks) {

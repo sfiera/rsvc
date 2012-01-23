@@ -54,7 +54,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
 
         encoder = FLAC__stream_encoder_new();
         if (encoder == NULL) {
-            rsvc_const_error(done, __FILE__, __LINE__, "couldn't allocate FLAC encoder");
+            rsvc_errorf(done, __FILE__, __LINE__, "couldn't allocate FLAC encoder");
             goto encode_cleanup;
         }
 
@@ -66,7 +66,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
               FLAC__stream_encoder_set_total_samples_estimate(encoder, samples_per_channel))) {
             FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
             const char* message = FLAC__StreamEncoderStateString[state];
-            rsvc_const_error(done, __FILE__, __LINE__, message);
+            rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
             goto encode_cleanup;
         }
 
@@ -74,7 +74,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
         padding_metadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_PADDING);
         padding_metadata->length = 1024;
         if (!comment_metadata || !padding_metadata) {
-            rsvc_const_error(done, __FILE__, __LINE__, "comment failure");
+            rsvc_errorf(done, __FILE__, __LINE__, "comment failure");
             goto encode_cleanup;
         }
 
@@ -84,7 +84,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
                         &entry, name, value) ||
                 !FLAC__metadata_object_vorbiscomment_append_comment(
                         comment_metadata, entry, false)) {
-                rsvc_const_error(done, __FILE__, __LINE__, "comment failure");
+                rsvc_errorf(done, __FILE__, __LINE__, "comment failure");
                 stop();
             }
         })) {
@@ -92,7 +92,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
         }
         FLAC__StreamMetadata* metadata[2] = {comment_metadata, padding_metadata};
         if (!FLAC__stream_encoder_set_metadata(encoder, metadata, 2)) {
-            rsvc_const_error(done, __FILE__, __LINE__, "comment failure");
+            rsvc_errorf(done, __FILE__, __LINE__, "comment failure");
             goto encode_cleanup;
         }
 
@@ -107,7 +107,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
             } else {
                 message = FLAC__StreamEncoderInitStatusString[init_status];
             }
-            rsvc_const_error(done, __FILE__, __LINE__, message);
+            rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
             goto encode_cleanup;
         }
 
@@ -117,7 +117,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
         while (true) {
             ssize_t result = read(read_fd, buffer + start, sizeof(buffer) - start);
             if (result < 0) {
-                rsvc_strerror(done, __FILE__, __LINE__);
+                rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
                 goto encode_cleanup;
             } else if (result == 0) {
                 break;
@@ -138,7 +138,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
                 if (!FLAC__stream_encoder_process_interleaved(encoder, samples, nsamples)) {
                     FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
                     const char* message = FLAC__StreamEncoderStateString[state];
-                    rsvc_const_error(done, __FILE__, __LINE__, message);
+                    rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
                     goto encode_cleanup;
                 }
                 memcpy(buffer, buffer + result, remainder);
@@ -149,7 +149,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_co
         if (!FLAC__stream_encoder_finish(encoder)) {
             FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
             const char* message = FLAC__StreamEncoderStateString[state];
-            rsvc_const_error(done, __FILE__, __LINE__, message);
+            rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
             goto encode_cleanup;
         }
         done(NULL);

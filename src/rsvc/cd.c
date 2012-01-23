@@ -36,6 +36,7 @@ struct rsvc_cd {
     dispatch_queue_t queue;
 
     int fd;
+    char* path;
     CDMCN mcn;
 
     size_t nsessions;
@@ -73,15 +74,16 @@ static inline bool is_normal_track(const CDTOCDescriptor* desc) {
 void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
     int fd;
     if ((fd = opendev(path, O_RDONLY | O_NONBLOCK, 0, NULL)) < 0) {
-        rsvc_strerror(^(rsvc_error_t error){
+        rsvc_strerrorf(^(rsvc_error_t error){
             done(NULL, error);
-        }, __FILE__, __LINE__);
+        }, __FILE__, __LINE__, "%s", path);
         return;
     }
 
     rsvc_cd_t cd    = malloc(sizeof(struct rsvc_cd));
     cd->queue       = dispatch_queue_create("net.sfiera.ripservice.cd", NULL);
     cd->fd          = fd;
+    cd->path        = strdup(path);
     cd->mcn[0]      = '\0';
     cd->ntracks     = 0;
 
@@ -104,9 +106,9 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
         cd_read_toc.buffer          = buffer;
         cd_read_toc.bufferLength    = sizeof(toc_buffer_t);
         if (ioctl(fd, DKIOCCDREADTOC, &cd_read_toc) < 0) {
-            rsvc_strerror(^(rsvc_error_t error){
+            rsvc_strerrorf(^(rsvc_error_t error){
                 done(NULL, error);
-            }, __FILE__, __LINE__);
+            }, __FILE__, __LINE__, "%s", cd->path);
             goto create_cleanup;
         }
         CDTOC* toc = (CDTOC*)buffer;
@@ -198,16 +200,14 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
             }
             size_t ntracks = session->track_end - session->track_begin;
             if (!discid_put(session->discid, 1, ntracks, offsets)) {
-                rsvc_const_error(^(rsvc_error_t error){
+                rsvc_errorf(^(rsvc_error_t error){
                     done(NULL, error);
-                }, __FILE__, __LINE__, "discid failure");
+                }, __FILE__, __LINE__, "%s: discid failure", cd->path);
                 goto create_cleanup;
             }
         }
 
-        rsvc_strerror(^(rsvc_error_t error){
-            done(cd, NULL);
-        }, __FILE__, __LINE__);
+        done(cd, NULL);
 create_cleanup:
         Block_release(done);
     });
@@ -219,6 +219,7 @@ void rsvc_cd_destroy(rsvc_cd_t cd) {
     }
     free(cd->tracks);
     free(cd->sessions);
+    free(cd->path);
     close(cd->fd);
     dispatch_release(cd->queue);
     free(cd);
@@ -341,7 +342,7 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd_out, void (^done)(rsvc_erro
             cd_read.bufferLength    = sizeof(buffer);
 
             if (ioctl(track->cd->fd, DKIOCCDREAD, &cd_read) < 0) {
-                rsvc_strerror(done, __FILE__, __LINE__);
+                rsvc_strerrorf(done, __FILE__, __LINE__, "%s", track->cd->path);
                 goto rip_cleanup;
             }
 
@@ -351,11 +352,11 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd_out, void (^done)(rsvc_erro
             while (remaining > 0) {
                 int result = write(fd_out, buffer + written, remaining);
                 if (result < 0) {
-                    rsvc_strerror(done, __FILE__, __LINE__);
+                    rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
                     goto rip_cleanup;
                 } else if (result == 0) {
                     // TODO(sfiera): 0 is not an error, but we must break early.
-                    rsvc_const_error(done, __FILE__, __LINE__, "pipe closed");
+                    rsvc_errorf(done, __FILE__, __LINE__, "pipe closed");
                     goto rip_cleanup;
                 } else {
                     written += result;

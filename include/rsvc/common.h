@@ -34,10 +34,10 @@ struct rsvc_error {
     const char* file;
     int lineno;
 };
-void                    rsvc_strerror(void (^callback)(rsvc_error_t),
-                                      const char* file, int lineno);
-void                    rsvc_const_error(void (^callback)(rsvc_error_t),
-                                         const char* file, int lineno, const char* message);
+void                    rsvc_errorf(void (^callback)(rsvc_error_t),
+                                    const char* file, int lineno, const char* format, ...);
+void                    rsvc_strerrorf(void (^callback)(rsvc_error_t),
+                                       const char* file, int lineno, const char* format, ...);
 
 typedef struct option_callbacks {
     bool (^short_option)(char opt, char* (^)());

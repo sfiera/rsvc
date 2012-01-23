@@ -480,7 +480,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         // file to receive the encoded content.
         int pipe_fd[2];
         if (pipe(pipe_fd) < 0) {
-            rsvc_strerror(done, __FILE__, __LINE__);
+            rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
             return;
         }
         int write_pipe = pipe_fd[1];
@@ -498,7 +498,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         }
         int file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (file < 0) {
-            rsvc_strerror(done, __FILE__, __LINE__);
+            rsvc_strerrorf(done, __FILE__, __LINE__, "%s", file);
             return;
         }
 
