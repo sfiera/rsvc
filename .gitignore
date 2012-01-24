@@ -2,3 +2,4 @@
 /.waf-*
 /build
 *.h.rst
+/doc/_build

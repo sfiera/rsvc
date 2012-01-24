@@ -44,3 +44,8 @@ def build(bld):
             "vorbis/libvorbis",
         ],
     )
+
+def doc(doc):
+    import subprocess
+    subprocess.call(["scripts/doc.sh"])
+    subprocess.call("sphinx-build -b dirhtml . _build/html".split(), cwd="doc")
