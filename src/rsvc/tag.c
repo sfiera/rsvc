@@ -24,11 +24,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Comments structure: a singly-linked list of (name, value) pairs.
-// There are certainly more efficient ways that this could be
-// represented, but we expect to be handling on the order of a CD's
-// worth of distinct tags at any given time, so there's no point in any
-// more complexity.
+// Tags structure: a singly-linked list of (name, value) pairs.  There
+// are certainly more efficient ways that this could be represented, but
+// we expect to be handling on the order of a CD's worth of distinct
+// tags at any given time, so there's no point in any more complexity.
 struct rsvc_tags {
     struct rsvc_tag* head;
 };

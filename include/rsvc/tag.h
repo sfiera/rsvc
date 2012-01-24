@@ -18,8 +18,8 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#ifndef RSVC_COMMENT_H_
-#define RSVC_COMMENT_H_
+#ifndef RSVC_TAG_H_
+#define RSVC_TAG_H_
 
 #include <stdlib.h>
 #include <stdbool.h>
@@ -27,8 +27,8 @@
 
 typedef struct rsvc_tags* rsvc_tags_t;
 
-/// Comments
-/// ========
+/// Tags
+/// ====
 ///
 /// ..  type:: rsvc_tags_t
 ///
@@ -171,4 +171,4 @@ bool                    rsvc_tags_each(rsvc_tags_t tags,
 /// ..  var:: RSVC_MUSICBRAINZ_DISCID
 #define RSVC_MUSICBRAINZ_DISCID     "MUSICBRAINZ_DISCID"
 
-#endif  // RSVC_COMMENT_H_
+#endif  // RSVC_TAG_H_
