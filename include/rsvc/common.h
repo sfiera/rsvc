@@ -127,7 +127,7 @@ void                    rsvc_strerrorf(void (^callback)(rsvc_error_t),
 /// Option Parsing
 /// --------------
 ///
-/// ..  type:: option_callbacks_t
+/// ..  type:: rsvc_option_callbacks_t
 ///
 ///     A struct of blocks that can be used with :func:`rsvc_options()`.
 typedef struct option_callbacks {
@@ -175,10 +175,10 @@ typedef struct option_callbacks {
     ///     :param format:  A `printf()`-style format string.
     ///     :param ...:     Format values for `format`.
     void (^usage)(const char* format, ...);
-} option_callbacks_t;
+} rsvc_option_callbacks_t;
 
 /// ..  function:: rsvc_options(size_t argc, char* const* argv,
-///                             option_callbacks_t* callbacks)
+///                             rsvc_option_callbacks_t* callbacks)
 ///
 ///     Given a list of strings `argv` and a size `argc`, parses
 ///     Unix-style command-line options.  Calls one of the callbacks
@@ -188,6 +188,6 @@ typedef struct option_callbacks {
 ///     :param argv:        An array of argument strings.
 ///     :param callbacks:   A set of callbacks to invoke during parsing.
 void                    rsvc_options(size_t argc, char* const* argv,
-                                     option_callbacks_t* callbacks);
+                                     rsvc_option_callbacks_t* callbacks);
 
 #endif  // RSVC_COMMON_H_

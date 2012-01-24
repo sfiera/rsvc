@@ -58,7 +58,7 @@ void rsvc_strerrorf(void (^callback)(rsvc_error_t),
     free(strerror);
 }
 
-void rsvc_options(size_t argc, char* const* argv, option_callbacks_t* callbacks) {
+void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callbacks) {
     __block size_t i = 1;
     for ( ; i < argc; ++i) {
         char* arg = argv[i];

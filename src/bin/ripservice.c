@@ -120,7 +120,7 @@ static void rsvc_main(int argc, char* const* argv) {
         }
         rsvc_usage(progname, command);
     };
-    option_callbacks_t callbacks = {
+    rsvc_option_callbacks_t callbacks = {
         .short_option = ^bool (char opt, char* (^value)()){
             switch (command) {
               case COMMAND_PRINT:
