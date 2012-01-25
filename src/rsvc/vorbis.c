@@ -30,8 +30,7 @@
 
 void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
                         rsvc_tags_t tags, int bitrate,
-                        void (^progress)(double fraction),
-                        void (^done)(rsvc_error_t error)) {
+                        rsvc_encode_progress_t progress, rsvc_encode_done_t done) {
     done = Block_copy(done);
     progress = Block_copy(progress);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{

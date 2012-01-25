@@ -22,12 +22,12 @@
 #define RSVC_FLAC_H_
 
 #include <stdlib.h>
+#include <rsvc/encode.h>
 #include <rsvc/tag.h>
-#include <rsvc/common.h>
 
 void                    rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel,
                                          rsvc_tags_t tags,
-                                         void (^progress)(double fraction),
-                                         void (^done)(rsvc_error_t error));
+                                         rsvc_encode_progress_t progress,
+                                         rsvc_encode_done_t done);
 
 #endif  // RSVC_FLAC_H_

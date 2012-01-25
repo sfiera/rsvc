@@ -18,16 +18,13 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#ifndef RSVC_VORBIS_H_
-#define RSVC_VORBIS_H_
+#ifndef RSVC_ENCODE_H_
+#define RSVC_ENCODE_H_
 
-#include <stdlib.h>
-#include <rsvc/encode.h>
-#include <rsvc/tag.h>
+#include <rsvc/common.h>
 
-void                    rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
-                                           rsvc_tags_t tags, int bitrate,
-                                           rsvc_encode_progress_t progress,
-                                           rsvc_encode_done_t done);
+typedef void (^rsvc_encode_progress_t)(double progress);
 
-#endif  // RSVC_VORBIS_H_
+typedef void (^rsvc_encode_done_t)(rsvc_error_t error);
+
+#endif  // RSVC_ENCODE_H_
