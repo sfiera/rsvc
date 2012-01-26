@@ -84,7 +84,10 @@ static void rsvc_usage(const char* progname, command_t command) {
                 "\n"
                 "Commands:\n"
                 "  print DEVICE          rip tracks to files\n"
-                "  rip DEVICE            print CD contents\n",
+                "  rip DEVICE            print CD contents\n"
+                "\n"
+                "Options:\n"
+                "  -V, --version         show version and exit\n",
                 progname, progname_suffix[command]);
         break;
 
@@ -142,6 +145,11 @@ static void rsvc_main(int argc, char* const* argv) {
           case COMMAND_NONE:
             break;
         }
+        switch (opt) {
+          case 'V':
+            fprintf(stderr, "ripservice %s\n", RSVC_VERSION);
+            exit(0);
+        }
         return false;
     };
 
@@ -158,6 +166,9 @@ static void rsvc_main(int argc, char* const* argv) {
             break;
           case COMMAND_NONE:
             break;
+        }
+        if (strcmp(opt, "version") == 0) {
+            return callbacks.short_option('V', value);
         }
         return false;
     };
