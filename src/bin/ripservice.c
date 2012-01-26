@@ -37,10 +37,15 @@
 #include <rsvc/vorbis.h>
 
 typedef enum command {
-    COMMAND_NONE,
+    COMMAND_NONE = 0,
     COMMAND_PRINT,
     COMMAND_RIP,
 } command_t;
+const char* progname_suffix[] = {
+    "",
+    " print",
+    " rip",
+};
 
 struct print_options {
     char* disk;
@@ -75,21 +80,21 @@ static void rsvc_usage(const char* progname, command_t command) {
     switch (command) {
       case COMMAND_NONE:
         fprintf(stderr,
-                "usage: %s COMMAND [OPTIONS]\n"
+                "usage: %s%s COMMAND [OPTIONS]\n"
                 "\n"
                 "Commands:\n"
                 "  print DEVICE          rip tracks to files\n"
                 "  rip DEVICE            print CD contents\n",
-                progname);
+                progname, progname_suffix[command]);
         break;
 
       case COMMAND_PRINT:
-        fprintf(stderr, "usage: %s DEVICE\n", progname);
+        fprintf(stderr, "usage: %s print DEVICE\n", progname);
         break;
 
       case COMMAND_RIP:
         fprintf(stderr,
-                "usage: %s -f FORMAT [OPTIONS] DEVICE\n"
+                "usage: %s rip -f FORMAT [OPTIONS] DEVICE\n"
                 "\n"
                 "Options:\n"
                 "  -f, --format FORMAT   choose format\n"
@@ -104,14 +109,14 @@ static void rsvc_usage(const char* progname, command_t command) {
 }
 
 static void rsvc_main(int argc, char* const* argv) {
+    char* const progname = strdup(basename(argv[0]));
+
     __block struct print_options print_options = {};
     __block struct rip_options rip_options = {};
-
-    __block char* progname = strdup(basename(argv[0]));
     __block command_t command = COMMAND_NONE;
     void (^usage)(const char* message, ...) = ^(const char* message, ...){
         if (message) {
-            fprintf(stderr, "%s: ", progname);
+            fprintf(stderr, "%s%s: ", progname, progname_suffix[command]);
             va_list vl;
             va_start(vl, message);
             vfprintf(stderr, message, vl);
@@ -202,9 +207,6 @@ static void rsvc_main(int argc, char* const* argv) {
                     } else {
                         usage("illegal command: %s", arg);
                     }
-                    char* oldprogname = progname;
-                    asprintf(&progname, "%s %s", oldprogname, arg);
-                    free(oldprogname);
                 }
                 return true;
             }
@@ -217,8 +219,9 @@ static void rsvc_main(int argc, char* const* argv) {
 
     void (^check_error)(rsvc_error_t) = ^(rsvc_error_t error){
         if (error) {
-            fprintf(stderr, "%s: %s (%s:%d)\n",
-                    progname, error->message, error->file, error->lineno);
+            fprintf(stderr, "%s%s: %s (%s:%d)\n",
+                    progname, progname_suffix[command], error->message,
+                    error->file, error->lineno);
             exit(1);
         }
     };
