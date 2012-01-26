@@ -184,9 +184,6 @@ static void rsvc_main(int argc, char* const* argv) {
                     command = COMMAND_PRINT;
                 } else if (strcmp(arg, "rip") == 0) {
                     command = COMMAND_RIP;
-                    rip_options.format = FORMAT_NONE;
-                    rip_options.has_bitrate = false;
-                    rip_options.bitrate = 0;
                 } else {
                     callbacks.usage("illegal command: %s", arg);
                 }
