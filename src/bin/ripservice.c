@@ -56,7 +56,7 @@ static void rsvc_command_print(print_options_t options,
                                void (^check_error)(rsvc_error_t));
 
 typedef enum rip_format {
-    FORMAT_NONE,
+    FORMAT_NONE = 0,
     FORMAT_FLAC,
     FORMAT_VORBIS,
 } rip_format_t;
@@ -111,10 +111,92 @@ static void rsvc_usage(const char* progname, command_t command) {
 static void rsvc_main(int argc, char* const* argv) {
     char* const progname = strdup(basename(argv[0]));
 
+    __block rsvc_option_callbacks_t callbacks;
+    __block command_t command = COMMAND_NONE;
     __block struct print_options print_options = {};
     __block struct rip_options rip_options = {};
-    __block command_t command = COMMAND_NONE;
-    void (^usage)(const char* message, ...) = ^(const char* message, ...){
+
+    callbacks.short_option = ^bool (char opt, char* (^value)()){
+        switch (command) {
+          case COMMAND_PRINT:
+            break;
+
+          case COMMAND_RIP:
+            switch (opt) {
+              case 'b':
+                if (!read_si_number(value(), &rip_options.bitrate)) {
+                    callbacks.usage("invalid bitrate: %s", value());
+                }
+                rip_options.has_bitrate = true;
+                return true;
+              case 'f':
+                if (!read_format(value(), &rip_options.format)) {
+                    callbacks.usage("invalid format: %s", value());
+                }
+                return true;
+              default:
+                break;
+            }
+            break;
+
+          case COMMAND_NONE:
+            break;
+        }
+        return false;
+    };
+
+    callbacks.long_option = ^bool (char* opt, char* (^value)()){
+        switch (command) {
+          case COMMAND_PRINT:
+            break;
+          case COMMAND_RIP:
+            if (strcmp(opt, "bitrate") == 0) {
+                return callbacks.short_option('b', value);
+            } else if (strcmp(opt, "format") == 0) {
+                return callbacks.short_option('f', value);
+            }
+            break;
+          case COMMAND_NONE:
+            break;
+        }
+        return false;
+    };
+
+    callbacks.argument = ^bool (char* arg){
+        switch (command) {
+          case COMMAND_PRINT:
+            if (!print_options.disk) {
+                print_options.disk = arg;
+                return true;
+            }
+            break;
+
+          case COMMAND_RIP:
+            if (!rip_options.disk) {
+                rip_options.disk = arg;
+                return true;
+            }
+            break;
+
+          case COMMAND_NONE:
+            {
+                if (strcmp(arg, "print") == 0) {
+                    command = COMMAND_PRINT;
+                } else if (strcmp(arg, "rip") == 0) {
+                    command = COMMAND_RIP;
+                    rip_options.format = FORMAT_NONE;
+                    rip_options.has_bitrate = false;
+                    rip_options.bitrate = 0;
+                } else {
+                    callbacks.usage("illegal command: %s", arg);
+                }
+            }
+            return true;
+        }
+        return false;
+    };
+
+    callbacks.usage = ^(const char* message, ...){
         if (message) {
             fprintf(stderr, "%s%s: ", progname, progname_suffix[command]);
             va_list vl;
@@ -125,96 +207,7 @@ static void rsvc_main(int argc, char* const* argv) {
         }
         rsvc_usage(progname, command);
     };
-    rsvc_option_callbacks_t callbacks = {
-        .short_option = ^bool (char opt, char* (^value)()){
-            switch (command) {
-              case COMMAND_PRINT:
-                break;
 
-              case COMMAND_RIP:
-                switch (opt) {
-                  case 'b':
-                    if (!read_si_number(value(), &rip_options.bitrate)) {
-                        usage("invalid bitrate: %s", value());
-                    }
-                    rip_options.has_bitrate = true;
-                    return true;
-                  case 'f':
-                    if (!read_format(value(), &rip_options.format)) {
-                        usage("invalid format: %s", value());
-                    }
-                    return true;
-                  default:
-                    break;
-                }
-                break;
-
-              case COMMAND_NONE:
-                break;
-            }
-            return false;
-        },
-
-        .long_option = ^bool (char* opt, char* (^value)()){
-            switch (command) {
-              case COMMAND_PRINT:
-                break;
-              case COMMAND_RIP:
-                if (strcmp(opt, "bitrate") == 0) {
-                    if (!read_si_number(value(), &rip_options.bitrate)) {
-                        usage("invalid bitrate: %s", value());
-                    }
-                    rip_options.has_bitrate = true;
-                    return true;
-                } else if (strcmp(opt, "format") == 0) {
-                    if (!read_format(value(), &rip_options.format)) {
-                        usage("invalid format: %s", value());
-                    }
-                    return true;
-                }
-                break;
-              case COMMAND_NONE:
-                break;
-            }
-            return false;
-        },
-
-        .argument = ^bool (char* arg){
-            switch (command) {
-              case COMMAND_PRINT:
-                if (!print_options.disk) {
-                    print_options.disk = arg;
-                    return true;
-                }
-                break;
-
-              case COMMAND_RIP:
-                if (!rip_options.disk) {
-                    rip_options.disk = arg;
-                    return true;
-                }
-                break;
-
-              case COMMAND_NONE:
-                {
-                    if (strcmp(arg, "print") == 0) {
-                        command = COMMAND_PRINT;
-                    } else if (strcmp(arg, "rip") == 0) {
-                        command = COMMAND_RIP;
-                        rip_options.format = FORMAT_NONE;
-                        rip_options.has_bitrate = false;
-                        rip_options.bitrate = 0;
-                    } else {
-                        usage("illegal command: %s", arg);
-                    }
-                }
-                return true;
-            }
-            return false;
-        },
-
-        .usage = usage,
-    };
     rsvc_options(argc, argv, &callbacks);
 
     void (^check_error)(rsvc_error_t) = ^(rsvc_error_t error){
