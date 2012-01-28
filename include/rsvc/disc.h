@@ -21,19 +21,48 @@
 #ifndef RSVC_DISC_H_
 #define RSVC_DISC_H_
 
+#include <dispatch/dispatch.h>
+#include <rsvc/common.h>
+
 /// Disc
 /// ====
 /// ..  type:: rsvc_disc_type_t
 typedef enum rsvc_disc_type {
     /// ..  var:: RSVC_DISC_TYPE_CD
+    ///
+    ///     Denotes a :abbr:`CD (Compact Disc)`.  See :doc:`cd.h`.
     RSVC_DISC_TYPE_CD = 0,
+
     /// ..  var:: RSVC_DISC_TYPE_DVD
+    ///
+    ///     Denotes a :abbr:`DVD (Digital Video Disc)`.
     RSVC_DISC_TYPE_DVD,
+
     /// ..  var:: RSVC_DISC_TYPE_BD
+    ///
+    ///     Denotes a Blu-Ray disc.
     RSVC_DISC_TYPE_BD,
 } rsvc_disc_type_t;
 
-/// ..  function:: void rsvc_disc_ls(void (^block)(rsvc_disc_type_t type, const char* path))
-void                    rsvc_disc_ls(void (^block)(rsvc_disc_type_t type, const char* path));
+/// ..  function:: rsvc_stop_t rsvc_disc_watch(void (^appeared)(rsvc_disc_type_t, const char*),
+///                                            void (^disappeared)(rsvc_disc_type_t, const char*),
+///                                            void (^initialized)())
+///
+///     When first called, invokes `appeared` for every disc which is
+///     currently available, then invokes `initialized`.  After that,
+///     continues to invoke `appeared` and `disappeared` as discs appear
+///     and disappear from the computer.  Stops watching for discs when
+///     the returned closure is invoked.  The return value may be called
+///     from `initialized` to get a simple list of discs.
+///
+///     All callbacks are serialized on an internal, single-threaded
+///     dispatch queue to maintain consistency.
+///
+///     :param appeared:        
+///     :param disappeared:     
+///     :param initialized:     
+rsvc_stop_t             rsvc_disc_watch(void (^appeared)(rsvc_disc_type_t, const char*),
+                                        void (^disappeared)(rsvc_disc_type_t, const char*),
+                                        void (^initialized)());
 
 #endif  // RSVC_DISC_H_

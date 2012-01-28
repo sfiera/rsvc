@@ -6,7 +6,7 @@ VERSION = "0.0.0"
 WARNINGS = ["-Wall", "-Werror", "-Wno-sign-compare"]
 
 def common(ctx):
-    ctx.default_sdk = "10.6"
+    ctx.default_sdk = "10.7"
     ctx.default_compiler = "clang"
     ctx.load("compiler_c")
     ctx.load("core externals", tooldir="ext/waf-sfiera")
@@ -21,6 +21,7 @@ def options(opt):
 
 def configure(cnf):
     common(cnf)
+    cnf.env.append_value("FRAMEWORK_ripservice/system/diskarbitration", "DiskArbitration")
 
 def build(bld):
     common(bld)
@@ -42,6 +43,7 @@ def build(bld):
         use=[
             "discid/libdiscid",
             "flac/libflac",
+            "ripservice/system/diskarbitration",
             "vorbis/libvorbis",
         ],
     )

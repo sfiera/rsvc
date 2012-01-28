@@ -41,12 +41,14 @@ typedef enum command {
     COMMAND_NONE = 0,
     COMMAND_PRINT,
     COMMAND_LS,
+    COMMAND_WATCH,
     COMMAND_RIP,
 } command_t;
 const char* progname_suffix[] = {
     "",
     " print",
     " ls",
+    " watch",
     " rip",
 };
 
@@ -64,6 +66,13 @@ typedef struct ls_options* ls_options_t;
 static void rsvc_command_ls(ls_options_t options,
                             void (^usage)(const char* message, ...),
                             void (^check_error)(rsvc_error_t));
+
+struct watch_options {
+};
+typedef struct watch_options* watch_options_t;
+static void rsvc_command_watch(watch_options_t options,
+                               void (^usage)(const char* message, ...),
+                               void (^check_error)(rsvc_error_t));
 
 typedef enum rip_format {
     FORMAT_NONE = 0,
@@ -95,6 +104,7 @@ static void rsvc_usage(const char* progname, command_t command) {
                 "Commands:\n"
                 "  print DEVICE          print CD contents\n"
                 "  ls                    list CDs\n"
+                "  watch                 watch for CDs\n"
                 "  rip DEVICE            rip tracks to files\n"
                 "\n"
                 "Options:\n"
@@ -108,6 +118,10 @@ static void rsvc_usage(const char* progname, command_t command) {
 
       case COMMAND_LS:
         fprintf(stderr, "usage: %s ls\n", progname);
+        break;
+
+      case COMMAND_WATCH:
+        fprintf(stderr, "usage: %s watch\n", progname);
         break;
 
       case COMMAND_RIP:
@@ -133,12 +147,14 @@ static void rsvc_main(int argc, char* const* argv) {
     __block command_t command = COMMAND_NONE;
     __block struct print_options print_options = {};
     __block struct ls_options ls_options = {};
+    __block struct watch_options watch_options = {};
     __block struct rip_options rip_options = {};
 
     callbacks.short_option = ^bool (char opt, char* (^value)()){
         switch (command) {
           case COMMAND_PRINT:
           case COMMAND_LS:
+          case COMMAND_WATCH:
             break;
 
           case COMMAND_RIP:
@@ -174,6 +190,7 @@ static void rsvc_main(int argc, char* const* argv) {
         switch (command) {
           case COMMAND_PRINT:
           case COMMAND_LS:
+          case COMMAND_WATCH:
             break;
           case COMMAND_RIP:
             if (strcmp(opt, "bitrate") == 0) {
@@ -201,6 +218,7 @@ static void rsvc_main(int argc, char* const* argv) {
             break;
 
           case COMMAND_LS:
+          case COMMAND_WATCH:
             break;
 
           case COMMAND_RIP:
@@ -216,6 +234,8 @@ static void rsvc_main(int argc, char* const* argv) {
                     command = COMMAND_PRINT;
                 } else if (strcmp(arg, "ls") == 0) {
                     command = COMMAND_LS;
+                } else if (strcmp(arg, "watch") == 0) {
+                    command = COMMAND_WATCH;
                 } else if (strcmp(arg, "rip") == 0) {
                     command = COMMAND_RIP;
                 } else {
@@ -260,6 +280,10 @@ static void rsvc_main(int argc, char* const* argv) {
 
       case COMMAND_LS:
         rsvc_command_ls(&ls_options, callbacks.usage, check_error);
+        break;
+
+      case COMMAND_WATCH:
+        rsvc_command_watch(&watch_options, callbacks.usage, check_error);
         break;
 
       case COMMAND_RIP:
@@ -321,10 +345,34 @@ static void rsvc_command_ls(ls_options_t options,
                             void (^usage)(const char* message, ...),
                             void (^check_error)(rsvc_error_t)) {
     static const char* types[] = {"cd", "dvd", "bd"};
-    rsvc_disc_ls(^(rsvc_disc_type_t type, const char* path) {
-        printf("%s\t%s\n", types[type], path);
-    });
-    exit(0);
+    __block rsvc_stop_t stop = rsvc_disc_watch(
+            ^(rsvc_disc_type_t type, const char* path){
+                printf("%s\t%s\n", path, types[type]);
+            },
+            ^(rsvc_disc_type_t type, const char* path){ },
+            ^{
+                stop();
+                exit(0);
+            });
+}
+
+static void rsvc_command_watch(watch_options_t options,
+                               void (^usage)(const char* message, ...),
+                               void (^check_error)(rsvc_error_t)) {
+    static const char* types[] = {"cd", "dvd", "bd"};
+    __block bool show = false;
+    rsvc_disc_watch(
+            ^(rsvc_disc_type_t type, const char* path){
+                if (show) {
+                    printf("+\t%s\t%s\n", path, types[type]);
+                }
+            },
+            ^(rsvc_disc_type_t type, const char* path){
+                printf("-\t%s\t%s\n", path, types[type]);
+            },
+            ^{
+                show = true;
+            });
 }
 
 static void rsvc_command_rip(rip_options_t options,
