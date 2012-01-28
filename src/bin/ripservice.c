@@ -93,9 +93,9 @@ static void rsvc_usage(const char* progname, command_t command) {
                 "usage: %s%s COMMAND [OPTIONS]\n"
                 "\n"
                 "Commands:\n"
-                "  print DEVICE          rip tracks to files\n"
+                "  print DEVICE          print CD contents\n"
                 "  ls                    list CDs\n"
-                "  rip DEVICE            print CD contents\n"
+                "  rip DEVICE            rip tracks to files\n"
                 "\n"
                 "Options:\n"
                 "  -V, --version         show version and exit\n",
