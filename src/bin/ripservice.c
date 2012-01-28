@@ -32,6 +32,7 @@
 #include <unistd.h>
 
 #include <rsvc/cd.h>
+#include <rsvc/disc.h>
 #include <rsvc/tag.h>
 #include <rsvc/flac.h>
 #include <rsvc/vorbis.h>
@@ -39,11 +40,13 @@
 typedef enum command {
     COMMAND_NONE = 0,
     COMMAND_PRINT,
+    COMMAND_LS,
     COMMAND_RIP,
 } command_t;
 const char* progname_suffix[] = {
     "",
     " print",
+    " ls",
     " rip",
 };
 
@@ -54,6 +57,13 @@ typedef struct print_options* print_options_t;
 static void rsvc_command_print(print_options_t options,
                                void (^usage)(const char* message, ...),
                                void (^check_error)(rsvc_error_t));
+
+struct ls_options {
+};
+typedef struct ls_options* ls_options_t;
+static void rsvc_command_ls(ls_options_t options,
+                            void (^usage)(const char* message, ...),
+                            void (^check_error)(rsvc_error_t));
 
 typedef enum rip_format {
     FORMAT_NONE = 0,
@@ -84,6 +94,7 @@ static void rsvc_usage(const char* progname, command_t command) {
                 "\n"
                 "Commands:\n"
                 "  print DEVICE          rip tracks to files\n"
+                "  ls                    list CDs\n"
                 "  rip DEVICE            print CD contents\n"
                 "\n"
                 "Options:\n"
@@ -93,6 +104,10 @@ static void rsvc_usage(const char* progname, command_t command) {
 
       case COMMAND_PRINT:
         fprintf(stderr, "usage: %s print DEVICE\n", progname);
+        break;
+
+      case COMMAND_LS:
+        fprintf(stderr, "usage: %s ls\n", progname);
         break;
 
       case COMMAND_RIP:
@@ -117,11 +132,13 @@ static void rsvc_main(int argc, char* const* argv) {
     __block rsvc_option_callbacks_t callbacks;
     __block command_t command = COMMAND_NONE;
     __block struct print_options print_options = {};
+    __block struct ls_options ls_options = {};
     __block struct rip_options rip_options = {};
 
     callbacks.short_option = ^bool (char opt, char* (^value)()){
         switch (command) {
           case COMMAND_PRINT:
+          case COMMAND_LS:
             break;
 
           case COMMAND_RIP:
@@ -156,6 +173,7 @@ static void rsvc_main(int argc, char* const* argv) {
     callbacks.long_option = ^bool (char* opt, char* (^value)()){
         switch (command) {
           case COMMAND_PRINT:
+          case COMMAND_LS:
             break;
           case COMMAND_RIP:
             if (strcmp(opt, "bitrate") == 0) {
@@ -182,6 +200,9 @@ static void rsvc_main(int argc, char* const* argv) {
             }
             break;
 
+          case COMMAND_LS:
+            break;
+
           case COMMAND_RIP:
             if (!rip_options.disk) {
                 rip_options.disk = arg;
@@ -193,6 +214,8 @@ static void rsvc_main(int argc, char* const* argv) {
             {
                 if (strcmp(arg, "print") == 0) {
                     command = COMMAND_PRINT;
+                } else if (strcmp(arg, "ls") == 0) {
+                    command = COMMAND_LS;
                 } else if (strcmp(arg, "rip") == 0) {
                     command = COMMAND_RIP;
                 } else {
@@ -233,6 +256,10 @@ static void rsvc_main(int argc, char* const* argv) {
 
       case COMMAND_PRINT:
         rsvc_command_print(&print_options, callbacks.usage, check_error);
+        break;
+
+      case COMMAND_LS:
+        rsvc_command_ls(&ls_options, callbacks.usage, check_error);
         break;
 
       case COMMAND_RIP:
@@ -288,6 +315,16 @@ static void rsvc_command_print(print_options_t options,
             exit(EX_OK);
         });
     });
+}
+
+static void rsvc_command_ls(ls_options_t options,
+                            void (^usage)(const char* message, ...),
+                            void (^check_error)(rsvc_error_t)) {
+    static const char* types[] = {"cd", "dvd", "bd"};
+    rsvc_disc_ls(^(rsvc_disc_type_t type, const char* path) {
+        printf("%s\t%s\n", types[type], path);
+    });
+    exit(0);
 }
 
 static void rsvc_command_rip(rip_options_t options,

@@ -31,6 +31,7 @@ def build(bld):
         source=[
             "src/bin/ripservice.c",
             "src/rsvc/cd.c",
+            "src/rsvc/disc.c",
             "src/rsvc/common.c",
             "src/rsvc/flac.c",
             "src/rsvc/tag.c",
