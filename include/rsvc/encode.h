@@ -23,8 +23,17 @@
 
 #include <rsvc/common.h>
 
+/// Encoding
+/// ========
+/// ..  toctree::
+///
+///     flac.h
+///     vorbis.h
+///
+/// ..  type:: void (^rsvc_encode_progress_t)(double progress)
 typedef void (^rsvc_encode_progress_t)(double progress);
 
+/// ..  type:: void (^rsvc_encode_done_t)(rsvc_error_t error)
 typedef void (^rsvc_encode_done_t)(rsvc_error_t error);
 
 #endif  // RSVC_ENCODE_H_

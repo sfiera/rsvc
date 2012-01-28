@@ -26,7 +26,11 @@
 
 /// Disc
 /// ====
-/// ..  type:: rsvc_disc_type_t
+/// ..  toctree::
+///
+///     cd.h
+///
+/// ..  type:: enum rsvc_disc_type_t
 typedef enum rsvc_disc_type {
     /// ..  var:: RSVC_DISC_TYPE_CD
     ///
@@ -44,9 +48,7 @@ typedef enum rsvc_disc_type {
     RSVC_DISC_TYPE_BD,
 } rsvc_disc_type_t;
 
-/// ..  function:: rsvc_stop_t rsvc_disc_watch(void (^appeared)(rsvc_disc_type_t, const char*),
-///                                            void (^disappeared)(rsvc_disc_type_t, const char*),
-///                                            void (^initialized)())
+/// ..  function:: rsvc_stop_t rsvc_disc_watch(void (^appeared)(rsvc_disc_type_t, const char*), void (^disappeared)(rsvc_disc_type_t, const char*), void (^initialized)())
 ///
 ///     When first called, invokes `appeared` for every disc which is
 ///     currently available, then invokes `initialized`.  After that,

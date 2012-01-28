@@ -60,20 +60,17 @@ void                    rsvc_tags_destroy(rsvc_tags_t tags);
 ///
 ///     Removes all tags with name `name`.
 ///
-/// ..  function:: void rsvc_tags_add(rsvc_tags_t tags,
-///                                   const char* name, const char* value)
+/// ..  function:: void rsvc_tags_add(rsvc_tags_t tags, const char* name, const char* value)
 ///
 ///     Adds a tag with name `name` and value `value`.  Does not modify
 ///     or overwrite any existing tag with name `name`.
 ///
-/// ..  function:: void rsvc_tags_add_int(rsvc_tags_t tags,
-///                                       const char* name, int value)
+/// ..  function:: void rsvc_tags_add_int(rsvc_tags_t tags, const char* name, int value)
 ///
 ///     Calls :func:`rsvc_tags_add()` with a stringified form of
 ///     `value`.
 ///
-/// ..  function:: void rsvc_tags_set(rsvc_tags_t tags,
-///                                   const char* name, const char* value)
+/// ..  function:: void rsvc_tags_set(rsvc_tags_t tags, const char* name, const char* value)
 ///
 ///     Removes any existing tags with name `name` and adds a new one
 ///     with name `name` and name `value`.
@@ -89,8 +86,7 @@ void                    rsvc_tags_set(rsvc_tags_t tags,
 ///
 ///     :returns:       The total number of tags in `tags`.
 ///
-/// ..  function:: bool rsvc_tags_get(rsvc_tags_t tags, const char* names[],
-///                                       const char* values[], size_t* ntags)
+/// ..  function:: bool rsvc_tags_get(rsvc_tags_t tags, const char* names[], const char* values[], size_t* ntags)
 ///
 ///     Attempts to place all tags into the arrays `names` and `values`.
 ///     If there is enough space to read all tags into the arrays, reads
@@ -108,8 +104,7 @@ void                    rsvc_tags_set(rsvc_tags_t tags,
 ///     :param name:    A tag name.
 ///     :returns:       The number of tags with name `name`.
 ///
-/// ..  function:: bool rsvc_tags_find(rsvc_tags_t tags, const char* name,
-///                                    const char* values[], size_t* nvalues)
+/// ..  function:: bool rsvc_tags_find(rsvc_tags_t tags, const char* name, const char* values[], size_t* nvalues)
 ///
 ///     Attempts to read all values of the tag `name` into `values`.  If
 ///     there is enough space to read all tags into the arrays, reads
@@ -122,8 +117,7 @@ void                    rsvc_tags_set(rsvc_tags_t tags,
 ///                     number of tags read.
 ///     :returns:       true iff all tags were read.
 ///
-/// ..  function:: bool rsvc_tags_each(rsvc_tags_t tags,
-///                                        void (^block)(const char*, const char*, rsvc_stop_t))
+/// ..  function:: bool rsvc_tags_each(rsvc_tags_t tags, void (^block)(const char*, const char*, rsvc_stop_t))
 ///
 ///     Iterates over tags in `tags`.  See :type:`rsvc_stop_t` for a
 ///     description of the iterator interface.

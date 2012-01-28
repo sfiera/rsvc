@@ -6,11 +6,10 @@ Contents:
 ..  toctree::
     :maxdepth: 2
 
-    rsvc/cd.h
     rsvc/common.h
-    rsvc/flac.h
+    rsvc/disc.h
+    rsvc/encode.h
     rsvc/tag.h
-    rsvc/vorbis.h
 
 Indices and tables
 ==================

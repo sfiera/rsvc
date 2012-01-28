@@ -47,8 +47,7 @@ typedef struct rsvc_cd_track* rsvc_cd_track_t;
 ///     :func:`rsvc_cd_create()` and destroyed with
 ///     :func:`rsvc_cd_destroy()`.
 ///
-/// ..  function:: void rsvc_cd_create(char* path,
-///                                    void (^done)(rsvc_cd_t, rsvc_error_t));
+/// ..  function:: void rsvc_cd_create(char* path, void (^done)(rsvc_cd_t, rsvc_error_t))
 ///
 ///     Creates a :type:`rsvc_cd_t` object, reading its content off of
 ///     the CD drive.  If initialization completes successfully, calls
@@ -89,8 +88,7 @@ const char*             rsvc_cd_mcn(rsvc_cd_t cd);
 ///                 :func:`rsvc_cd_nsessions()`
 ///     :returns:   The session at index `n`.
 ///
-/// ..  function:: bool rsvc_cd_each_session(rsvc_cd_t cd,
-///                                          void (^block)(rsvc_cd_session_t, rsvc_stop_t))
+/// ..  function:: bool rsvc_cd_each_session(rsvc_cd_t cd, void (^block)(rsvc_cd_session_t, rsvc_stop_t))
 ///
 ///     Iterates over sessions in the CD.  See :type:`rsvc_stop_t` for a
 ///     description of the iterator interface.
@@ -111,8 +109,7 @@ bool                    rsvc_cd_each_session(rsvc_cd_t cd,
 ///     :param n:   An index.  Must be less than the CD's
 ///                 :func:`rsvc_cd_ntracks()`.
 ///
-/// ..  function:: bool rsvc_cd_each_track(rsvc_cd_t cd,
-///                                        void (^block)(rsvc_cd_track_t, rsvc_stop_t))
+/// ..  function:: bool rsvc_cd_each_track(rsvc_cd_t cd, void (^block)(rsvc_cd_track_t, rsvc_stop_t))
 ///
 ///     Iterates over tracks in the CD.  See :type:`rsvc_stop_t` for a
 ///     description of the iterator interface.
@@ -156,8 +153,7 @@ const char*             rsvc_cd_session_discid(rsvc_cd_session_t session);
 ///     :param n:   An index.  Must be less than the session's
 ///                 :func:`rsvc_cd_session_ntracks()`.
 ///
-/// ..  function:: bool rsvc_cd_session_each_track(rsvc_cd_session_t session,
-///                                        void (^block)(rsvc_cd_track_t, rsvc_stop_t))
+/// ..  function:: bool rsvc_cd_session_each_track(rsvc_cd_session_t session, void (^block)(rsvc_cd_track_t, rsvc_stop_t))
 ///
 ///     Iterates over tracks in the session.  See :type:`rsvc_stop_t`
 ///     for a description of the iterator interface.
@@ -185,11 +181,11 @@ bool                    rsvc_cd_session_each_track(rsvc_cd_session_t session,
 ///     :returns:   The number of the track (1-100).
 size_t                  rsvc_cd_track_number(rsvc_cd_track_t track);
 
-/// ..  type:: rsvc_cd_track_type_t
+/// ..  type:: enum rsvc_cd_track_type_t
 typedef enum rsvc_cd_track_type_t {
-    /// ..  var:: rsvc_cd_track_type_t RSVC_CD_TRACK_AUDIO
+    /// ..  var:: RSVC_CD_TRACK_AUDIO
     RSVC_CD_TRACK_AUDIO,
-    /// ..  var:: rsvc_cd_track_type_t RSVC_CD_TRACK_DATA
+    /// ..  var:: RSVC_CD_TRACK_DATA
     RSVC_CD_TRACK_DATA,
 } rsvc_cd_track_type_t;
 
@@ -228,8 +224,7 @@ size_t                  rsvc_cd_track_nsamples(rsvc_cd_track_t track);
 ///                 have one, returns an empty string.
 const char*             rsvc_cd_track_isrc(rsvc_cd_track_t track);
 
-/// ..  function:: void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd,
-///                                       void (^done)(rsvc_error_t))
+/// ..  function:: void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, void (^done)(rsvc_error_t))
 ///
 ///     Begins ripping data from the track and writing it to `fd`.  The
 ///     data written will be a sequence of native-endian int16_t

@@ -81,9 +81,7 @@ struct rsvc_error {
     int lineno;
 };
 
-/// ..  function:: void rsvc_errorf(void (^callback)(rsvc_error_t),
-///                                 const char* file, int lineno,
-///                                 const char* format, ...)
+/// ..  function:: void rsvc_errorf(void (^callback)(rsvc_error_t), const char* file, int lineno, const char* format, ...)
 ///
 ///     Formats a printf-style error message, calling `callback` with an
 ///     :type:`rsvc_error_t` constructed from the formatted error
@@ -105,9 +103,7 @@ struct rsvc_error {
 ///     :param format:      A `printf()`-style format string.
 ///     :param ...:         Format values for `format`.
 ///
-/// ..  function:: void rsvc_strerrorf(void (^callback)(rsvc_error_t),
-///                                    const char* file, int lineno,
-///                                    const char* format, ...)
+/// ..  function:: void rsvc_strerrorf(void (^callback)(rsvc_error_t), const char* file, int lineno, const char* format, ...)
 ///
 ///     Like :func:`rsvc_errorf`, except that it describes the current
 ///     value of `errno`.  If `format` is non-NULL, then the formatted
@@ -177,8 +173,7 @@ typedef struct option_callbacks {
     void (^usage)(const char* format, ...);
 } rsvc_option_callbacks_t;
 
-/// ..  function:: rsvc_options(size_t argc, char* const* argv,
-///                             rsvc_option_callbacks_t* callbacks)
+/// ..  function:: rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callbacks)
 ///
 ///     Given a list of strings `argv` and a size `argc`, parses
 ///     Unix-style command-line options.  Calls one of the callbacks
