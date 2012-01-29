@@ -609,8 +609,8 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         rsvc_tags_t tags = rsvc_tags_create();
         rsvc_tags_add(tags, RSVC_ENCODER, "ripservice " RSVC_VERSION);
         rsvc_tags_add(tags, RSVC_MUSICBRAINZ_DISCID, rsvc_cd_session_discid(session));
-        rsvc_tags_add_int(tags, RSVC_TRACKNUMBER, track_number);
-        rsvc_tags_add_int(tags, RSVC_TRACKTOTAL, ntracks);
+        rsvc_tags_addf(tags, RSVC_TRACKNUMBER, "%d", track_number);
+        rsvc_tags_addf(tags, RSVC_TRACKTOTAL, "%d", ntracks);
         if (*mcn) {
             rsvc_tags_add(tags, RSVC_MCN, mcn);
         }

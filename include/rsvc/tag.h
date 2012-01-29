@@ -61,26 +61,17 @@ void                    rsvc_tags_destroy(rsvc_tags_t tags);
 ///     Removes all tags with name `name`.
 ///
 /// ..  function:: void rsvc_tags_add(rsvc_tags_t tags, const char* name, const char* value)
+/// ..  function:: void rsvc_tags_addf(rsvc_tags_t tags, const char* name, const char* format, ...)
 ///
 ///     Adds a tag with name `name` and value `value`.  Does not modify
 ///     or overwrite any existing tag with name `name`.
-///
-/// ..  function:: void rsvc_tags_add_int(rsvc_tags_t tags, const char* name, int value)
-///
-///     Calls :func:`rsvc_tags_add()` with a stringified form of
-///     `value`.
-///
-/// ..  function:: void rsvc_tags_set(rsvc_tags_t tags, const char* name, const char* value)
-///
-///     Removes any existing tags with name `name` and adds a new one
-///     with name `name` and name `value`.
+///     :func:`rsvc_tags_addf()` constructs `value` from a
+///     `printf`-style format string.
 void                    rsvc_tags_clear(rsvc_tags_t tags, const char* name);
 void                    rsvc_tags_add(rsvc_tags_t tags,
-                                          const char* name, const char* value);
-void                    rsvc_tags_add_int(rsvc_tags_t tags,
-                                              const char* name, int value);
-void                    rsvc_tags_set(rsvc_tags_t tags,
-                                          const char* name, const char* value);
+                                      const char* name, const char* value);
+void                    rsvc_tags_addf(rsvc_tags_t tags,
+                                       const char* name, const char* format, ...);
 
 /// ..  function:: size_t rsvc_tags_size(rsvc_tags_t tags)
 ///

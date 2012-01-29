@@ -20,6 +20,7 @@
 
 #include <rsvc/tag.h>
 
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -102,15 +103,18 @@ void rsvc_tags_add(rsvc_tags_t tags, const char* name, const char* value) {
     *curr = (struct rsvc_tag*)memdup(&tag, sizeof(tag));
 }
 
-void rsvc_tags_add_int(rsvc_tags_t tags, const char* name, int value) {
-    char buffer[64];
-    sprintf(buffer, "%d", value);
-    rsvc_tags_add(tags, name, buffer);
-}
-
-void rsvc_tags_set(rsvc_tags_t tags, const char* name, const char* value) {
-    rsvc_tags_clear(tags, name);
-    rsvc_tags_add(tags, name, value);
+void rsvc_tags_addf(rsvc_tags_t tags, const char* name, const char* format, ...) {
+    struct rsvc_tag tag = {
+        .name = strdup(name),
+        .next = NULL,
+    };
+    va_list vl;
+    va_start(vl, format);
+    vasprintf(&tag.value, format, vl);
+    va_end(vl);
+    struct rsvc_tag** curr;
+    for (curr = &tags->head; *curr; curr = &(*curr)->next) { }
+    *curr = (struct rsvc_tag*)memdup(&tag, sizeof(tag));
 }
 
 size_t rsvc_tags_size(rsvc_tags_t tags) {
