@@ -114,12 +114,12 @@ void                    rsvc_tags_addf(rsvc_tags_t tags,
 ///     description of the iterator interface.
 size_t                  rsvc_tags_size(rsvc_tags_t tags);
 bool                    rsvc_tags_get(rsvc_tags_t tags, const char* names[],
-                                          const char* values[], size_t* ntags);
+                                      const char* values[], size_t* ntags);
 size_t                  rsvc_tags_count(rsvc_tags_t tags, const char* name);
 bool                    rsvc_tags_find(rsvc_tags_t tags, const char* name,
-                                           const char* values[], size_t* nvalues);
+                                       const char* values[], size_t* nvalues);
 bool                    rsvc_tags_each(rsvc_tags_t tags,
-                                           void (^block)(const char*, const char*, rsvc_stop_t));
+                                       void (^block)(const char*, const char*, rsvc_stop_t));
 
 /// ..  _tag_constants:
 ///
