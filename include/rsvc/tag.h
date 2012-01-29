@@ -60,17 +60,19 @@ void                    rsvc_tags_destroy(rsvc_tags_t tags);
 ///
 ///     Removes all tags with name `name`.
 ///
-/// ..  function:: void rsvc_tags_add(rsvc_tags_t tags, const char* name, const char* value)
-/// ..  function:: void rsvc_tags_addf(rsvc_tags_t tags, const char* name, const char* format, ...)
+/// ..  function:: bool rsvc_tags_add(rsvc_tags_t tags, const char* name, const char* value)
+/// ..  function:: bool rsvc_tags_addf(rsvc_tags_t tags, const char* name, const char* format, ...)
 ///
 ///     Adds a tag with name `name` and value `value`.  Does not modify
 ///     or overwrite any existing tag with name `name`.
 ///     :func:`rsvc_tags_addf()` constructs `value` from a
 ///     `printf`-style format string.
+///
+///     :returns:       true iff `name` was valid and the tag was added.
 void                    rsvc_tags_clear(rsvc_tags_t tags, const char* name);
-void                    rsvc_tags_add(rsvc_tags_t tags,
+bool                    rsvc_tags_add(rsvc_tags_t tags,
                                       const char* name, const char* value);
-void                    rsvc_tags_addf(rsvc_tags_t tags,
+bool                    rsvc_tags_addf(rsvc_tags_t tags,
                                        const char* name, const char* format, ...);
 
 /// ..  function:: size_t rsvc_tags_size(rsvc_tags_t tags)

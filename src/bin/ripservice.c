@@ -607,7 +607,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         progress_node_t node = progress_start(progress, filename);
         size_t nsamples = rsvc_cd_track_nsamples(track);
         rsvc_tags_t tags = rsvc_tags_create();
-        rsvc_tags_add(tags, RSVC_ENCODER, "ripservice " RSVC_VERSION);
+        rsvc_tags_addf(tags, RSVC_ENCODER, "ripservice %s", RSVC_VERSION);
         rsvc_tags_add(tags, RSVC_MUSICBRAINZ_DISCID, rsvc_cd_session_discid(session));
         rsvc_tags_addf(tags, RSVC_TRACKNUMBER, "%d", track_number);
         rsvc_tags_addf(tags, RSVC_TRACKTOTAL, "%d", ntracks);

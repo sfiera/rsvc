@@ -92,29 +92,37 @@ void rsvc_tags_clear(rsvc_tags_t tags, const char* name) {
     }
 }
 
-void rsvc_tags_add(rsvc_tags_t tags, const char* name, const char* value) {
-    struct rsvc_tag tag = {
-        .name = strdup(name),
-        .value = strdup(value),
-        .next = NULL,
-    };
-    struct rsvc_tag** curr;
-    for (curr = &tags->head; *curr; curr = &(*curr)->next) { }
-    *curr = (struct rsvc_tag*)memdup(&tag, sizeof(tag));
+static bool tag_name_is_valid(const char* name) {
+    return name[strspn(name, "ABCDEFGHIJ" "KLMNOPQRST" "UVWXYZ" "_")] == '\0';
 }
 
-void rsvc_tags_addf(rsvc_tags_t tags, const char* name, const char* format, ...) {
+static bool tag_add_allocated(rsvc_tags_t tags, const char* name, char* value) {
     struct rsvc_tag tag = {
         .name = strdup(name),
+        .value = value,
         .next = NULL,
     };
-    va_list vl;
-    va_start(vl, format);
-    vasprintf(&tag.value, format, vl);
-    va_end(vl);
     struct rsvc_tag** curr;
     for (curr = &tags->head; *curr; curr = &(*curr)->next) { }
     *curr = (struct rsvc_tag*)memdup(&tag, sizeof(tag));
+    return true;
+}
+
+bool rsvc_tags_add(rsvc_tags_t tags, const char* name, const char* value) {
+    return tag_name_is_valid(name)
+        && tag_add_allocated(tags, name, strdup(value));
+}
+
+bool rsvc_tags_addf(rsvc_tags_t tags, const char* name, const char* format, ...) {
+    if (!tag_name_is_valid(name)) {
+        return false;
+    }
+    char* value;
+    va_list vl;
+    va_start(vl, format);
+    vasprintf(&value, format, vl);
+    va_end(vl);
+    return tag_add_allocated(tags, name, value);
 }
 
 size_t rsvc_tags_size(rsvc_tags_t tags) {
