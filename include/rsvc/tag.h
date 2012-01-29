@@ -134,30 +134,31 @@ bool                    rsvc_tags_each(rsvc_tags_t tags,
 ///
 /// Constants
 /// ---------
-///
 /// ..  var:: RSVC_TITLE
-/// ..  var:: RSVC_ALBUM
-/// ..  var:: RSVC_ARTIST
-/// ..  var:: RSVC_GENRE
-/// ..  var:: RSVC_DATE
+///           RSVC_ALBUM
+///           RSVC_ARTIST
+///           RSVC_ALBUMARTIST
+///           RSVC_GENRE
+///           RSVC_DATE
 #define RSVC_TITLE                  "TITLE"
 #define RSVC_ALBUM                  "ALBUM"
 #define RSVC_ARTIST                 "ARTIST"
+#define RSVC_ALBUMARTIST            "ALBUMARTIST"
 #define RSVC_GENRE                  "GENRE"
 #define RSVC_DATE                   "DATE"
 
 /// ..  var:: RSVC_TRACKNUMBER
-/// ..  var:: RSVC_TRACKTOTAL
-/// ..  var:: RSVC_DISCNUMBER
-/// ..  var:: RSVC_DISCTOTAL
+///           RSVC_TRACKTOTAL
+///           RSVC_DISCNUMBER
+///           RSVC_DISCTOTAL
 #define RSVC_TRACKNUMBER            "TRACKNUMBER"
 #define RSVC_TRACKTOTAL             "TRACKTOTAL"
 #define RSVC_DISCNUMBER             "DISCNUMBER"
 #define RSVC_DISCTOTAL              "DISCTOTAL"
 
 /// ..  var:: RSVC_ISRC
-/// ..  var:: RSVC_MCN
-/// ..  var:: RSVC_ENCODER
+///           RSVC_MCN
+///           RSVC_ENCODER
 #define RSVC_ISRC                   "ISRC"
 #define RSVC_MCN                    "MCN"
 #define RSVC_ENCODER                "ENCODER"
