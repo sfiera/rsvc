@@ -29,8 +29,16 @@ def build(bld):
     bld.program(
         target="ripservice/ripservice",
         features="universal",
+        source="src/bin/ripservice.c",
+        includes="include",
+        cflags=WARNINGS,
+        use="ripservice/librsvc",
+    )
+
+    bld.stlib(
+        target="ripservice/librsvc",
+        features="universal",
         source=[
-            "src/bin/ripservice.c",
             "src/rsvc/cd.c",
             "src/rsvc/disc.c",
             "src/rsvc/common.c",
@@ -39,6 +47,7 @@ def build(bld):
             "src/rsvc/vorbis.c",
         ],
         includes="include",
+        export_includes="include",
         cflags=WARNINGS,
         use=[
             "discid/libdiscid",
