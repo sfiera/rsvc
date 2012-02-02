@@ -73,6 +73,7 @@ static void rsvc_tag_destroy(struct rsvc_tag* tag) {
         rsvc_tag_destroy(tag->next);
         free(tag->name);
         free(tag->value);
+        free(tag);
     }
 }
 
@@ -81,13 +82,22 @@ void rsvc_tags_destroy(rsvc_tags_t tags) {
     free(tags);
 }
 
-void rsvc_tags_clear(rsvc_tags_t tags, const char* name) {
+void rsvc_tags_clear(rsvc_tags_t tags) {
+    rsvc_tag_destroy(tags->head);
+    tags->head = NULL;
+}
+
+void rsvc_tags_remove(rsvc_tags_t tags, const char* name) {
     for (struct rsvc_tag** curr = &tags->head; *curr; curr = &(*curr)->next) {
         while (strcmp((*curr)->name, name) == 0) {
             struct rsvc_tag* old = *curr;
-            *curr = (*curr)->next;
-            old->next = NULL;
-            rsvc_tag_destroy(old);
+            *curr = old->next;
+            free(old->name);
+            free(old->value);
+            free(old);
+            if (!*curr) {
+                return;
+            }
         }
     }
 }

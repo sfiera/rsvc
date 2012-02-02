@@ -35,6 +35,18 @@ def build(bld):
         use="ripservice/librsvc",
     )
 
+    bld.program(
+        target="ripservice/cloak",
+        features="universal",
+        source="src/bin/cloak.c",
+        includes="include",
+        cflags=WARNINGS,
+        use=[
+            "ripservice/librsvc",
+            "libmusicbrainz/libmusicbrainz",
+        ],
+    )
+
     bld.stlib(
         target="ripservice/librsvc",
         features="universal",

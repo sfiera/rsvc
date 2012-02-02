@@ -56,9 +56,10 @@ rsvc_tags_t             rsvc_tags_create();
 rsvc_tags_t             rsvc_tags_copy(rsvc_tags_t tags);
 void                    rsvc_tags_destroy(rsvc_tags_t tags);
 
-/// ..  function:: void rsvc_tags_clear(rsvc_tags_t tags, const char* name)
+/// ..  function:: void rsvc_tags_clear(rsvc_tags_t tags)
+/// ..  function:: void rsvc_tags_remove(rsvc_tags_t tags, const char* name)
 ///
-///     Removes all tags with name `name`.
+///     Removes all tags with name `name`, or all tags.
 ///
 /// ..  function:: bool rsvc_tags_add(rsvc_tags_t tags, const char* name, const char* value)
 /// ..  function:: bool rsvc_tags_addf(rsvc_tags_t tags, const char* name, const char* format, ...)
@@ -69,7 +70,8 @@ void                    rsvc_tags_destroy(rsvc_tags_t tags);
 ///     `printf`-style format string.
 ///
 ///     :returns:       true iff `name` was valid and the tag was added.
-void                    rsvc_tags_clear(rsvc_tags_t tags, const char* name);
+void                    rsvc_tags_clear(rsvc_tags_t tags);
+void                    rsvc_tags_remove(rsvc_tags_t tags, const char* name);
 bool                    rsvc_tags_add(rsvc_tags_t tags,
                                       const char* name, const char* value);
 bool                    rsvc_tags_addf(rsvc_tags_t tags,

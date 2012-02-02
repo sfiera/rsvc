@@ -24,8 +24,11 @@
 #include <FLAC/metadata.h>
 #include <FLAC/stream_encoder.h>
 #include <dispatch/dispatch.h>
+#include <rsvc/common.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/param.h>
 #include <unistd.h>
 
 typedef FLAC__StreamEncoderWriteStatus write_status_t;
@@ -40,6 +43,15 @@ static seek_status_t    flac_seek(const FLAC__StreamEncoder* encoder,
 static tell_status_t    flac_tell(const FLAC__StreamEncoder* encoder,
                                   FLAC__uint64* absolute_byte_offset, void* userdata);
 
+static bool rsvc_tags_to_vorbis_comments(rsvc_tags_t tags, FLAC__StreamMetadata* metadata) {
+    return rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+        FLAC__StreamMetadata_VorbisComment_Entry entry;
+        if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(&entry, name, value) ||
+            !FLAC__metadata_object_vorbiscomment_append_comment(metadata, entry, false)) {
+            stop();
+        }
+    });
+}
 
 void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_tags_t tags,
                       rsvc_encode_progress_t progress, rsvc_encode_done_t done) {
@@ -72,23 +84,12 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_ta
         comment_metadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
         padding_metadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_PADDING);
         padding_metadata->length = 1024;
-        if (!comment_metadata || !padding_metadata) {
+        if (!comment_metadata || !rsvc_tags_to_vorbis_comments(tags, comment_metadata)
+                || !padding_metadata) {
             rsvc_errorf(done, __FILE__, __LINE__, "comment failure");
             goto encode_cleanup;
         }
 
-        if (!rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-            FLAC__StreamMetadata_VorbisComment_Entry entry;
-            if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(
-                        &entry, name, value) ||
-                !FLAC__metadata_object_vorbiscomment_append_comment(
-                        comment_metadata, entry, false)) {
-                rsvc_errorf(done, __FILE__, __LINE__, "comment failure");
-                stop();
-            }
-        })) {
-            goto encode_cleanup;
-        }
         FLAC__StreamMetadata* metadata[2] = {comment_metadata, padding_metadata};
         if (!FLAC__stream_encoder_set_metadata(encoder, metadata, 2)) {
             rsvc_errorf(done, __FILE__, __LINE__, "comment failure");
@@ -158,6 +159,95 @@ encode_cleanup:
         if (comment_metadata) FLAC__metadata_object_delete(comment_metadata);
         Block_release(progress);
         Block_release(done);
+    });
+}
+
+void rsvc_flac_read_tags(const char* path, rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
+    done = Block_copy(done);
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        FLAC__Metadata_Chain* chain = FLAC__metadata_chain_new();
+        FLAC__Metadata_Iterator* it = FLAC__metadata_iterator_new();
+        if (!FLAC__metadata_chain_read(chain, path)) {
+            rsvc_errorf(done, __FILE__, __LINE__, "%s: %s",
+                        path,
+                        FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(chain)]);
+            goto cleanup;
+        }
+        FLAC__metadata_iterator_init(it, chain);
+        // First block is STREAMINFO, which we can skip.
+        while (FLAC__metadata_iterator_next(it)) {
+            if (FLAC__metadata_iterator_get_block_type(it) != FLAC__METADATA_TYPE_VORBIS_COMMENT) {
+                continue;
+            }
+            FLAC__StreamMetadata* block = FLAC__metadata_iterator_get_block(it);
+            FLAC__StreamMetadata_VorbisComment* comments = &block->data.vorbis_comment;
+            for (size_t i = 0; i < comments->num_comments; ++i) {
+                char* name;
+                char* value;
+                if (!FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(
+                        comments->comments[i], &name, &value)) {
+                    rsvc_errorf(done, __FILE__, __LINE__, "comment error");
+                    goto cleanup;
+                }
+                rsvc_tags_add(tags, name, value);
+                free(name);
+                free(value);
+            }
+            break;
+        }
+        done(NULL);
+cleanup:
+        FLAC__metadata_iterator_delete(it);
+        FLAC__metadata_chain_delete(chain);
+    });
+}
+
+void rsvc_flac_write_tags(const char* path, rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
+    done = Block_copy(done);
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        FLAC__Metadata_Chain* chain = FLAC__metadata_chain_new();
+        FLAC__Metadata_Iterator* it = FLAC__metadata_iterator_new();
+        if (!FLAC__metadata_chain_read(chain, path)) {
+            rsvc_errorf(done, __FILE__, __LINE__, "%s: %s",
+                        path,
+                        FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(chain)]);
+            goto cleanup;
+        }
+
+        FLAC__metadata_iterator_init(it, chain);
+        // First block is STREAMINFO, which we can skip.
+        while (FLAC__metadata_iterator_next(it)) {
+            if (FLAC__metadata_iterator_get_block_type(it) != FLAC__METADATA_TYPE_VORBIS_COMMENT) {
+                continue;
+            }
+            FLAC__StreamMetadata* block = FLAC__metadata_iterator_get_block(it);
+            FLAC__metadata_object_vorbiscomment_resize_comments(block, 0);
+            if (!rsvc_tags_to_vorbis_comments(tags, block)) {
+                rsvc_errorf(done, __FILE__, __LINE__, "comment error");
+                goto cleanup;
+            }
+            FLAC__metadata_chain_write(chain, true, false);
+            done(NULL);
+            goto cleanup;
+        }
+
+        // No VORBIS_COMMENT block in file yet.
+        FLAC__metadata_iterator_init(it, chain);
+        FLAC__StreamMetadata* block = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
+        if (!rsvc_tags_to_vorbis_comments(tags, block)
+                || !FLAC__metadata_iterator_insert_block_after(it, block)) {
+            FLAC__metadata_object_delete(block);
+            rsvc_errorf(done, __FILE__, __LINE__, "comment error");
+            goto cleanup;
+        }
+        if (!FLAC__metadata_chain_write(chain, true, false)) {
+            rsvc_errorf(done, __FILE__, __LINE__, "comment error");
+            goto cleanup;
+        }
+        done(NULL);
+cleanup:
+        FLAC__metadata_iterator_delete(it);
+        FLAC__metadata_chain_delete(chain);
     });
 }
 

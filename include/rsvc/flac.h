@@ -34,5 +34,9 @@ void                    rsvc_flac_encode(int read_fd, int file, size_t samples_p
                                          rsvc_tags_t tags,
                                          rsvc_encode_progress_t progress,
                                          rsvc_encode_done_t done);
+void                    rsvc_flac_read_tags(const char* path, rsvc_tags_t tags,
+                                            void (^done)(rsvc_error_t));
+void                    rsvc_flac_write_tags(const char* path, rsvc_tags_t tags,
+                                             void (^done)(rsvc_error_t));
 
 #endif  // RSVC_FLAC_H_
