@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include <sysexits.h>
 
 #include <rsvc/tag.h>
@@ -37,6 +38,7 @@
 
 enum short_flag {
     HELP        = 'h',
+    VERBOSE     = 'v',
     VERSION     = 'V',
 
     LIST        = 'l',
@@ -62,6 +64,7 @@ struct long_flag {
     enum short_flag value;
 } kLongFlags[] = {
     {"help",        HELP},
+    {"verbose",     VERBOSE},
     {"version",     VERSION},
 
     {"list",        LIST},
@@ -85,12 +88,40 @@ struct long_flag {
     {NULL},
 };
 
+int verbosity = 0;
+static void logf(int level, const char* format, ...) {
+    static dispatch_queue_t log_queue;
+    static dispatch_once_t log_queue_init;
+    dispatch_once(&log_queue_init, ^{
+        log_queue = dispatch_queue_create("net.sfiera.ripservice.log", NULL);
+    });
+    if (level <= verbosity) {
+        time_t t;
+        time(&t);
+        struct tm tm;
+        gmtime_r(&t, &tm);
+        char strtime[20];
+        strftime(strtime, 20, "%F %T", &tm);
+        const char* time = strtime;
+
+        char* message;
+        va_list vl;
+        va_start(vl, format);
+        vasprintf(&message, format, vl);
+        va_end(vl);
+
+        fprintf(stderr, "%s log: %s\n", time, message);
+        free(message);
+    }
+}
+
 static void usage(const char* progname) {
     fprintf(stderr,
             "usage: %s [OPTIONS] FILE...\n"
             "\n"
             "Options:\n"
             "  -h, --help                display this help and exit\n"
+            "  -v, --verbose             more verbose logging\n"
             "  -V, --version             show version and exit\n"
             "\n"
             "  Basic:\n"
@@ -178,6 +209,10 @@ static void cloak_main(int argc, char* const* argv) {
           case HELP:
             usage(progname);
             exit(0);
+
+          case VERBOSE:
+            ++verbosity;
+            return true;
 
           case VERSION:
             printf("cloak %s\n", RSVC_VERSION);
@@ -374,7 +409,22 @@ static void set_tag(rsvc_tags_t tags, const char* tag_name,
     rsvc_tags_add(tags, tag_name, tag_value);
 }
 
+static int64_t now_usecs() {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (1000000ll * tv.tv_sec) + tv.tv_usec;
+}
+
 static void auto_tag(rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
+    // MusicBrainz requires that requests be throttled to 1 per second.
+    // In order to do so, we serialize all of our requests through a
+    // single dispatch queue.
+    static dispatch_queue_t throttling_queue;
+    static dispatch_once_t init_throttle;
+    dispatch_once(&init_throttle, ^{
+        throttling_queue = dispatch_queue_create("net.sfiera.ripservice.musicbrainz", NULL);
+    });
+
     const char* discid;
     size_t n = 1;
     rsvc_tags_find(tags, RSVC_MUSICBRAINZ_DISCID, &discid, &n);
@@ -397,63 +447,82 @@ static void auto_tag(rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
         return;
     }
 
+    logf(1, "starting mb request for %s", discid);
     done = Block_copy(done);
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        // TODO(sfiera): throttle.
-        Mb4Query q = mb4_query_new("ripservice " RSVC_VERSION, NULL, 0);
-        char* param_names[] = {"inc"};
-        char* param_values[] = {"artists+recordings"};
-        Mb4Metadata meta = mb4_query_query(q, "discid", discid, NULL,
-                                           1, param_names, param_values);
+    dispatch_async(throttling_queue, ^{
+        // As soon as we enter the throttling queue, dispatch an
+        // asynchronous request.  We'll sleep for the next second in the
+        // throttling queue, blocking the next request from being
+        // dispatched, but even if the request itself takes longer than
+        // a second, we'll be free to start another.
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            logf(2, "sending mb request for %s", discid);
+            Mb4Query q = mb4_query_new("ripservice " RSVC_VERSION, NULL, 0);
+            char* param_names[] = {"inc"};
+            char* param_values[] = {"artists+recordings"};
+            Mb4Metadata meta = mb4_query_query(q, "discid", discid, NULL,
+                                               1, param_names, param_values);
+            logf(1, "received mb response for %s", discid);
 
-        Mb4Disc disc = mb4_metadata_get_disc(meta);
-        Mb4ReleaseList rel_list = mb4_disc_get_releaselist(disc);
-        for (int i = 0; i < mb4_release_list_size(rel_list); ++i) {
-            Mb4Release release = mb4_release_list_item(rel_list, i);
-            Mb4MediumList med_list = mb4_release_get_mediumlist(release);
-            for (int j = 0; j < mb4_medium_list_size(med_list); ++j) {
-                Mb4Medium medium = mb4_medium_list_item(med_list, j);
-                if (!mb4_medium_contains_discid(medium, discid)) {
-                    continue;
-                }
-
-                Mb4Track track = NULL;
-                Mb4TrackList trk_list = mb4_medium_get_tracklist(medium);
-                for (int k = 0; k < mb4_track_list_size(trk_list); ++k) {
-                    Mb4Track tk = mb4_track_list_item(trk_list, k);
-                    if (mb4_track_get_position(tk) == tracknumber) {
-                        track = tk;
-                        break;
+            Mb4Disc disc = mb4_metadata_get_disc(meta);
+            Mb4ReleaseList rel_list = mb4_disc_get_releaselist(disc);
+            for (int i = 0; i < mb4_release_list_size(rel_list); ++i) {
+                Mb4Release release = mb4_release_list_item(rel_list, i);
+                Mb4MediumList med_list = mb4_release_get_mediumlist(release);
+                for (int j = 0; j < mb4_medium_list_size(med_list); ++j) {
+                    Mb4Medium medium = mb4_medium_list_item(med_list, j);
+                    if (!mb4_medium_contains_discid(medium, discid)) {
+                        continue;
                     }
+
+                    Mb4Track track = NULL;
+                    Mb4TrackList trk_list = mb4_medium_get_tracklist(medium);
+                    for (int k = 0; k < mb4_track_list_size(trk_list); ++k) {
+                        Mb4Track tk = mb4_track_list_item(trk_list, k);
+                        if (mb4_track_get_position(tk) == tracknumber) {
+                            track = tk;
+                            break;
+                        }
+                    }
+                    if (track == NULL) {
+                        continue;
+                    }
+
+                    Mb4Recording recording = mb4_track_get_recording(track);
+                    set_tag(tags, "TITLE", mb4_recording_get_title, recording);
+
+                    Mb4ArtistCredit artist_credit = mb4_release_get_artistcredit(release);
+                    Mb4NameCreditList crd_list = mb4_artistcredit_get_namecreditlist(
+                            artist_credit);
+                    if (mb4_namecredit_list_size(crd_list) > 0) {
+                        Mb4NameCredit credit = mb4_namecredit_list_item(crd_list, 0);
+                        Mb4Artist artist = mb4_namecredit_get_artist(credit);
+                        set_tag(tags, "ARTIST", mb4_artist_get_name, artist);
+                    }
+
+                    set_tag(tags, "ALBUM", mb4_release_get_title, release);
+                    set_tag(tags, "DATE", mb4_release_get_date, release);
+
+                    done(NULL);
+                    goto cleanup;
                 }
-                if (track == NULL) {
-                    continue;
-                }
-
-                Mb4Recording recording = mb4_track_get_recording(track);
-                set_tag(tags, "TITLE", mb4_recording_get_title, recording);
-
-                Mb4ArtistCredit artist_credit = mb4_release_get_artistcredit(release);
-                Mb4NameCreditList crd_list = mb4_artistcredit_get_namecreditlist(artist_credit);
-                if (mb4_namecredit_list_size(crd_list) > 0) {
-                    Mb4NameCredit credit = mb4_namecredit_list_item(crd_list, 0);
-                    Mb4Artist artist = mb4_namecredit_get_artist(credit);
-                    set_tag(tags, "ARTIST", mb4_artist_get_name, artist);
-                }
-
-                set_tag(tags, "ALBUM", mb4_release_get_title, release);
-                set_tag(tags, "DATE", mb4_release_get_date, release);
-
-                done(NULL);
-                goto cleanup;
             }
-        }
 
-        rsvc_errorf(done, __FILE__, __LINE__, "discid not found: %s\n", discid);
-cleanup:
-        mb4_metadata_delete(meta);
-        mb4_query_delete(q);
-        Block_release(done);
+            rsvc_errorf(done, __FILE__, __LINE__, "discid not found: %s\n", discid);
+    cleanup:
+            mb4_metadata_delete(meta);
+            mb4_query_delete(q);
+            Block_release(done);
+        });
+
+        // usleep() returns early if there is a signal.  Make sure that
+        // we wait out the full thousand microseconds.
+        int64_t exit_time = now_usecs() + 1000000ll;
+        logf(2, "throttling until %lld", exit_time);
+        int64_t remaining;
+        while ((remaining = exit_time - now_usecs()) > 0) {
+            usleep(remaining);
+        }
     });
 }
 
