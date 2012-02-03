@@ -43,7 +43,7 @@ def build(bld):
         cflags=WARNINGS,
         use=[
             "ripservice/librsvc",
-            "libmusicbrainz/libmusicbrainz",
+            "libmusicbrainz/libmusicbrainz-c",
         ],
     )
 

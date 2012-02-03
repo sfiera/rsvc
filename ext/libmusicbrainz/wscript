@@ -10,6 +10,7 @@ def options(opt):
 
 def configure(cnf):
     common(cnf)
+    cnf.env.append_value("LIB_libmusicbrainz/system/stdcxx", "stdc++")
 
 def build(bld):
     common(bld)
@@ -80,7 +81,10 @@ def build(bld):
         source="c/mb4_c.cc",
         includes="include",
         export_includes="include",
-        use="libmusicbrainz/libmusicbrainz",
+        use=[
+            "libmusicbrainz/libmusicbrainz",
+            "libmusicbrainz/system/stdcxx",
+        ],
     )
 
 from waflib.Task import Task

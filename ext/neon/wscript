@@ -15,6 +15,10 @@ def options(opt):
 
 def configure(cnf):
     common(cnf)
+    cnf.env.append_value("LIB_neon/system/openssl", "ssl")
+    cnf.env.append_value("LIB_neon/system/openssl", "crypto")
+    cnf.env.append_value("LIB_neon/system/openssl", "z")
+    cnf.env.append_value("LIB_neon/system/gssapi", "gssapi_krb5")
 
 def build(bld):
     common(bld)
@@ -45,10 +49,15 @@ def build(bld):
             "neon-0.29.6/src/ne_props.c",
             "neon-0.29.6/src/ne_locks.c",
             "neon-0.29.6/src/ne_xmlreq.c",
+            "neon-0.29.6/src/ne_openssl.c",
         ],
         cflags=WARNINGS,
         includes="libneon-0.29.6/src",
         export_includes="include",
+        use=[
+            "neon/system/openssl",
+            "neon/system/gssapi",
+        ]
     )
 
     bld.platform(

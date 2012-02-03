@@ -23,6 +23,7 @@
 #include <dispatch/dispatch.h>
 #include <fcntl.h>
 #include <libgen.h>
+#include <musicbrainz4/mb4_c.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -345,19 +346,115 @@ static void cloak_main(int argc, char* const* argv) {
                         });
                     }
                 };
+                apply_op = Block_copy(apply_op);
                 apply_op(0);
             });
         } else {
             done(NULL);
         }
     };
+    apply_file = Block_copy(apply_file);
     apply_file(0);
 
     dispatch_main();
 }
 
+static void set_tag(rsvc_tags_t tags, const char* tag_name,
+                    int (*accessor)(void*, char*, int), void* object) {
+    const char* existing;
+    size_t n = 1;
+    rsvc_tags_find(tags, tag_name, &existing, &n);
+    if (n > 0) {
+        // Already have tag.
+        return;
+    }
+
+    char tag_value[1024];
+    accessor(object, tag_value, 1024);
+    rsvc_tags_add(tags, tag_name, tag_value);
+}
+
 static void auto_tag(rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
-    rsvc_errorf(done, __FILE__, __LINE__, "musicbrainz: not implemented");
+    const char* discid;
+    size_t n = 1;
+    rsvc_tags_find(tags, RSVC_MUSICBRAINZ_DISCID, &discid, &n);
+    if (n == 0) {
+        rsvc_errorf(done, __FILE__, __LINE__, "missing discid");
+        return;
+    }
+
+    const char* tracknumber_str;
+    n = 1;
+    rsvc_tags_find(tags, RSVC_TRACKNUMBER, &tracknumber_str, &n);
+    if (n == 0) {
+        rsvc_errorf(done, __FILE__, __LINE__, "missing track number");
+        return;
+    }
+    char* endptr;
+    int tracknumber = strtol(tracknumber_str, &endptr, 10);
+    if (*endptr) {
+        rsvc_errorf(done, __FILE__, __LINE__, "bad track number: %s", tracknumber_str);
+        return;
+    }
+
+    done = Block_copy(done);
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        // TODO(sfiera): throttle.
+        Mb4Query q = mb4_query_new("ripservice " RSVC_VERSION, NULL, 0);
+        char* param_names[] = {"inc"};
+        char* param_values[] = {"artists+recordings"};
+        Mb4Metadata meta = mb4_query_query(q, "discid", discid, NULL,
+                                           1, param_names, param_values);
+
+        Mb4Disc disc = mb4_metadata_get_disc(meta);
+        Mb4ReleaseList rel_list = mb4_disc_get_releaselist(disc);
+        for (int i = 0; i < mb4_release_list_size(rel_list); ++i) {
+            Mb4Release release = mb4_release_list_item(rel_list, i);
+            Mb4MediumList med_list = mb4_release_get_mediumlist(release);
+            for (int j = 0; j < mb4_medium_list_size(med_list); ++j) {
+                Mb4Medium medium = mb4_medium_list_item(med_list, j);
+                if (!mb4_medium_contains_discid(medium, discid)) {
+                    continue;
+                }
+
+                Mb4Track track = NULL;
+                Mb4TrackList trk_list = mb4_medium_get_tracklist(medium);
+                for (int k = 0; k < mb4_track_list_size(trk_list); ++k) {
+                    Mb4Track tk = mb4_track_list_item(trk_list, k);
+                    if (mb4_track_get_position(tk) == tracknumber) {
+                        track = tk;
+                        break;
+                    }
+                }
+                if (track == NULL) {
+                    continue;
+                }
+
+                Mb4Recording recording = mb4_track_get_recording(track);
+                set_tag(tags, "TITLE", mb4_recording_get_title, recording);
+
+                Mb4ArtistCredit artist_credit = mb4_release_get_artistcredit(release);
+                Mb4NameCreditList crd_list = mb4_artistcredit_get_namecreditlist(artist_credit);
+                if (mb4_namecredit_list_size(crd_list) > 0) {
+                    Mb4NameCredit credit = mb4_namecredit_list_item(crd_list, 0);
+                    Mb4Artist artist = mb4_namecredit_get_artist(credit);
+                    set_tag(tags, "ARTIST", mb4_artist_get_name, artist);
+                }
+
+                set_tag(tags, "ALBUM", mb4_release_get_title, release);
+                set_tag(tags, "DATE", mb4_release_get_date, release);
+
+                done(NULL);
+                goto cleanup;
+            }
+        }
+
+        rsvc_errorf(done, __FILE__, __LINE__, "discid not found: %s\n", discid);
+cleanup:
+        mb4_metadata_delete(meta);
+        mb4_query_delete(q);
+        Block_release(done);
+    });
 }
 
 static void validate_name(const char* progname, char* name) {
