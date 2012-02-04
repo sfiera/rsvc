@@ -415,16 +415,89 @@ static int64_t now_usecs() {
     return (1000000ll * tv.tv_sec) + tv.tv_usec;
 }
 
-static void auto_tag(rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
+static void* memdup(const void* data, size_t size) {
+    void* copy = malloc(size);
+    memcpy(copy, data, size);
+    return copy;
+}
+
+static void mb4_query_cached(const char* discid, void (^done)(rsvc_error_t, Mb4Metadata)) {
     // MusicBrainz requires that requests be throttled to 1 per second.
     // In order to do so, we serialize all of our requests through a
     // single dispatch queue.
-    static dispatch_queue_t throttling_queue;
-    static dispatch_once_t init_throttle;
-    dispatch_once(&init_throttle, ^{
-        throttling_queue = dispatch_queue_create("net.sfiera.ripservice.musicbrainz", NULL);
+    static dispatch_queue_t cache_queue;
+    static dispatch_queue_t throttle_queue;
+    static dispatch_once_t init;
+    dispatch_once(&init, ^{
+        cache_queue = dispatch_queue_create(
+            "net.sfiera.ripservice.musicbrainz-cache", NULL);
+        throttle_queue = dispatch_queue_create(
+            "net.sfiera.ripservice.musicbrainz-throttle", NULL);
     });
 
+    struct cache_entry {
+        char*               discid;
+        Mb4Metadata         meta;
+        struct cache_entry* next;
+    };
+    static struct cache_entry* cache = NULL;
+
+    done = Block_copy(done);
+    dispatch_async(cache_queue, ^{
+        // Look for `discid` in the cache.
+        //
+        // TODO(sfiera): avoid starting multiple requests for the same
+        // cache key.
+        for (struct cache_entry* curr = cache; curr; curr = curr->next) {
+            if (strcmp(discid, curr->discid) == 0) {
+                logf(1, "mb request in cache for %s", discid);
+                done(NULL, curr->meta);
+                Block_release(done);
+                return;
+            }
+        }
+
+        logf(1, "starting mb request for %s", discid);
+        dispatch_async(throttle_queue, ^{
+            // As soon as we enter the throttling queue, dispatch an
+            // asynchronous request.  We'll sleep for the next second in the
+            // throttling queue, blocking the next request from being
+            // dispatched, but even if the request itself takes longer than
+            // a second, we'll be free to start another.
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                logf(2, "sending mb request for %s", discid);
+                Mb4Query q = mb4_query_new("ripservice " RSVC_VERSION, NULL, 0);
+                char* param_names[] = {"inc"};
+                char* param_values[] = {"artists+recordings"};
+                Mb4Metadata meta = mb4_query_query(q, "discid", discid, NULL,
+                                                   1, param_names, param_values);
+                logf(1, "received mb response for %s", discid);
+                done(NULL, meta);
+                dispatch_sync(cache_queue, ^{
+                    struct cache_entry new_cache = {
+                        .discid = strdup(discid),
+                        .meta   = meta,
+                        .next   = cache,
+                    };
+                    cache = memdup(&new_cache, sizeof new_cache);
+                });
+                mb4_query_delete(q);
+                Block_release(done);
+            });
+
+            // usleep() returns early if there is a signal.  Make sure that
+            // we wait out the full thousand microseconds.
+            int64_t exit_time = now_usecs() + 1000000ll;
+            logf(2, "throttling until %lld", exit_time);
+            int64_t remaining;
+            while ((remaining = exit_time - now_usecs()) > 0) {
+                usleep(remaining);
+            }
+        });
+    });
+}
+
+static void auto_tag(rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
     const char* discid;
     size_t n = 1;
     rsvc_tags_find(tags, RSVC_MUSICBRAINZ_DISCID, &discid, &n);
@@ -447,82 +520,59 @@ static void auto_tag(rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
         return;
     }
 
-    logf(1, "starting mb request for %s", discid);
-    done = Block_copy(done);
-    dispatch_async(throttling_queue, ^{
-        // As soon as we enter the throttling queue, dispatch an
-        // asynchronous request.  We'll sleep for the next second in the
-        // throttling queue, blocking the next request from being
-        // dispatched, but even if the request itself takes longer than
-        // a second, we'll be free to start another.
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-            logf(2, "sending mb request for %s", discid);
-            Mb4Query q = mb4_query_new("ripservice " RSVC_VERSION, NULL, 0);
-            char* param_names[] = {"inc"};
-            char* param_values[] = {"artists+recordings"};
-            Mb4Metadata meta = mb4_query_query(q, "discid", discid, NULL,
-                                               1, param_names, param_values);
-            logf(1, "received mb response for %s", discid);
-
-            Mb4Disc disc = mb4_metadata_get_disc(meta);
-            Mb4ReleaseList rel_list = mb4_disc_get_releaselist(disc);
-            for (int i = 0; i < mb4_release_list_size(rel_list); ++i) {
-                Mb4Release release = mb4_release_list_item(rel_list, i);
-                Mb4MediumList med_list = mb4_release_get_mediumlist(release);
-                for (int j = 0; j < mb4_medium_list_size(med_list); ++j) {
-                    Mb4Medium medium = mb4_medium_list_item(med_list, j);
-                    if (!mb4_medium_contains_discid(medium, discid)) {
-                        continue;
-                    }
-
-                    Mb4Track track = NULL;
-                    Mb4TrackList trk_list = mb4_medium_get_tracklist(medium);
-                    for (int k = 0; k < mb4_track_list_size(trk_list); ++k) {
-                        Mb4Track tk = mb4_track_list_item(trk_list, k);
-                        if (mb4_track_get_position(tk) == tracknumber) {
-                            track = tk;
-                            break;
-                        }
-                    }
-                    if (track == NULL) {
-                        continue;
-                    }
-
-                    Mb4Recording recording = mb4_track_get_recording(track);
-                    set_tag(tags, "TITLE", mb4_recording_get_title, recording);
-
-                    Mb4ArtistCredit artist_credit = mb4_release_get_artistcredit(release);
-                    Mb4NameCreditList crd_list = mb4_artistcredit_get_namecreditlist(
-                            artist_credit);
-                    if (mb4_namecredit_list_size(crd_list) > 0) {
-                        Mb4NameCredit credit = mb4_namecredit_list_item(crd_list, 0);
-                        Mb4Artist artist = mb4_namecredit_get_artist(credit);
-                        set_tag(tags, "ARTIST", mb4_artist_get_name, artist);
-                    }
-
-                    set_tag(tags, "ALBUM", mb4_release_get_title, release);
-                    set_tag(tags, "DATE", mb4_release_get_date, release);
-
-                    done(NULL);
-                    goto cleanup;
-                }
-            }
-
-            rsvc_errorf(done, __FILE__, __LINE__, "discid not found: %s\n", discid);
-    cleanup:
-            mb4_metadata_delete(meta);
-            mb4_query_delete(q);
-            Block_release(done);
-        });
-
-        // usleep() returns early if there is a signal.  Make sure that
-        // we wait out the full thousand microseconds.
-        int64_t exit_time = now_usecs() + 1000000ll;
-        logf(2, "throttling until %lld", exit_time);
-        int64_t remaining;
-        while ((remaining = exit_time - now_usecs()) > 0) {
-            usleep(remaining);
+    mb4_query_cached(discid, ^(rsvc_error_t error, Mb4Metadata meta) {
+        if (error) {
+            done(error);
+            goto cleanup;
         }
+
+        Mb4Disc disc = mb4_metadata_get_disc(meta);
+        Mb4ReleaseList rel_list = mb4_disc_get_releaselist(disc);
+        for (int i = 0; i < mb4_release_list_size(rel_list); ++i) {
+            Mb4Release release = mb4_release_list_item(rel_list, i);
+            Mb4MediumList med_list = mb4_release_get_mediumlist(release);
+            for (int j = 0; j < mb4_medium_list_size(med_list); ++j) {
+                Mb4Medium medium = mb4_medium_list_item(med_list, j);
+                if (!mb4_medium_contains_discid(medium, discid)) {
+                    continue;
+                }
+
+                Mb4Track track = NULL;
+                Mb4TrackList trk_list = mb4_medium_get_tracklist(medium);
+                for (int k = 0; k < mb4_track_list_size(trk_list); ++k) {
+                    Mb4Track tk = mb4_track_list_item(trk_list, k);
+                    if (mb4_track_get_position(tk) == tracknumber) {
+                        track = tk;
+                        break;
+                    }
+                }
+                if (track == NULL) {
+                    continue;
+                }
+
+                Mb4Recording recording = mb4_track_get_recording(track);
+                set_tag(tags, "TITLE", mb4_recording_get_title, recording);
+
+                Mb4ArtistCredit artist_credit = mb4_release_get_artistcredit(release);
+                Mb4NameCreditList crd_list = mb4_artistcredit_get_namecreditlist(
+                        artist_credit);
+                if (mb4_namecredit_list_size(crd_list) > 0) {
+                    Mb4NameCredit credit = mb4_namecredit_list_item(crd_list, 0);
+                    Mb4Artist artist = mb4_namecredit_get_artist(credit);
+                    set_tag(tags, "ARTIST", mb4_artist_get_name, artist);
+                }
+
+                set_tag(tags, "ALBUM", mb4_release_get_title, release);
+                set_tag(tags, "DATE", mb4_release_get_date, release);
+
+                done(NULL);
+                goto cleanup;
+            }
+        }
+
+        rsvc_errorf(done, __FILE__, __LINE__, "discid not found: %s\n", discid);
+cleanup:
+        Block_release(done);
     });
 }
 
