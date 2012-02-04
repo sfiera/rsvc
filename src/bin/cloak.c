@@ -88,6 +88,12 @@ struct long_flag {
     {NULL},
 };
 
+typedef enum list_mode {
+    LIST_MODE_NONE = 0,
+    LIST_MODE_SHORT,
+    LIST_MODE_LONG,
+} list_mode_t;
+
 int verbosity = 0;
 static void logf(int level, const char* format, ...) {
     static dispatch_queue_t log_queue;
@@ -165,6 +171,14 @@ static const char* tag_name(int opt) {
 
 typedef void (^op_t)(rsvc_tags_t, void (^done)(rsvc_error_t));
 
+static void tag_files(size_t nfiles, char** files,
+                      size_t nops, op_t* ops,
+                      list_mode_t list_mode, void (^done)(rsvc_error_t));
+static void tag_file(const char* path, size_t nops, op_t* ops,
+                     list_mode_t list_mode, void (^done)(rsvc_error_t));
+static void apply_ops(rsvc_tags_t tags, size_t nops, op_t* ops,
+                      void (^done)(rsvc_error_t));
+
 static void validate_name(const char* progname, char* name);
 static void split_assignment(const char* progname, const char* assignment,
                              char** name, char** value);
@@ -174,7 +188,7 @@ static void cloak_main(int argc, char* const* argv) {
     const char* progname = strdup(basename(argv[0]));
 
     __block rsvc_option_callbacks_t callbacks;
-    __block bool list = false;
+    __block list_mode_t list_mode = LIST_MODE_NONE;
 
     __block int nops = 0;
     __block op_t* ops = NULL;
@@ -219,7 +233,7 @@ static void cloak_main(int argc, char* const* argv) {
             exit(0);
 
           case LIST:
-            list = true;
+            list_mode = LIST_MODE_SHORT;
             return true;
 
           case DELETE:
@@ -325,73 +339,89 @@ static void cloak_main(int argc, char* const* argv) {
 
     if (files == NULL) {
         callbacks.usage("no input files");
-    } else if ((ops == NULL) && !list) {
+    } else if ((ops == NULL) && !list_mode) {
         callbacks.usage("no actions");
     }
 
-    void (^done)(rsvc_error_t) = ^(rsvc_error_t error){
+    if ((nfiles > 1) && (list_mode == LIST_MODE_SHORT)) {
+        list_mode = LIST_MODE_LONG;
+    }
+    tag_files(nfiles, files, nops, ops, list_mode, ^(rsvc_error_t error){
         if (error) {
             fprintf(stderr, "%s: %s\n", progname, error->message);
             exit(1);
         }
         exit(0);
-    };
+    });
 
+    dispatch_main();
+}
+
+static void tag_files(size_t nfiles, char** files,
+                      size_t nops, op_t* ops,
+                      list_mode_t list_mode, void (^done)(rsvc_error_t)) {
+    if (nfiles == 0) {
+        done(NULL);
+        return;
+    }
+    tag_file(files[0], nops, ops, list_mode, ^(rsvc_error_t error){
+        if (error) {
+            done(error);
+            return;
+        }
+        if (list_mode && (nfiles > 1)) {
+            printf("\n");
+        }
+        tag_files(nfiles - 1, files + 1, nops, ops, list_mode, done);
+    });
+}
+
+static void tag_file(const char* path, size_t nops, op_t* ops,
+                     list_mode_t list_mode, void (^done)(rsvc_error_t)) {
     rsvc_tags_t tags = rsvc_tags_create();
-    __block void (^apply_file)(size_t) = ^(size_t i){
-        if (i < nfiles) {
-            const char* path = files[i];
-            rsvc_flac_read_tags(path, tags, ^(rsvc_error_t error){
+    rsvc_flac_read_tags(path, tags, ^(rsvc_error_t error){
+        if (error) {
+            done(error);
+            return;
+        }
+        apply_ops(tags, nops, ops, ^(rsvc_error_t error){
+            if (error) {
+                done(error);
+                return;
+            }
+            rsvc_flac_write_tags(path, tags, ^(rsvc_error_t error){
                 if (error) {
                     done(error);
                     return;
                 }
-
-                __block void (^apply_op)(size_t) = ^(size_t j){
-                    if (j < nops) {
-                        ops[j](tags, ^(rsvc_error_t error){
-                            if (error) {
-                                done(error);
-                                return;
-                            }
-                            apply_op(j + 1);
-                        });
-                    } else {
-                        rsvc_flac_write_tags(path, tags, ^(rsvc_error_t error){
-                            if (error) {
-                                done(error);
-                                return;
-                            }
-
-                            if (list) {
-                                if (nfiles > 1) {
-                                    printf("%s:\n", path);
-                                }
-                                rsvc_tags_each(tags, ^(const char* name, const char* value,
-                                                       rsvc_stop_t stop){
-                                    printf("%s=%s\n", name, value);
-                                });
-                            }
-                            rsvc_tags_clear(tags);
-
-                            if (list && (nfiles > 1) && ((i + 1) < nfiles)) {
-                                printf("\n");
-                            }
-                            apply_file(i + 1);
-                        });
-                    }
-                };
-                apply_op = Block_copy(apply_op);
-                apply_op(0);
+                if (list_mode == LIST_MODE_LONG) {
+                    printf("%s:\n", path);
+                }
+                if (list_mode) {
+                    rsvc_tags_each(tags, ^(const char* name, const char* value,
+                                           rsvc_stop_t stop){
+                        printf("%s=%s\n", name, value);
+                    });
+                }
+                done(NULL);
             });
-        } else {
-            done(NULL);
-        }
-    };
-    apply_file = Block_copy(apply_file);
-    apply_file(0);
+        });
+    });
+}
 
-    dispatch_main();
+static void apply_ops(rsvc_tags_t tags, size_t nops, op_t* ops,
+                      void (^done)(rsvc_error_t)) {
+    if (nops == 0) {
+        done(NULL);
+        return;
+    }
+    ops[0](tags, ^(rsvc_error_t error){
+        if (error) {
+            done(error);
+            return;
+        }
+        apply_ops(tags, nops - 1, ops + 1, done);
+    });
 }
 
 static void set_tag(rsvc_tags_t tags, const char* tag_name,
