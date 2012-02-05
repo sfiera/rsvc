@@ -366,7 +366,7 @@ static void tag_files(size_t nfiles, char** files,
     }
     tag_file(files[0], nops, ops, list_mode, ^(rsvc_error_t error){
         if (error) {
-            done(error);
+            rsvc_errorf(done, error->file, error->lineno, "%s: %s", files[0], error->message);
             return;
         }
         if (list_mode && (nfiles > 1)) {

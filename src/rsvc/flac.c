@@ -168,8 +168,7 @@ void rsvc_flac_read_tags(const char* path, rsvc_tags_t tags, void (^done)(rsvc_e
         FLAC__Metadata_Chain* chain = FLAC__metadata_chain_new();
         FLAC__Metadata_Iterator* it = FLAC__metadata_iterator_new();
         if (!FLAC__metadata_chain_read(chain, path)) {
-            rsvc_errorf(done, __FILE__, __LINE__, "%s: %s",
-                        path,
+            rsvc_errorf(done, __FILE__, __LINE__, "%s",
                         FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(chain)]);
             goto cleanup;
         }
@@ -208,8 +207,7 @@ void rsvc_flac_write_tags(const char* path, rsvc_tags_t tags, void (^done)(rsvc_
         FLAC__Metadata_Chain* chain = FLAC__metadata_chain_new();
         FLAC__Metadata_Iterator* it = FLAC__metadata_iterator_new();
         if (!FLAC__metadata_chain_read(chain, path)) {
-            rsvc_errorf(done, __FILE__, __LINE__, "%s: %s",
-                        path,
+            rsvc_errorf(done, __FILE__, __LINE__, "%s",
                         FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(chain)]);
             goto cleanup;
         }
