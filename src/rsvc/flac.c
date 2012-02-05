@@ -26,6 +26,7 @@
 #include <dispatch/dispatch.h>
 #include <rsvc/common.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
@@ -162,90 +163,120 @@ encode_cleanup:
     });
 }
 
-void rsvc_flac_read_tags(const char* path, rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
-    done = Block_copy(done);
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        FLAC__Metadata_Chain* chain = FLAC__metadata_chain_new();
-        FLAC__Metadata_Iterator* it = FLAC__metadata_iterator_new();
-        if (!FLAC__metadata_chain_read(chain, path)) {
-            rsvc_errorf(done, __FILE__, __LINE__, "%s",
-                        FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(chain)]);
-            goto cleanup;
+static void* memdup(const void* data, size_t size) {
+    void* copy = malloc(size);
+    memcpy(copy, data, size);
+    return copy;
+}
+
+#define DOWN_CAST(TYPE, PTR) \
+    ((TYPE*)((void*)PTR - offsetof(TYPE, super)))
+
+struct rsvc_flac_tags_self {
+    struct rsvc_flac_tags super;
+    FLAC__Metadata_Chain* chain;
+    FLAC__Metadata_Iterator* it;
+    FLAC__StreamMetadata* block;
+    FLAC__StreamMetadata_VorbisComment* comments;
+};
+typedef struct rsvc_flac_tags_self* rsvc_flac_tags_self_t;
+
+void rsvc_flac_tags_remove(rsvc_flac_tags_t tags, const char* name) {
+    rsvc_flac_tags_self_t self = DOWN_CAST(struct rsvc_flac_tags_self, tags);
+    if (name) {
+        FLAC__metadata_object_vorbiscomment_remove_entries_matching(self->block, name);
+    } else {
+        FLAC__metadata_object_vorbiscomment_resize_comments(self->block, 0);
+    }
+}
+
+void rsvc_flac_tags_add(rsvc_flac_tags_t tags, const char* name, const char* value) {
+    rsvc_flac_tags_self_t self = DOWN_CAST(struct rsvc_flac_tags_self, tags);
+    FLAC__StreamMetadata_VorbisComment_Entry entry;
+    if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(&entry, name, value) ||
+        !FLAC__metadata_object_vorbiscomment_append_comment(self->block, entry, false)) {
+        // TODO(sfiera): report failure.
+    }
+}
+
+bool rsvc_flac_tags_each(rsvc_flac_tags_t tags,
+                         void (^block)(const char* name, const char* value, rsvc_stop_t stop)) {
+    rsvc_flac_tags_self_t self = DOWN_CAST(struct rsvc_flac_tags_self, tags);
+    __block bool loop = true;
+    for (size_t i = 0; loop && (i < self->comments->num_comments); ++i) {
+        char* name;
+        char* value;
+        if (!FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(
+                self->comments->comments[i], &name, &value)) {
+            // TODO(sfiera): report failure.
+            continue;
         }
-        FLAC__metadata_iterator_init(it, chain);
-        // First block is STREAMINFO, which we can skip.
-        while (FLAC__metadata_iterator_next(it)) {
-            if (FLAC__metadata_iterator_get_block_type(it) != FLAC__METADATA_TYPE_VORBIS_COMMENT) {
-                continue;
-            }
-            FLAC__StreamMetadata* block = FLAC__metadata_iterator_get_block(it);
-            FLAC__StreamMetadata_VorbisComment* comments = &block->data.vorbis_comment;
-            for (size_t i = 0; i < comments->num_comments; ++i) {
-                char* name;
-                char* value;
-                if (!FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(
-                        comments->comments[i], &name, &value)) {
-                    rsvc_errorf(done, __FILE__, __LINE__, "comment error");
-                    goto cleanup;
-                }
-                rsvc_tags_add(tags, name, value);
-                free(name);
-                free(value);
-            }
-            break;
+        block(name, value, ^{
+            loop = false;
+        });
+        free(name);
+        free(value);
+    }
+    return loop;
+}
+
+void rsvc_flac_tags_save(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t)) {
+    rsvc_flac_tags_self_t self = DOWN_CAST(struct rsvc_flac_tags_self, tags);
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        if (!FLAC__metadata_chain_write(self->chain, true, false)) {
+            rsvc_errorf(done, __FILE__, __LINE__, "comment error");
+            return;
         }
         done(NULL);
-cleanup:
-        FLAC__metadata_iterator_delete(it);
-        FLAC__metadata_chain_delete(chain);
     });
 }
 
-void rsvc_flac_write_tags(const char* path, rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
+void rsvc_flac_tags_destroy(rsvc_flac_tags_t tags) {
+    rsvc_flac_tags_self_t self = DOWN_CAST(struct rsvc_flac_tags_self, tags);
+    FLAC__metadata_iterator_delete(self->it);
+    FLAC__metadata_chain_delete(self->chain);
+}
+
+static struct rsvc_flac_tags_methods flac_vptr = {
+    .remove = rsvc_flac_tags_remove,
+    .add = rsvc_flac_tags_add,
+    .each = rsvc_flac_tags_each,
+    .save = rsvc_flac_tags_save,
+    .destroy = rsvc_flac_tags_destroy,
+};
+
+void rsvc_flac_read_tags(const char* path, void (^done)(rsvc_flac_tags_t, rsvc_error_t)) {
     done = Block_copy(done);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        FLAC__Metadata_Chain* chain = FLAC__metadata_chain_new();
-        FLAC__Metadata_Iterator* it = FLAC__metadata_iterator_new();
-        if (!FLAC__metadata_chain_read(chain, path)) {
-            rsvc_errorf(done, __FILE__, __LINE__, "%s",
-                        FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(chain)]);
-            goto cleanup;
+        struct rsvc_flac_tags_self tags = {
+            .super = {
+                .vptr   = &flac_vptr,
+            },
+            .chain      = FLAC__metadata_chain_new(),
+            .it         = FLAC__metadata_iterator_new(),
+            .block      = NULL,
+            .comments   = NULL,
+        };
+        if (!FLAC__metadata_chain_read(tags.chain, path)) {
+            rsvc_errorf(^(rsvc_error_t error){
+                done(NULL, error);
+            }, __FILE__, __LINE__, "%s",
+               FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(tags.chain)]);
+            FLAC__metadata_iterator_delete(tags.it);
+            FLAC__metadata_chain_delete(tags.chain);
+            return;
         }
-
-        FLAC__metadata_iterator_init(it, chain);
+        FLAC__metadata_iterator_init(tags.it, tags.chain);
         // First block is STREAMINFO, which we can skip.
-        while (FLAC__metadata_iterator_next(it)) {
-            if (FLAC__metadata_iterator_get_block_type(it) != FLAC__METADATA_TYPE_VORBIS_COMMENT) {
+        while (FLAC__metadata_iterator_next(tags.it)) {
+            if (FLAC__metadata_iterator_get_block_type(tags.it) != FLAC__METADATA_TYPE_VORBIS_COMMENT) {
                 continue;
             }
-            FLAC__StreamMetadata* block = FLAC__metadata_iterator_get_block(it);
-            FLAC__metadata_object_vorbiscomment_resize_comments(block, 0);
-            if (!rsvc_tags_to_vorbis_comments(tags, block)) {
-                rsvc_errorf(done, __FILE__, __LINE__, "comment error");
-                goto cleanup;
-            }
-            FLAC__metadata_chain_write(chain, true, false);
-            done(NULL);
-            goto cleanup;
+            tags.block = FLAC__metadata_iterator_get_block(tags.it);
+            tags.comments = &tags.block->data.vorbis_comment;
+            break;
         }
-
-        // No VORBIS_COMMENT block in file yet.
-        FLAC__metadata_iterator_init(it, chain);
-        FLAC__StreamMetadata* block = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
-        if (!rsvc_tags_to_vorbis_comments(tags, block)
-                || !FLAC__metadata_iterator_insert_block_after(it, block)) {
-            FLAC__metadata_object_delete(block);
-            rsvc_errorf(done, __FILE__, __LINE__, "comment error");
-            goto cleanup;
-        }
-        if (!FLAC__metadata_chain_write(chain, true, false)) {
-            rsvc_errorf(done, __FILE__, __LINE__, "comment error");
-            goto cleanup;
-        }
-        done(NULL);
-cleanup:
-        FLAC__metadata_iterator_delete(it);
-        FLAC__metadata_chain_delete(chain);
+        done(memdup(&tags, sizeof(tags)), NULL);
     });
 }
 

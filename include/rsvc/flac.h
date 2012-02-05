@@ -21,6 +21,7 @@
 #ifndef RSVC_FLAC_H_
 #define RSVC_FLAC_H_
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <rsvc/encode.h>
 #include <rsvc/tag.h>
@@ -34,9 +35,21 @@ void                    rsvc_flac_encode(int read_fd, int file, size_t samples_p
                                          rsvc_tags_t tags,
                                          rsvc_encode_progress_t progress,
                                          rsvc_encode_done_t done);
-void                    rsvc_flac_read_tags(const char* path, rsvc_tags_t tags,
-                                            void (^done)(rsvc_error_t));
-void                    rsvc_flac_write_tags(const char* path, rsvc_tags_t tags,
-                                             void (^done)(rsvc_error_t));
+
+typedef struct rsvc_flac_tags* rsvc_flac_tags_t;
+struct rsvc_flac_tags_methods {
+    void (*remove)(rsvc_flac_tags_t tags, const char* name);
+    void (*add)(rsvc_flac_tags_t tags, const char* name, const char* value);
+    bool (*each)(rsvc_flac_tags_t tags,
+                 void (^block)(const char* name, const char* value, rsvc_stop_t stop));
+    void (*save)(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t));
+    void (*destroy)(rsvc_flac_tags_t tags);
+};
+struct rsvc_flac_tags {
+    struct rsvc_flac_tags_methods* vptr;
+};
+
+void                    rsvc_flac_read_tags(const char* path,
+                                            void (^done)(rsvc_flac_tags_t, rsvc_error_t));
 
 #endif  // RSVC_FLAC_H_
