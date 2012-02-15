@@ -172,17 +172,17 @@ static void* memdup(const void* data, size_t size) {
 #define DOWN_CAST(TYPE, PTR) \
     ((TYPE*)((void*)PTR - offsetof(TYPE, super)))
 
-struct rsvc_flac_tags_self {
-    struct rsvc_flac_tags super;
+struct rsvc_flac_tags {
+    struct rsvc_tags super;
     FLAC__Metadata_Chain* chain;
     FLAC__Metadata_Iterator* it;
     FLAC__StreamMetadata* block;
     FLAC__StreamMetadata_VorbisComment* comments;
 };
-typedef struct rsvc_flac_tags_self* rsvc_flac_tags_self_t;
+typedef struct rsvc_flac_tags* rsvc_flac_tags_t;
 
-void rsvc_flac_tags_remove(rsvc_flac_tags_t tags, const char* name) {
-    rsvc_flac_tags_self_t self = DOWN_CAST(struct rsvc_flac_tags_self, tags);
+static void rsvc_flac_tags_remove(rsvc_tags_t tags, const char* name) {
+    rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     if (name) {
         FLAC__metadata_object_vorbiscomment_remove_entries_matching(self->block, name);
     } else {
@@ -190,8 +190,8 @@ void rsvc_flac_tags_remove(rsvc_flac_tags_t tags, const char* name) {
     }
 }
 
-void rsvc_flac_tags_add(rsvc_flac_tags_t tags, const char* name, const char* value) {
-    rsvc_flac_tags_self_t self = DOWN_CAST(struct rsvc_flac_tags_self, tags);
+static void rsvc_flac_tags_add(rsvc_tags_t tags, const char* name, const char* value) {
+    rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     FLAC__StreamMetadata_VorbisComment_Entry entry;
     if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(&entry, name, value) ||
         !FLAC__metadata_object_vorbiscomment_append_comment(self->block, entry, false)) {
@@ -199,9 +199,9 @@ void rsvc_flac_tags_add(rsvc_flac_tags_t tags, const char* name, const char* val
     }
 }
 
-bool rsvc_flac_tags_each(rsvc_flac_tags_t tags,
+static bool rsvc_flac_tags_each(rsvc_tags_t tags,
                          void (^block)(const char* name, const char* value, rsvc_stop_t stop)) {
-    rsvc_flac_tags_self_t self = DOWN_CAST(struct rsvc_flac_tags_self, tags);
+    rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     __block bool loop = true;
     for (size_t i = 0; loop && (i < self->comments->num_comments); ++i) {
         char* name;
@@ -220,8 +220,8 @@ bool rsvc_flac_tags_each(rsvc_flac_tags_t tags,
     return loop;
 }
 
-void rsvc_flac_tags_save(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t)) {
-    rsvc_flac_tags_self_t self = DOWN_CAST(struct rsvc_flac_tags_self, tags);
+static void rsvc_flac_tags_save(rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
+    rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         if (!FLAC__metadata_chain_write(self->chain, true, false)) {
             rsvc_errorf(done, __FILE__, __LINE__, "comment error");
@@ -231,13 +231,14 @@ void rsvc_flac_tags_save(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t)) {
     });
 }
 
-void rsvc_flac_tags_destroy(rsvc_flac_tags_t tags) {
-    rsvc_flac_tags_self_t self = DOWN_CAST(struct rsvc_flac_tags_self, tags);
+static void rsvc_flac_tags_destroy(rsvc_tags_t tags) {
+    rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     FLAC__metadata_iterator_delete(self->it);
     FLAC__metadata_chain_delete(self->chain);
+    free(self);
 }
 
-static struct rsvc_flac_tags_methods flac_vptr = {
+static struct rsvc_tags_methods flac_vptr = {
     .remove = rsvc_flac_tags_remove,
     .add = rsvc_flac_tags_add,
     .each = rsvc_flac_tags_each,
@@ -245,10 +246,10 @@ static struct rsvc_flac_tags_methods flac_vptr = {
     .destroy = rsvc_flac_tags_destroy,
 };
 
-void rsvc_flac_read_tags(const char* path, void (^done)(rsvc_flac_tags_t, rsvc_error_t)) {
+void rsvc_flac_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t)) {
     done = Block_copy(done);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        struct rsvc_flac_tags_self tags = {
+        struct rsvc_flac_tags tags = {
             .super = {
                 .vptr   = &flac_vptr,
             },
@@ -276,7 +277,8 @@ void rsvc_flac_read_tags(const char* path, void (^done)(rsvc_flac_tags_t, rsvc_e
             tags.comments = &tags.block->data.vorbis_comment;
             break;
         }
-        done(memdup(&tags, sizeof(tags)), NULL);
+        rsvc_flac_tags_t copy = memdup(&tags, sizeof(tags));
+        done(&copy->super, NULL);
     });
 }
 

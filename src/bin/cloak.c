@@ -169,20 +169,20 @@ static const char* tag_name(int opt) {
     abort();
 }
 
-typedef void (^op_t)(rsvc_flac_tags_t, void (^done)(rsvc_error_t));
+typedef void (^op_t)(rsvc_tags_t, void (^done)(rsvc_error_t));
 
 static void tag_files(size_t nfiles, char** files,
                       size_t nops, op_t* ops,
                       list_mode_t list_mode, void (^done)(rsvc_error_t));
 static void tag_file(const char* path, size_t nops, op_t* ops,
                      list_mode_t list_mode, void (^done)(rsvc_error_t));
-static void apply_ops(rsvc_flac_tags_t tags, size_t nops, op_t* ops,
+static void apply_ops(rsvc_tags_t tags, size_t nops, op_t* ops,
                       void (^done)(rsvc_error_t));
 
 static void validate_name(const char* progname, char* name);
 static void split_assignment(const char* progname, const char* assignment,
                              char** name, char** value);
-static void auto_tag(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t));
+static void auto_tag(rsvc_tags_t tags, void (^done)(rsvc_error_t));
 
 static void cloak_main(int argc, char* const* argv) {
     const char* progname = strdup(basename(argv[0]));
@@ -240,16 +240,16 @@ static void cloak_main(int argc, char* const* argv) {
             {
                 char* tag_name = strdup(value());  // leak
                 validate_name(progname, tag_name);
-                add_op(^(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t)){
-                    tags->vptr->remove(tags, tag_name);
+                add_op(^(rsvc_tags_t tags, void (^done)(rsvc_error_t)){
+                    rsvc_tags_remove(tags, tag_name);
                     done(NULL);
                 });
             }
             return true;
 
           case DELETE_ALL:
-            add_op(^(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t)){
-                tags->vptr->remove(tags, NULL);
+            add_op(^(rsvc_tags_t tags, void (^done)(rsvc_error_t)){
+                rsvc_tags_clear(tags);
                 done(NULL);
             });
             return true;
@@ -262,14 +262,14 @@ static void cloak_main(int argc, char* const* argv) {
                 split_assignment(progname, value(), &tag_name, &tag_value);
                 validate_name(progname, tag_name);
                 if (opt == SET) {
-                    add_op(^(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t)){
-                        tags->vptr->remove(tags, tag_name);
-                        tags->vptr->add(tags, tag_name, tag_value);
+                    add_op(^(rsvc_tags_t tags, void (^done)(rsvc_error_t)){
+                        rsvc_tags_remove(tags, tag_name);
+                        rsvc_tags_add(tags, tag_name, tag_value);
                         done(NULL);
                     });
                 } else {
-                    add_op(^(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t)){
-                        tags->vptr->add(tags, tag_name, tag_value);
+                    add_op(^(rsvc_tags_t tags, void (^done)(rsvc_error_t)){
+                        rsvc_tags_add(tags, tag_name, tag_value);
                         done(NULL);
                     });
                 }
@@ -287,16 +287,16 @@ static void cloak_main(int argc, char* const* argv) {
           case DISC_TOTAL:
             {
                 char* tag_value = strdup(value());  // leak
-                add_op(^(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t)){
-                    tags->vptr->remove(tags, tag_name(opt));
-                    tags->vptr->add(tags, tag_name(opt), tag_value);
+                add_op(^(rsvc_tags_t tags, void (^done)(rsvc_error_t)){
+                    rsvc_tags_remove(tags, tag_name(opt));
+                    rsvc_tags_add(tags, tag_name(opt), tag_value);
                     done(NULL);
                 });
             }
             return true;
 
           case AUTO:
-            add_op(^(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t)){
+            add_op(^(rsvc_tags_t tags, void (^done)(rsvc_error_t)){
                 auto_tag(tags, done);
             });
             return true;
@@ -378,7 +378,7 @@ static void tag_files(size_t nfiles, char** files,
 
 static void tag_file(const char* path, size_t nops, op_t* ops,
                      list_mode_t list_mode, void (^done)(rsvc_error_t)) {
-    rsvc_flac_read_tags(path, ^(rsvc_flac_tags_t tags, rsvc_error_t error){
+    rsvc_flac_read_tags(path, ^(rsvc_tags_t tags, rsvc_error_t error){
         if (error) {
             done(error);
             return;
@@ -388,7 +388,7 @@ static void tag_file(const char* path, size_t nops, op_t* ops,
                 done(error);
                 return;
             }
-            tags->vptr->save(tags, ^(rsvc_error_t error){
+            rsvc_tags_save(tags, ^(rsvc_error_t error){
                 if (error) {
                     done(error);
                     return;
@@ -397,20 +397,19 @@ static void tag_file(const char* path, size_t nops, op_t* ops,
                     printf("%s:\n", path);
                 }
                 if (list_mode) {
-                    tags->vptr->each(tags, ^(const char* name, const char* value,
+                    rsvc_tags_each(tags, ^(const char* name, const char* value,
                                            rsvc_stop_t stop){
                         printf("%s=%s\n", name, value);
                     });
                 }
                 done(NULL);
-                tags->vptr->destroy(tags);
-                free(tags);
+                rsvc_tags_destroy(tags);
             });
         });
     });
 }
 
-static void apply_ops(rsvc_flac_tags_t tags, size_t nops, op_t* ops,
+static void apply_ops(rsvc_tags_t tags, size_t nops, op_t* ops,
                       void (^done)(rsvc_error_t)) {
     if (nops == 0) {
         done(NULL);
@@ -425,9 +424,9 @@ static void apply_ops(rsvc_flac_tags_t tags, size_t nops, op_t* ops,
     });
 }
 
-static void set_tag(rsvc_flac_tags_t tags, const char* tag_name,
+static void set_tag(rsvc_tags_t tags, const char* tag_name,
                     int (*accessor)(void*, char*, int), void* object) {
-    if (!tags->vptr->each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+    if (!rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
         if (strcmp(name, tag_name) == 0) {
             stop();
         }
@@ -438,7 +437,7 @@ static void set_tag(rsvc_flac_tags_t tags, const char* tag_name,
 
     char tag_value[1024];
     accessor(object, tag_value, 1024);
-    tags->vptr->add(tags, tag_name, tag_value);
+    rsvc_tags_add(tags, tag_name, tag_value);
 }
 
 static int64_t now_usecs() {
@@ -529,12 +528,12 @@ static void mb4_query_cached(const char* discid, void (^done)(rsvc_error_t, Mb4M
     });
 }
 
-static void auto_tag(rsvc_flac_tags_t tags, void (^done)(rsvc_error_t)) {
+static void auto_tag(rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
     __block char* discid = 0;
     __block bool found_discid = false;
     __block int tracknumber = 0;
     __block bool found_tracknumber = false;
-    if (!tags->vptr->each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+    if (!rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
         if (strcmp(name, RSVC_MUSICBRAINZ_DISCID) == 0) {
             found_discid = true;
             discid = strdup(value);

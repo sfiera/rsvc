@@ -26,6 +26,17 @@
 #include <rsvc/common.h>
 
 typedef struct rsvc_tags* rsvc_tags_t;
+struct rsvc_tags_methods {
+    void (*remove)(rsvc_tags_t tags, const char* name);
+    void (*add)(rsvc_tags_t tags, const char* name, const char* value);
+    bool (*each)(rsvc_tags_t tags,
+                 void (^block)(const char* name, const char* value, rsvc_stop_t stop));
+    void (*save)(rsvc_tags_t tags, void (^done)(rsvc_error_t));
+    void (*destroy)(rsvc_tags_t tags);
+};
+struct rsvc_tags {
+    struct rsvc_tags_methods* vptr;
+};
 
 /// Tags
 /// ====
@@ -45,15 +56,13 @@ typedef struct rsvc_tags* rsvc_tags_t;
 ///
 ///     :returns:       An empty set of tags.
 ///
-/// ..  function:: rsvc_tags_t rsvc_tags_copy(rsvc_tags_t tags)
-///
-///     :returns:       A copy of `tags`.
+/// ..  function:: void rsvc_tags_save()
 ///
 /// ..  function:: void rsvc_tags_destroy(rsvc_tags_t tags)
 ///
 ///     Destroys a :type:`rsvc_tags_t`, reclaiming its resources.
 rsvc_tags_t             rsvc_tags_create();
-rsvc_tags_t             rsvc_tags_copy(rsvc_tags_t tags);
+void                    rsvc_tags_save(rsvc_tags_t tags, void (^done)(rsvc_error_t));
 void                    rsvc_tags_destroy(rsvc_tags_t tags);
 
 /// ..  function:: void rsvc_tags_clear(rsvc_tags_t tags)
@@ -116,12 +125,6 @@ bool                    rsvc_tags_addf(rsvc_tags_t tags,
 ///
 ///     Iterates over tags in `tags`.  See :type:`rsvc_stop_t` for a
 ///     description of the iterator interface.
-size_t                  rsvc_tags_size(rsvc_tags_t tags);
-bool                    rsvc_tags_get(rsvc_tags_t tags, const char* names[],
-                                      const char* values[], size_t* ntags);
-size_t                  rsvc_tags_count(rsvc_tags_t tags, const char* name);
-bool                    rsvc_tags_find(rsvc_tags_t tags, const char* name,
-                                       const char* values[], size_t* nvalues);
 bool                    rsvc_tags_each(rsvc_tags_t tags,
                                        void (^block)(const char*, const char*, rsvc_stop_t));
 
