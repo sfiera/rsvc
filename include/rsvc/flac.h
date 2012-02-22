@@ -36,6 +36,7 @@ void                    rsvc_flac_encode(int read_fd, int file, size_t samples_p
                                          rsvc_encode_progress_t progress,
                                          rsvc_encode_done_t done);
 
+/// ..  function:: void rsvc_flac_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t));
 void                    rsvc_flac_read_tags(const char* path,
                                             void (^done)(rsvc_tags_t, rsvc_error_t));
 
