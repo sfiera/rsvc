@@ -54,7 +54,7 @@ static bool rsvc_tags_to_vorbis_comments(rsvc_tags_t tags, FLAC__StreamMetadata*
     });
 }
 
-void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_tags_t tags,
+void rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel, rsvc_tags_t tags,
                       rsvc_encode_progress_t progress, rsvc_encode_done_t done) {
     done = Block_copy(done);
     progress = Block_copy(progress);
@@ -97,7 +97,7 @@ void rsvc_flac_encode(int read_fd, int file, size_t samples_per_channel, rsvc_ta
             goto encode_cleanup;
         }
 
-        int fd = file;
+        int fd = write_fd;
         FLAC__StreamEncoderInitStatus init_status = FLAC__stream_encoder_init_stream(
                 encoder, flac_write, flac_seek, flac_tell, NULL, &fd);
         if (init_status != FLAC__STREAM_ENCODER_INIT_STATUS_OK) {

@@ -28,7 +28,7 @@
 #include <time.h>
 #include <unistd.h>
 
-void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
+void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
                         rsvc_tags_t tags, int bitrate,
                         rsvc_encode_progress_t progress, rsvc_encode_done_t done) {
     done = Block_copy(done);
@@ -86,8 +86,8 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
                 if (result == 0) {
                     break;
                 }
-                write(file, og.header, og.header_len);
-                write(file, og.body, og.body_len);
+                write(write_fd, og.header, og.header_len);
+                write(write_fd, og.body, og.body_len);
             }
         }
 
@@ -132,8 +132,8 @@ void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel,
                         if (result == 0) {
                             break;
                         }
-                        write(file, og.header, og.header_len);
-                        write(file, og.body, og.body_len);
+                        write(write_fd, og.header, og.header_len);
+                        write(write_fd, og.body, og.body_len);
                         if (ogg_page_eos(&og)) {
                             eos = true;
                         }
