@@ -22,6 +22,7 @@
 
 #include <AudioToolbox/AudioConverter.h>
 #include <AudioToolbox/AudioFile.h>
+#include <AudioToolbox/AudioFormat.h>
 #include <AudioToolbox/ExtendedAudioFile.h>
 #include <Block.h>
 #include <dispatch/dispatch.h>
@@ -70,25 +71,29 @@ OSStatus core_audio_set_size(void* userdata, SInt64 size) {
     return noErr;
 }
 
-void rsvc_m4a_encode(
-        int read_fd, int write_fd, size_t samples_per_channel,
-        rsvc_tags_t tags, int bitrate,
+static void core_audio_encode(
+        int read_fd, int write_fd, size_t samples_per_channel, rsvc_tags_t tags,
+        int container_id, int codec_id, int bitrate,
         rsvc_encode_progress_t progress, rsvc_encode_done_t done) {
     (void)samples_per_channel;
     done = Block_copy(done);
     progress = Block_copy(progress);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         OSStatus err;
-        const AudioStreamBasicDescription asbd_out = {
-            .mFormatID          = kAudioFormatMPEG4AAC,
+        AudioStreamBasicDescription asbd_out = {
+            .mFormatID          = codec_id,
             .mSampleRate        = 44100.0,
             .mChannelsPerFrame  = 2,
         };
+        if (codec_id == kAudioFormatAppleLossless) {
+            asbd_out.mFormatFlags       = kAppleLosslessFormatFlag_16BitSourceData;
+        }
+
         int fd = write_fd;
         AudioFileID file_id = NULL;
         err = AudioFileInitializeWithCallbacks(
             &fd, core_audio_read, core_audio_write, core_audio_get_size, core_audio_set_size,
-            kAudioFileMPEG4Type, &asbd_out, 0, &file_id);
+            container_id, &asbd_out, 0, &file_id);
         if (err != noErr) {
             rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
             goto cleanup;
@@ -119,39 +124,42 @@ void rsvc_m4a_encode(
             goto cleanup;
         }
 
-        AudioConverterRef converter = NULL;
-        UInt32 converter_size = sizeof(converter);
-        err = ExtAudioFileGetProperty(
-                file_ref, kExtAudioFileProperty_AudioConverter, &converter_size, &converter);
-        if (err != noErr) {
-            rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
-            goto cleanup;
-        }
-        if (converter == NULL) {
-            rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
-            goto cleanup;
-        }
-        err = AudioConverterSetProperty(
-                converter, kAudioConverterEncodeBitRate, sizeof(bitrate), &bitrate);
-        if (err != noErr) {
-            rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
-            goto cleanup;
-        }
-        CFArrayRef converter_properties;
-        UInt32 converter_properties_size = sizeof(converter_properties);
-        err = AudioConverterGetProperty(
-                converter, kAudioConverterPropertySettings,
-                &converter_properties_size, &converter_properties);
-        if (err != noErr) {
-            rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
-            goto cleanup;
-        }
-        err = ExtAudioFileSetProperty(
-                file_ref, kExtAudioFileProperty_ConverterConfig,
-                sizeof(converter_properties), &converter_properties);
-        if (err != noErr) {
-            rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
-            goto cleanup;
+        // Set the bitrate if encoding with a lossy codec.
+        if (codec_id != kAudioFormatAppleLossless) {
+            AudioConverterRef converter = NULL;
+            UInt32 converter_size = sizeof(converter);
+            err = ExtAudioFileGetProperty(
+                    file_ref, kExtAudioFileProperty_AudioConverter, &converter_size, &converter);
+            if (err != noErr) {
+                rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+                goto cleanup;
+            }
+            if (converter == NULL) {
+                rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+                goto cleanup;
+            }
+            err = AudioConverterSetProperty(
+                    converter, kAudioConverterEncodeBitRate, sizeof(bitrate), &bitrate);
+            if (err != noErr) {
+                rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+                goto cleanup;
+            }
+            CFArrayRef converter_properties;
+            UInt32 converter_properties_size = sizeof(converter_properties);
+            err = AudioConverterGetProperty(
+                    converter, kAudioConverterPropertySettings,
+                    &converter_properties_size, &converter_properties);
+            if (err != noErr) {
+                rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+                goto cleanup;
+            }
+            err = ExtAudioFileSetProperty(
+                    file_ref, kExtAudioFileProperty_ConverterConfig,
+                    sizeof(converter_properties), &converter_properties);
+            if (err != noErr) {
+                rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+                goto cleanup;
+            }
         }
 
         size_t samples_per_channel_read = 0;
@@ -199,4 +207,24 @@ cleanup:
         ExtAudioFileDispose(file_ref);
         AudioFileClose(file_id);
     });
+}
+
+void rsvc_aac_encode(
+        int read_fd, int write_fd, size_t samples_per_channel,
+        rsvc_tags_t tags, int bitrate,
+        rsvc_encode_progress_t progress, rsvc_encode_done_t done) {
+    core_audio_encode(
+            read_fd, write_fd, samples_per_channel, tags,
+            kAudioFileM4AType, kAudioFormatMPEG4AAC, bitrate,
+            progress, done);
+}
+
+void rsvc_alac_encode(
+        int read_fd, int write_fd, size_t samples_per_channel,
+        rsvc_tags_t tags,
+        rsvc_encode_progress_t progress, rsvc_encode_done_t done) {
+    core_audio_encode(
+            read_fd, write_fd, samples_per_channel, tags,
+            kAudioFileM4AType, kAudioFormatAppleLossless, -1,
+            progress, done);
 }

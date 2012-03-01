@@ -78,7 +78,8 @@ static void rsvc_command_watch(watch_options_t options,
 typedef enum rip_format {
     FORMAT_NONE = 0,
     FORMAT_FLAC,
-    FORMAT_MP3,
+    FORMAT_AAC,
+    FORMAT_ALAC,
     FORMAT_VORBIS,
 } rip_format_t;
 struct rip_options {
@@ -390,11 +391,12 @@ static void rsvc_command_rip(rip_options_t options,
       case FORMAT_NONE:
         abort();
       case FORMAT_FLAC:
+      case FORMAT_ALAC:
         if (options->has_bitrate) {
             usage("bitrate provided for lossless format");
         }
         break;
-      case FORMAT_MP3:
+      case FORMAT_AAC:
         if (!options->has_bitrate) {
             usage("must choose bitrate");
         }
@@ -587,7 +589,10 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
           case FORMAT_FLAC:
             sprintf(filename, "%02ld.flac", track_number);
             break;
-          case FORMAT_MP3:
+          case FORMAT_AAC:
+            sprintf(filename, "%02ld.m4a", track_number);
+            break;
+          case FORMAT_ALAC:
             sprintf(filename, "%02ld.m4a", track_number);
             break;
           case FORMAT_VORBIS:
@@ -645,9 +650,12 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
           case FORMAT_FLAC:
             rsvc_flac_encode(read_pipe, file, nsamples, tags, progress, encode_done);
             return;
-          case FORMAT_MP3:
-            rsvc_m4a_encode(read_pipe, file, nsamples, tags, options->bitrate,
+          case FORMAT_AAC:
+            rsvc_aac_encode(read_pipe, file, nsamples, tags, options->bitrate,
                             progress, encode_done);
+            return;
+          case FORMAT_ALAC:
+            rsvc_alac_encode(read_pipe, file, nsamples, tags, progress, encode_done);
             return;
           case FORMAT_VORBIS:
             rsvc_vorbis_encode(read_pipe, file, nsamples, tags, options->bitrate,
@@ -663,8 +671,11 @@ static bool read_format(const char* in, rip_format_t* out) {
     if (strcmp(in, "flac") == 0) {
         *out = FORMAT_FLAC;
         return true;
-    } else if (strcmp(in, "m4a") == 0) {
-        *out = FORMAT_MP3;
+    } else if (strcmp(in, "aac") == 0) {
+        *out = FORMAT_AAC;
+        return true;
+    } else if (strcmp(in, "alac") == 0) {
+        *out = FORMAT_ALAC;
         return true;
     } else if (strcmp(in, "vorbis") == 0) {
         *out = FORMAT_VORBIS;

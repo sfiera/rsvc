@@ -26,9 +26,13 @@
 #include <rsvc/encode.h>
 #include <rsvc/tag.h>
 
-void                    rsvc_m4a_encode(int read_fd, int write_fd,
+void                    rsvc_aac_encode(int read_fd, int write_fd,
                                         size_t samples_per_channel, rsvc_tags_t tags, int bitrate,
                                         rsvc_encode_progress_t progress,
                                         rsvc_encode_done_t done);
+void                    rsvc_alac_encode(int read_fd, int write_fd,
+                                         size_t samples_per_channel, rsvc_tags_t tags,
+                                         rsvc_encode_progress_t progress,
+                                         rsvc_encode_done_t done);
 
 #endif  // RSVC_CORE_AUDIO_H_
