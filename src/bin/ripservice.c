@@ -32,6 +32,7 @@
 #include <unistd.h>
 
 #include <rsvc/cd.h>
+#include <rsvc/core-audio.h>
 #include <rsvc/disc.h>
 #include <rsvc/tag.h>
 #include <rsvc/flac.h>
@@ -77,6 +78,7 @@ static void rsvc_command_watch(watch_options_t options,
 typedef enum rip_format {
     FORMAT_NONE = 0,
     FORMAT_FLAC,
+    FORMAT_MP3,
     FORMAT_VORBIS,
 } rip_format_t;
 struct rip_options {
@@ -392,6 +394,10 @@ static void rsvc_command_rip(rip_options_t options,
             usage("bitrate provided for lossless format");
         }
         break;
+      case FORMAT_MP3:
+        if (!options->has_bitrate) {
+            usage("must choose bitrate");
+        }
       case FORMAT_VORBIS:
         if (!options->has_bitrate) {
             usage("must choose bitrate");
@@ -581,11 +587,14 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
           case FORMAT_FLAC:
             sprintf(filename, "%02ld.flac", track_number);
             break;
+          case FORMAT_MP3:
+            sprintf(filename, "%02ld.m4a", track_number);
+            break;
           case FORMAT_VORBIS:
             sprintf(filename, "%02ld.ogv", track_number);
             break;
         }
-        int file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        int file = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0644);
         if (file < 0) {
             rsvc_strerrorf(done, __FILE__, __LINE__, "%s", file);
             return;
@@ -636,6 +645,10 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
           case FORMAT_FLAC:
             rsvc_flac_encode(read_pipe, file, nsamples, tags, progress, encode_done);
             return;
+          case FORMAT_MP3:
+            rsvc_m4a_encode(read_pipe, file, nsamples, tags, options->bitrate,
+                            progress, encode_done);
+            return;
           case FORMAT_VORBIS:
             rsvc_vorbis_encode(read_pipe, file, nsamples, tags, options->bitrate,
                                progress, encode_done);
@@ -649,6 +662,9 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
 static bool read_format(const char* in, rip_format_t* out) {
     if (strcmp(in, "flac") == 0) {
         *out = FORMAT_FLAC;
+        return true;
+    } else if (strcmp(in, "m4a") == 0) {
+        *out = FORMAT_MP3;
         return true;
     } else if (strcmp(in, "vorbis") == 0) {
         *out = FORMAT_VORBIS;

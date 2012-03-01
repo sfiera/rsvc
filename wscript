@@ -22,6 +22,7 @@ def options(opt):
 def configure(cnf):
     common(cnf)
     cnf.env.append_value("FRAMEWORK_ripservice/system/diskarbitration", "DiskArbitration")
+    cnf.env.append_value("FRAMEWORK_ripservice/system/audiotoolbox", "AudioToolbox")
 
 def build(bld):
     common(bld)
@@ -64,8 +65,17 @@ def build(bld):
         use=[
             "discid/libdiscid",
             "flac/libflac",
-            "ripservice/system/diskarbitration",
             "vorbis/libvorbis",
+        ],
+    )
+
+    bld.platform(
+        target="ripservice/librsvc",
+        platform="darwin",
+        source="src/rsvc/core-audio.c",
+        use=[
+            "ripservice/system/audiotoolbox",
+            "ripservice/system/diskarbitration",
         ],
     )
 
