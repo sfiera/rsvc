@@ -34,6 +34,7 @@
 
 #include <rsvc/tag.h>
 #include <rsvc/flac.h>
+#include <rsvc/mp4.h>
 #include <rsvc/vorbis.h>
 
 enum short_flag {
@@ -378,7 +379,7 @@ static void tag_files(size_t nfiles, char** files,
 
 static void tag_file(const char* path, size_t nops, op_t* ops,
                      list_mode_t list_mode, void (^done)(rsvc_error_t)) {
-    rsvc_flac_read_tags(path, ^(rsvc_tags_t tags, rsvc_error_t error){
+    void (^read_done)(rsvc_tags_t, rsvc_error_t) = ^(rsvc_tags_t tags, rsvc_error_t error){
         if (error) {
             done(error);
             return;
@@ -402,11 +403,19 @@ static void tag_file(const char* path, size_t nops, op_t* ops,
                         printf("%s=%s\n", name, value);
                     });
                 }
-                done(NULL);
                 rsvc_tags_destroy(tags);
+                done(NULL);
             });
         });
-    });
+    };
+    char* dot = strrchr(path, '.');
+    if (dot && (strcmp(dot + 1, "flac") == 0)) {
+        rsvc_flac_read_tags(path, read_done);
+    } else if (dot && (strcmp(dot + 1, "m4a") == 0)) {
+        rsvc_mp4_read_tags(path, read_done);
+    } else {
+        rsvc_errorf(done, __FILE__, __LINE__, "%s: couldn't detect file type", path);
+    }
 }
 
 static void apply_ops(rsvc_tags_t tags, size_t nops, op_t* ops,

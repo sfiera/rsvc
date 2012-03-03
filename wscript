@@ -10,7 +10,7 @@ def common(ctx):
     ctx.default_compiler = "clang"
     ctx.load("compiler_c")
     ctx.load("core externals", tooldir="ext/waf-sfiera")
-    ctx.external("discid flac libmusicbrainz vorbis")
+    ctx.external("discid flac libmusicbrainz mp4v2 vorbis")
 
 def dist(dst):
     dst.algo = "zip"
@@ -56,6 +56,7 @@ def build(bld):
             "src/rsvc/disc.c",
             "src/rsvc/common.c",
             "src/rsvc/flac.c",
+            "src/rsvc/mp4.c",
             "src/rsvc/tag.c",
             "src/rsvc/vorbis.c",
         ],
@@ -65,6 +66,7 @@ def build(bld):
         use=[
             "discid/libdiscid",
             "flac/libflac",
+            "mp4v2/libmp4v2",
             "vorbis/libvorbis",
         ],
     )
