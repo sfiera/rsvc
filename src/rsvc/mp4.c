@@ -107,16 +107,20 @@ struct rsvc_mp4_tags {
 };
 typedef struct rsvc_mp4_tags* rsvc_mp4_tags_t;
 
-static void rsvc_mp4_tags_remove(rsvc_tags_t tags, const char* name) {
+static bool rsvc_mp4_tags_remove(rsvc_tags_t tags, const char* name,
+                                 void (^fail)(rsvc_error_t error)) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
     (void)self;
-    // TODO(sfiera): report failure.
+    rsvc_errorf(fail, __FILE__, __LINE__, "cannot modify MP4 tags");
+    return false;
 }
 
-static void rsvc_mp4_tags_add(rsvc_tags_t tags, const char* name, const char* value) {
+static bool rsvc_mp4_tags_add(rsvc_tags_t tags, const char* name, const char* value,
+                              void (^fail)(rsvc_error_t error)) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
     (void)self;
-    // TODO(sfiera): report failure.
+    rsvc_errorf(fail, __FILE__, __LINE__, "cannot modify MP4 tags");
+    return false;
 }
 
 static bool rsvc_mp4_tags_each(rsvc_tags_t tags,

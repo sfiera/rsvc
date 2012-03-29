@@ -242,16 +242,18 @@ static void cloak_main(int argc, char* const* argv) {
                 char* tag_name = strdup(value());  // leak
                 validate_name(progname, tag_name);
                 add_op(^(rsvc_tags_t tags, void (^done)(rsvc_error_t)){
-                    rsvc_tags_remove(tags, tag_name);
-                    done(NULL);
+                    if (rsvc_tags_remove(tags, tag_name, done)) {
+                        done(NULL);
+                    }
                 });
             }
             return true;
 
           case DELETE_ALL:
             add_op(^(rsvc_tags_t tags, void (^done)(rsvc_error_t)){
-                rsvc_tags_clear(tags);
-                done(NULL);
+                if (rsvc_tags_clear(tags, done)) {
+                    done(NULL);
+                }
             });
             return true;
 
@@ -264,14 +266,16 @@ static void cloak_main(int argc, char* const* argv) {
                 validate_name(progname, tag_name);
                 if (opt == SET) {
                     add_op(^(rsvc_tags_t tags, void (^done)(rsvc_error_t)){
-                        rsvc_tags_remove(tags, tag_name);
-                        rsvc_tags_add(tags, tag_name, tag_value);
-                        done(NULL);
+                        if (rsvc_tags_remove(tags, tag_name, done)
+                                && rsvc_tags_add(tags, done, tag_name, tag_value)) {
+                            done(NULL);
+                        }
                     });
                 } else {
                     add_op(^(rsvc_tags_t tags, void (^done)(rsvc_error_t)){
-                        rsvc_tags_add(tags, tag_name, tag_value);
-                        done(NULL);
+                        if (rsvc_tags_add(tags, done, tag_name, tag_value)) {
+                            done(NULL);
+                        }
                     });
                 }
             }
@@ -289,9 +293,10 @@ static void cloak_main(int argc, char* const* argv) {
             {
                 char* tag_value = strdup(value());  // leak
                 add_op(^(rsvc_tags_t tags, void (^done)(rsvc_error_t)){
-                    rsvc_tags_remove(tags, tag_name(opt));
-                    rsvc_tags_add(tags, tag_name(opt), tag_value);
-                    done(NULL);
+                    if (rsvc_tags_remove(tags, tag_name(opt), done)
+                            && rsvc_tags_add(tags, done, tag_name(opt), tag_value)) {
+                        done(NULL);
+                    }
                 });
             }
             return true;
@@ -433,20 +438,24 @@ static void apply_ops(rsvc_tags_t tags, size_t nops, op_t* ops,
     });
 }
 
-static void set_tag(rsvc_tags_t tags, const char* tag_name,
-                    int (*accessor)(void*, char*, int), void* object) {
+static bool set_mb_tag(rsvc_tags_t tags, const char* tag_name,
+                    int (*accessor)(void*, char*, int), void* object,
+                    void (^fail)(rsvc_error_t error)) {
+    if (object == NULL) {
+        return true;
+    }
     if (!rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
         if (strcmp(name, tag_name) == 0) {
             stop();
         }
     })) {
         // Already have tag.
-        return;
+        return true;
     }
 
     char tag_value[1024];
     accessor(object, tag_value, 1024);
-    rsvc_tags_add(tags, tag_name, tag_value);
+    return rsvc_tags_add(tags, fail, tag_name, tag_value);
 }
 
 static int64_t now_usecs() {
@@ -595,23 +604,23 @@ static void auto_tag(rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
                 if (track == NULL) {
                     continue;
                 }
-
                 Mb4Recording recording = mb4_track_get_recording(track);
-                set_tag(tags, "TITLE", mb4_recording_get_title, recording);
 
                 Mb4ArtistCredit artist_credit = mb4_release_get_artistcredit(release);
                 Mb4NameCreditList crd_list = mb4_artistcredit_get_namecreditlist(
                         artist_credit);
+                Mb4Artist artist = NULL;
                 if (mb4_namecredit_list_size(crd_list) > 0) {
                     Mb4NameCredit credit = mb4_namecredit_list_item(crd_list, 0);
-                    Mb4Artist artist = mb4_namecredit_get_artist(credit);
-                    set_tag(tags, "ARTIST", mb4_artist_get_name, artist);
+                    artist = mb4_namecredit_get_artist(credit);
                 }
 
-                set_tag(tags, "ALBUM", mb4_release_get_title, release);
-                set_tag(tags, "DATE", mb4_release_get_date, release);
-
-                done(NULL);
+                if (set_mb_tag(tags, RSVC_TITLE, mb4_recording_get_title, recording, done)
+                        && set_mb_tag(tags, RSVC_ARTIST, mb4_artist_get_name, artist, done)
+                        && set_mb_tag(tags, RSVC_ALBUM, mb4_release_get_title, release, done)
+                        && set_mb_tag(tags, RSVC_DATE, mb4_release_get_date, release, done)) {
+                    done(NULL);
+                }
                 goto cleanup;
             }
         }

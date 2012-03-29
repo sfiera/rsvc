@@ -48,7 +48,8 @@ struct rsvc_free_tags {
 };
 typedef struct rsvc_free_tags* rsvc_free_tags_t;
 
-static void rsvc_free_tags_remove(rsvc_tags_t tags, const char* name) {
+static bool rsvc_free_tags_remove(rsvc_tags_t tags, const char* name,
+                                  void (^fail)(rsvc_error_t error)) {
     rsvc_free_tags_t self = DOWN_CAST(struct rsvc_free_tags, tags);
     rsvc_tag_node_t* curr = &self->head;
     while (*curr) {
@@ -62,9 +63,11 @@ static void rsvc_free_tags_remove(rsvc_tags_t tags, const char* name) {
             curr = &(*curr)->next;
         }
     }
+    return true;
 }
 
-static void rsvc_free_tags_add(rsvc_tags_t tags, const char* name, const char* value) {
+static bool rsvc_free_tags_add(rsvc_tags_t tags, const char* name, const char* value,
+                               void (^fail)(rsvc_error_t error)) {
     rsvc_free_tags_t self = DOWN_CAST(struct rsvc_free_tags, tags);
     rsvc_tag_node_t* curr = &self->head;
     while (*curr) {
@@ -76,6 +79,7 @@ static void rsvc_free_tags_add(rsvc_tags_t tags, const char* name, const char* v
         .next   = NULL,
     };
     *curr = memdup(&node, sizeof(node));
+    return true;
 }
 
 static bool rsvc_free_tags_each(
@@ -96,7 +100,9 @@ static void rsvc_free_tags_save(rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
 }
 
 static void rsvc_free_tags_destroy(rsvc_tags_t tags) {
-    rsvc_free_tags_remove(tags, NULL);
+    rsvc_free_tags_t self = DOWN_CAST(struct rsvc_free_tags, tags);
+    rsvc_free_tags_remove(tags, NULL, ^(rsvc_error_t error){});
+    free(self);
 }
 
 static struct rsvc_tags_methods free_vptr = {
@@ -110,7 +116,7 @@ static struct rsvc_tags_methods free_vptr = {
 rsvc_tags_t rsvc_tags_create() {
     struct rsvc_free_tags tags = {
         .super = {
-            .vptr   = &free_vptr,
+            .vptr = &free_vptr,
         },
         .head = NULL,
     };
@@ -125,28 +131,31 @@ void rsvc_tags_destroy(rsvc_tags_t tags) {
     tags->vptr->destroy(tags);
 }
 
-void rsvc_tags_clear(rsvc_tags_t tags) {
-    tags->vptr->remove(tags, NULL);
+bool rsvc_tags_clear(rsvc_tags_t tags, void (^fail)(rsvc_error_t error)) {
+    return tags->vptr->remove(tags, NULL, fail);
 }
 
-void rsvc_tags_remove(rsvc_tags_t tags, const char* name) {
-    tags->vptr->remove(tags, name);
+bool rsvc_tags_remove(rsvc_tags_t tags, const char* name, void (^fail)(rsvc_error_t error)) {
+    return tags->vptr->remove(tags, name, fail);
 }
 
 static bool tag_name_is_valid(const char* name) {
     return name[strspn(name, "ABCDEFGHIJ" "KLMNOPQRST" "UVWXYZ" "_")] == '\0';
 }
 
-bool rsvc_tags_add(rsvc_tags_t tags, const char* name, const char* value) {
+bool rsvc_tags_add(rsvc_tags_t tags, void (^fail)(rsvc_error_t error),
+                   const char* name, const char* value) {
     if (!tag_name_is_valid(name)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid tag name: %s", name);
         return false;
     }
-    tags->vptr->add(tags, name, value);
-    return true;
+    return tags->vptr->add(tags, name, value, fail);
 }
 
-bool rsvc_tags_addf(rsvc_tags_t tags, const char* name, const char* format, ...) {
+bool rsvc_tags_addf(rsvc_tags_t tags, void (^fail)(rsvc_error_t error),
+                    const char* name, const char* format, ...) {
     if (!tag_name_is_valid(name)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid tag name: %s", name);
         return false;
     }
     char* value;
@@ -154,9 +163,9 @@ bool rsvc_tags_addf(rsvc_tags_t tags, const char* name, const char* format, ...)
     va_start(vl, format);
     vasprintf(&value, format, vl);
     va_end(vl);
-    tags->vptr->add(tags, name, value);
+    bool result = tags->vptr->add(tags, name, value, fail);
     free(value);
-    return true;
+    return result;
 }
 
 bool rsvc_tags_each(rsvc_tags_t tags,

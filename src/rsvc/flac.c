@@ -181,22 +181,27 @@ struct rsvc_flac_tags {
 };
 typedef struct rsvc_flac_tags* rsvc_flac_tags_t;
 
-static void rsvc_flac_tags_remove(rsvc_tags_t tags, const char* name) {
+static bool rsvc_flac_tags_remove(rsvc_tags_t tags, const char* name,
+                                  void (^fail)(rsvc_error_t error)) {
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     if (name) {
         FLAC__metadata_object_vorbiscomment_remove_entries_matching(self->block, name);
     } else {
         FLAC__metadata_object_vorbiscomment_resize_comments(self->block, 0);
     }
+    return true;
 }
 
-static void rsvc_flac_tags_add(rsvc_tags_t tags, const char* name, const char* value) {
+static bool rsvc_flac_tags_add(rsvc_tags_t tags, const char* name, const char* value,
+                               void (^fail)(rsvc_error_t error)) {
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     FLAC__StreamMetadata_VorbisComment_Entry entry;
     if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(&entry, name, value) ||
         !FLAC__metadata_object_vorbiscomment_append_comment(self->block, entry, false)) {
-        // TODO(sfiera): report failure.
+        rsvc_errorf(fail, __FILE__, __LINE__, "FLAC tag error");
+        return false;
     }
+    return true;
 }
 
 static bool rsvc_flac_tags_each(rsvc_tags_t tags,

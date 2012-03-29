@@ -27,8 +27,8 @@
 
 typedef struct rsvc_tags* rsvc_tags_t;
 struct rsvc_tags_methods {
-    void (*remove)(rsvc_tags_t tags, const char* name);
-    void (*add)(rsvc_tags_t tags, const char* name, const char* value);
+    bool (*remove)(rsvc_tags_t tags, const char* name, void (^fail)(rsvc_error_t));
+    bool (*add)(rsvc_tags_t tags, const char* name, const char* value, void (^fail)(rsvc_error_t));
     bool (*each)(rsvc_tags_t tags,
                  void (^block)(const char* name, const char* value, rsvc_stop_t stop));
     void (*save)(rsvc_tags_t tags, void (^done)(rsvc_error_t));
@@ -79,11 +79,12 @@ void                    rsvc_tags_destroy(rsvc_tags_t tags);
 ///     `printf`-style format string.
 ///
 ///     :returns:       true iff `name` was valid and the tag was added.
-void                    rsvc_tags_clear(rsvc_tags_t tags);
-void                    rsvc_tags_remove(rsvc_tags_t tags, const char* name);
-bool                    rsvc_tags_add(rsvc_tags_t tags,
+bool                    rsvc_tags_clear(rsvc_tags_t tags, void (^fail)(rsvc_error_t error));
+bool                    rsvc_tags_remove(rsvc_tags_t tags, const char* name,
+                                         void (^fail)(rsvc_error_t error));
+bool                    rsvc_tags_add(rsvc_tags_t tags, void (^fail)(rsvc_error_t error),
                                       const char* name, const char* value);
-bool                    rsvc_tags_addf(rsvc_tags_t tags,
+bool                    rsvc_tags_addf(rsvc_tags_t tags, void (^fail)(rsvc_error_t error),
                                        const char* name, const char* format, ...);
 
 /// ..  function:: size_t rsvc_tags_size(rsvc_tags_t tags)

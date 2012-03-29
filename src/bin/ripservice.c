@@ -621,16 +621,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         progress_node_t node = progress_start(progress, filename);
         size_t nsamples = rsvc_cd_track_nsamples(track);
         rsvc_tags_t tags = rsvc_tags_create();
-        rsvc_tags_addf(tags, RSVC_ENCODER, "ripservice %s", RSVC_VERSION);
-        rsvc_tags_add(tags, RSVC_MUSICBRAINZ_DISCID, rsvc_cd_session_discid(session));
-        rsvc_tags_addf(tags, RSVC_TRACKNUMBER, "%d", track_number);
-        rsvc_tags_addf(tags, RSVC_TRACKTOTAL, "%d", ntracks);
-        if (*mcn) {
-            rsvc_tags_add(tags, RSVC_MCN, mcn);
-        }
-        if (*isrc) {
-            rsvc_tags_add(tags, RSVC_ISRC, isrc);
-        }
+
         void (^encode_done)(rsvc_error_t) = ^(rsvc_error_t error){
             if (error) {
                 done(error);
@@ -644,23 +635,32 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         void (^progress)(double) = ^(double fraction){
             progress_update(node, fraction);
         };
-        switch (options->format) {
-          case FORMAT_NONE:
-            abort();
-          case FORMAT_FLAC:
-            rsvc_flac_encode(read_pipe, file, nsamples, tags, progress, encode_done);
-            return;
-          case FORMAT_AAC:
-            rsvc_aac_encode(read_pipe, file, nsamples, tags, options->bitrate,
-                            progress, encode_done);
-            return;
-          case FORMAT_ALAC:
-            rsvc_alac_encode(read_pipe, file, nsamples, tags, progress, encode_done);
-            return;
-          case FORMAT_VORBIS:
-            rsvc_vorbis_encode(read_pipe, file, nsamples, tags, options->bitrate,
-                               progress, encode_done);
-            return;
+
+        const char* discid = rsvc_cd_session_discid(session);
+        if (rsvc_tags_addf(tags, encode_done, RSVC_ENCODER, "ripservice %s", RSVC_VERSION)
+                && rsvc_tags_add(tags, encode_done, RSVC_MUSICBRAINZ_DISCID, discid)
+                && rsvc_tags_addf(tags, encode_done, RSVC_TRACKNUMBER, "%d", track_number)
+                && rsvc_tags_addf(tags, encode_done, RSVC_TRACKTOTAL, "%d", ntracks)
+                && (!*mcn || rsvc_tags_add(tags, encode_done, RSVC_MCN, mcn))
+                && (!*isrc || rsvc_tags_add(tags, encode_done, RSVC_ISRC, isrc))) {
+            switch (options->format) {
+              case FORMAT_NONE:
+                abort();
+              case FORMAT_FLAC:
+                rsvc_flac_encode(read_pipe, file, nsamples, tags, progress, encode_done);
+                return;
+              case FORMAT_AAC:
+                rsvc_aac_encode(read_pipe, file, nsamples, tags, options->bitrate,
+                                progress, encode_done);
+                return;
+              case FORMAT_ALAC:
+                rsvc_alac_encode(read_pipe, file, nsamples, tags, progress, encode_done);
+                return;
+              case FORMAT_VORBIS:
+                rsvc_vorbis_encode(read_pipe, file, nsamples, tags, options->bitrate,
+                                   progress, encode_done);
+                return;
+            }
         }
     };
     rip_track = Block_copy(rip_track);
