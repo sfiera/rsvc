@@ -37,30 +37,383 @@ static void* memdup(const void* data, size_t size) {
     return copy;
 }
 
-struct mp4_tag_type {
-};
+typedef struct mp4_tag* mp4_tag_t;
 typedef struct mp4_tag_type* mp4_tag_type_t;
 
-struct mp4_tag_type mp4_string = {};
-struct mp4_tag_type mp4_year = {};
-struct mp4_tag_type mp4_isrc = {};
-struct mp4_tag_type mp4_number = {};
-struct mp4_tag_type mp4_bool = {};
-struct mp4_tag_type mp4_genre = {};
-struct mp4_tag_type mp4_tracknumber = {};
-struct mp4_tag_type mp4_tracktotal = {};
-struct mp4_tag_type mp4_discnumber = {};
-struct mp4_tag_type mp4_disctotal = {};
-
+struct mp4_tag_type {
+    bool (*add)(MP4FileHandle* file, mp4_tag_t tag, const char* value,
+                void (^fail)(rsvc_error_t error));
+    bool (*remove)(MP4FileHandle* file, mp4_tag_t tag,
+                   void (^fail)(rsvc_error_t error));
+};
 struct mp4_tag {
     const char* vorbis_name;
     mp4_tag_type_t type;
     const char* mp4_code;
     const char* mp4_name;
 };
-typedef struct mp4_tag* mp4_tag_t;
 
-struct mp4_tag mp4_tags[] = {
+static bool add_binary_tag(MP4FileHandle* file, mp4_tag_t tag,
+                           const void* value, size_t value_size, int type_code,
+                           void (^fail)(rsvc_error_t error)) {
+    // Check that the tag does not already exist.
+    MP4ItmfItemList* items;
+    if (tag->mp4_name) {
+        items = MP4ItmfGetItemsByMeaning(file, "com.apple.iTunes", tag->mp4_name);
+    } else {
+        items = MP4ItmfGetItemsByCode(file, tag->mp4_code);
+    }
+    if (items->size > 0) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "only one mp4 %s tag permitted", tag->vorbis_name);
+        return false;
+    }
+    MP4ItmfItemListFree(items);
+
+    // Add the tag.
+    MP4ItmfItem* item = MP4ItmfItemAlloc(tag->mp4_code, 1);
+    if (tag->mp4_name) {
+        item->mean = strdup("com.apple.iTunes");
+        item->name = strdup(tag->mp4_name);
+    }
+    MP4ItmfData* data = &item->dataList.elements[0];
+    data->typeSetIdentifier = 0;
+    data->typeCode          = type_code;
+    data->locale            = 0;
+    data->value             = memdup(value, value_size);
+    data->valueSize         = value_size;
+    MP4ItmfAddItem(file, item);
+    MP4ItmfItemFree(item);
+
+    return true;
+}
+
+static bool add_string_tag(MP4FileHandle* file, mp4_tag_t tag, const char* value,
+                           void (^fail)(rsvc_error_t error)) {
+    return add_binary_tag(file, tag, value, strlen(value), MP4_ITMF_BT_UTF8, fail);
+}
+
+static bool add_date_tag(MP4FileHandle* file, mp4_tag_t tag, const char* value,
+                         void (^fail)(rsvc_error_t error)) {
+    bool valid = false;
+    size_t size = strlen(value);
+    if ((size == 4) || (size == 10)) {
+        valid = true;
+        for (int i = 0; i < size; ++i) {
+            if ((i == 4) || (i == 7)) {
+                if (value[i] != '-') {
+                    valid = false;
+                    break;
+                }
+            } else {
+                if ((value[i] < '0') || ('9' < value[i])) {
+                    valid = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (valid) {
+        return add_binary_tag(file, tag, value, size, MP4_ITMF_BT_UTF8, fail);
+    } else {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid mp4 %s %s", tag->vorbis_name, value);
+        return false;
+    }
+}
+
+static bool add_isrc_tag(MP4FileHandle* file, mp4_tag_t tag, const char* value,
+                         void (^fail)(rsvc_error_t error)) {
+    bool valid = false;
+    size_t size = strlen(value);
+    if (size == 12) {
+        valid = true;
+        for (int i = 0; i < size; ++i) {
+            char ch = value[i];
+            if (i < 2) {
+                if ((ch < 'A') || ('Z' < ch)) {
+                    valid = false;
+                    break;
+                }
+            } else if (i < 5) {
+                if ((ch < '0') || (('9' < ch) && (ch < 'A')) || ('Z' < ch)) {
+                    valid = false;
+                    break;
+                }
+            } else {
+                if ((ch < '0') || ('9' < ch)) {
+                    valid = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (valid) {
+        return add_binary_tag(file, tag, value, size, MP4_ITMF_BT_ISRC, fail);
+    } else {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid mp4 %s %s", tag->vorbis_name, value);
+        return false;
+    }
+}
+
+static bool parse_number(const char* value, int64_t* number) {
+    char* end;
+    *number = strtol(value, &end, 10);
+    if (*end) {
+        return false;
+    }
+    return true;
+}
+
+static bool add_uint16_tag(MP4FileHandle* file, mp4_tag_t tag, const char* value,
+                           void (^fail)(rsvc_error_t error)) {
+    int64_t number;
+    if (!parse_number(value, &number) || (number < 0) || (number >= UINT16_MAX)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid mp4 %s %s", tag->vorbis_name, value);
+        return false;
+    }
+    uint8_t data[2] = {
+        (number >> 8) & 0xff,
+        number & 0xff,
+    };
+    return add_binary_tag(file, tag, data, 2, MP4_ITMF_BT_INTEGER, fail);
+}
+
+static bool add_boolean_tag(MP4FileHandle* file, mp4_tag_t tag, const char* value,
+                            void (^fail)(rsvc_error_t error)) {
+    if ((strlen(value) != 1) || (value[0] < '0') || (value[1] > '1')) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid mp4 %s %s", tag->vorbis_name, value);
+        return false;
+    }
+    uint8_t data = value[0] - '0';
+    return add_binary_tag(file, tag, &data, 1, MP4_ITMF_BT_INTEGER, fail);
+}
+
+static void read_trkn_or_disc(const uint8_t* bytes, size_t size,
+                              uint16_t* number, uint16_t* total) {
+    *number = 0;
+    *total = 0;
+    if (size < 2) {
+        return;
+    }
+    bytes++;  // reserved1
+    uint8_t reserved2 = *(bytes++);
+
+    if (size < reserved2 + 2) {
+        return;
+    }
+    bytes += reserved2;  // reserved3
+
+    if (size < reserved2 + 6) {
+        return;
+    }
+    *number |= *(bytes++);
+    *number <<= 8;
+    *number |= *(bytes++);
+    *total |= *(bytes++);
+    *total <<= 8;
+    *total |= *(bytes++);
+}
+
+static void write_trkn_or_disc(uint8_t* bytes, size_t size, uint16_t number, uint16_t total) {
+    if (size < 2) {
+        return;
+    }
+    bytes++;  // reserved1
+    uint8_t reserved2 = *(bytes++);
+
+    if (size < reserved2 + 2) {
+        return;
+    }
+    bytes += reserved2;  // reserved3
+
+    if (size < reserved2 + 6) {
+        return;
+    }
+    *(bytes++) = number >> 8;
+    *(bytes++) = number;
+    *(bytes++) = total >> 8;
+    *(bytes++) = total;
+}
+
+static bool set_trkn_or_disc(MP4FileHandle* file, mp4_tag_t tag,
+                             uint8_t* default_data, size_t default_size,
+                             uint16_t* new_number, uint16_t* new_total,
+                             void (^fail)(rsvc_error_t error)) {
+    bool result = true;
+    MP4ItmfItemList* items = MP4ItmfGetItemsByCode(file, tag->mp4_code);
+    if (items->size && items->elements[0].dataList.size) {
+        MP4ItmfItem* item = &items->elements[0];
+        MP4ItmfData* data = &item->dataList.elements[0];
+        uint16_t number, total;
+        read_trkn_or_disc(data->value, data->valueSize, &number, &total);
+        number = new_number ? *new_number : number;
+        total = new_total ? *new_total : total;
+        if (number || total) {
+            write_trkn_or_disc(data->value, data->valueSize, number, total);
+            MP4ItmfSetItem(file, item);
+        } else {
+            MP4ItmfRemoveItem(file, item);
+        }
+    } else {
+        uint8_t* value = default_data;
+        size_t size = default_size;
+        uint16_t number, total;
+        number = new_number ? *new_number : 0;
+        total = new_total ? *new_total : 0;
+        if (number || total) {
+            write_trkn_or_disc(value, size, number, total);
+            result = add_binary_tag(file, tag, value, size, MP4_ITMF_BT_IMPLICIT, fail);
+        }
+    }
+    MP4ItmfItemListFree(items);
+    return result;
+}
+
+static bool add_track_number(MP4FileHandle* file, mp4_tag_t tag, const char* value,
+                             void (^fail)(rsvc_error_t error)) {
+    int64_t n;
+    if (!parse_number(value, &n) || (n < 1) || (n >= UINT16_MAX)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid mp4 %s %s", tag->vorbis_name, value);
+        return false;
+    }
+    uint16_t number = n;
+    uint8_t default_data[8] = {};
+    return set_trkn_or_disc(file, tag, default_data, sizeof(default_data), &number, NULL, fail);
+}
+
+static bool add_track_total(MP4FileHandle* file, mp4_tag_t tag, const char* value,
+                             void (^fail)(rsvc_error_t error)) {
+    int64_t n;
+    if (!parse_number(value, &n) || (n < 1) || (n >= UINT16_MAX)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid mp4 %s %s", tag->vorbis_name, value);
+        return false;
+    }
+    uint16_t total = n;
+    uint8_t default_data[8] = {};
+    return set_trkn_or_disc(file, tag, default_data, sizeof(default_data), NULL, &total, fail);
+}
+
+static bool add_disc_number(MP4FileHandle* file, mp4_tag_t tag, const char* value,
+                             void (^fail)(rsvc_error_t error)) {
+    int64_t n;
+    if (!parse_number(value, &n) || (n < 1) || (n >= UINT16_MAX)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid mp4 %s %s", tag->vorbis_name, value);
+        return false;
+    }
+    uint16_t number = n;
+    uint8_t default_data[6] = {};
+    return set_trkn_or_disc(file, tag, default_data, sizeof(default_data), &number, NULL, fail);
+}
+
+static bool add_disc_total(MP4FileHandle* file, mp4_tag_t tag, const char* value,
+                             void (^fail)(rsvc_error_t error)) {
+    int64_t n;
+    if (!parse_number(value, &n) || (n < 1) || (n >= UINT16_MAX)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid mp4 %s %s", tag->vorbis_name, value);
+        return false;
+    }
+    uint16_t total = n;
+    uint8_t default_data[6] = {};
+    return set_trkn_or_disc(file, tag, default_data, sizeof(default_data), NULL, &total, fail);
+}
+
+static bool delete_tag(MP4FileHandle* file, mp4_tag_t tag,
+                       void (^fail)(rsvc_error_t error)) {
+    MP4ItmfItemList* items = MP4ItmfGetItems(file);
+    for (int i = 0; i < items->size; ++i) {
+        MP4ItmfItem* item = &items->elements[i];
+        if (strcmp(item->code, tag->mp4_code) != 0) {
+            continue;
+        } else if (tag->mp4_name
+                && (!item->name || (strcmp(item->name, tag->mp4_name) != 0))) {
+            continue;
+        }
+        MP4ItmfRemoveItem(file, item);
+    }
+    MP4ItmfItemListFree(items);
+    return true;
+}
+
+static bool remove_track_number(MP4FileHandle* file, mp4_tag_t tag,
+                             void (^fail)(rsvc_error_t error)) {
+    uint16_t number = 0;
+    uint8_t default_data[8] = {};
+    return set_trkn_or_disc(file, tag, default_data, sizeof(default_data), &number, NULL, fail);
+}
+
+static bool remove_track_total(MP4FileHandle* file, mp4_tag_t tag,
+                             void (^fail)(rsvc_error_t error)) {
+    uint16_t total = 0;
+    uint8_t default_data[8] = {};
+    return set_trkn_or_disc(file, tag, default_data, sizeof(default_data), NULL, &total, fail);
+}
+
+static bool remove_disc_number(MP4FileHandle* file, mp4_tag_t tag,
+                             void (^fail)(rsvc_error_t error)) {
+    uint16_t number = 0;
+    uint8_t default_data[8] = {};
+    return set_trkn_or_disc(file, tag, default_data, sizeof(default_data), &number, NULL, fail);
+}
+
+static bool remove_disc_total(MP4FileHandle* file, mp4_tag_t tag,
+                             void (^fail)(rsvc_error_t error)) {
+    uint16_t total = 0;
+    uint8_t default_data[8] = {};
+    return set_trkn_or_disc(file, tag, default_data, sizeof(default_data), NULL, &total, fail);
+}
+
+static struct mp4_tag_type mp4_string = {
+    .add = add_string_tag,
+    .remove = delete_tag,
+};
+
+static struct mp4_tag_type mp4_year = {
+    .add = add_date_tag,
+    .remove = delete_tag,
+};
+
+static struct mp4_tag_type mp4_isrc = {
+    .add = add_isrc_tag,
+    .remove = delete_tag,
+};
+
+static struct mp4_tag_type mp4_uint16 = {
+    .add = add_uint16_tag,
+    .remove = delete_tag,
+};
+
+static struct mp4_tag_type mp4_bool = {
+    .add = add_boolean_tag,
+    .remove = delete_tag,
+};
+
+static struct mp4_tag_type mp4_genre = {
+    .add = NULL,
+    .remove = delete_tag,
+};
+
+static struct mp4_tag_type mp4_tracknumber = {
+    .add = add_track_number,
+    .remove = remove_track_number,
+};
+
+static struct mp4_tag_type mp4_tracktotal = {
+    .add = add_track_total,
+    .remove = remove_track_total,
+};
+
+static struct mp4_tag_type mp4_discnumber = {
+    .add = add_disc_number,
+    .remove = remove_disc_number,
+};
+
+static struct mp4_tag_type mp4_disctotal = {
+    .add = add_disc_total,
+    .remove = remove_disc_total,
+};
+
+static struct mp4_tag mp4_tags[] = {
     {"TITLE",               &mp4_string,        "\251nam"},
     {"TITLESORT",           &mp4_string,        "sonm"},
     {"ARTIST",              &mp4_string,        "\251ART"},
@@ -86,7 +439,7 @@ struct mp4_tag mp4_tags[] = {
     {"TRACKTOTAL",          &mp4_tracktotal,    "trkn"},
     {"DISCNUMBER",          &mp4_discnumber,    "disk"},
     {"DISCTOTAL",           &mp4_disctotal,     "disk"},
-    {"BPM",                 &mp4_number,        "tmpo"},
+    {"BPM",                 &mp4_uint16,        "tmpo"},
     {"COMPILATION",         &mp4_bool,          "cpil"},
     {"GAPLESS",             &mp4_bool,          "pgap"},
 
@@ -103,23 +456,40 @@ struct mp4_tag mp4_tags[] = {
 struct rsvc_mp4_tags {
     struct rsvc_tags super;
     MP4FileHandle file;
-    MP4ItmfItemList* tags;
 };
 typedef struct rsvc_mp4_tags* rsvc_mp4_tags_t;
 
 static bool rsvc_mp4_tags_remove(rsvc_tags_t tags, const char* name,
                                  void (^fail)(rsvc_error_t error)) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
-    (void)self;
-    rsvc_errorf(fail, __FILE__, __LINE__, "cannot modify MP4 tags");
-    return false;
+    if (name) {
+        for (mp4_tag_t tag = mp4_tags; tag->vorbis_name; ++tag) {
+            if ((strcmp(tag->vorbis_name, name) != 0)) {
+                continue;
+            }
+            return tag->type->remove(self->file, tag, fail);
+        }
+    } else {
+        MP4ItmfItemList* items = MP4ItmfGetItems(self->file);
+        for (int i = 0; i < items->size; ++i) {
+            MP4ItmfItem* item = &items->elements[i];
+            MP4ItmfRemoveItem(self->file, item);
+        }
+        MP4ItmfItemListFree(items);
+    }
+    return true;
 }
 
 static bool rsvc_mp4_tags_add(rsvc_tags_t tags, const char* name, const char* value,
                               void (^fail)(rsvc_error_t error)) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
-    (void)self;
-    rsvc_errorf(fail, __FILE__, __LINE__, "cannot modify MP4 tags");
+    for (mp4_tag_t tag = mp4_tags; tag->vorbis_name; ++tag) {
+        if (strcmp(tag->vorbis_name, name) != 0) {
+            continue;
+        }
+        return tag->type->add(self->file, tag, value, fail);
+    }
+    rsvc_errorf(fail, __FILE__, __LINE__, "no mp4 tag %s", name);
     return false;
 }
 
@@ -131,8 +501,9 @@ static bool rsvc_mp4_tags_each(rsvc_tags_t tags,
         loop = false;
     };
 
-    for (uint32_t i = 0; loop && (i < self->tags->size); ++i) {
-        MP4ItmfItem* item = &self->tags->elements[i];
+    MP4ItmfItemList* items = MP4ItmfGetItems(self->file);
+    for (uint32_t i = 0; loop && (i < items->size); ++i) {
+        MP4ItmfItem* item = &items->elements[i];
         for (mp4_tag_t tag = mp4_tags; tag->vorbis_name; ++tag) {
             if ((strcmp(item->code, tag->mp4_code) != 0)
                     || (item->dataList.size == 0)) {
@@ -145,14 +516,12 @@ static bool rsvc_mp4_tags_each(rsvc_tags_t tags,
             switch (data->typeCode) {
                 case MP4_ITMF_BT_IMPLICIT: {
                     uint16_t number = 0;
+                    uint16_t total = 0;
                     if ((tag->type == &mp4_tracknumber) || (tag->type == &mp4_discnumber)) {
-                        if (data->valueSize >= 6) {
-                            number = (data->value[2] << 8) | data->value[3];
-                        }
+                        read_trkn_or_disc(data->value, data->valueSize, &number, &total);
                     } else if ((tag->type == &mp4_tracktotal) || (tag->type == &mp4_disctotal)) {
-                        if (data->valueSize >= 6) {
-                            number = (data->value[4] << 8) | data->value[5];
-                        }
+                        read_trkn_or_disc(data->value, data->valueSize, &number, &total);
+                        number = total;
                     } else if (tag->type == &mp4_genre) {
                         if (data->valueSize == 2) {
                             number = ((data->value[0] << 8) | data->value[1]) - 1;
@@ -213,6 +582,7 @@ static bool rsvc_mp4_tags_each(rsvc_tags_t tags,
             }
         }
     }
+    MP4ItmfItemListFree(items);
     return loop;
 }
 
@@ -224,7 +594,6 @@ static void rsvc_mp4_tags_save(rsvc_tags_t tags, void (^done)(rsvc_error_t)) {
 
 static void rsvc_mp4_tags_destroy(rsvc_tags_t tags) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
-    MP4ItmfItemListFree(self->tags);
     MP4Close(self->file, MP4_CLOSE_DO_NOT_COMPUTE_BITRATE);
     free(self);
 }
@@ -252,7 +621,6 @@ void rsvc_mp4_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t
             }, __FILE__, __LINE__, "MP4_INVALID_FILE_HANDLE");
             goto cleanup;
         }
-        tags.tags = MP4ItmfGetItems(tags.file);
         rsvc_mp4_tags_t copy = memdup(&tags, sizeof(tags));
         done(&copy->super, NULL);
         return;
