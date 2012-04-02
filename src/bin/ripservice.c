@@ -601,7 +601,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         }
         int file = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0644);
         if (file < 0) {
-            rsvc_strerrorf(done, __FILE__, __LINE__, "%s", file);
+            rsvc_strerrorf(done, __FILE__, __LINE__, "%s", filename);
             return;
         }
 
