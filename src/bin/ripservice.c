@@ -59,21 +59,21 @@ struct print_options {
 typedef struct print_options* print_options_t;
 static void rsvc_command_print(print_options_t options,
                                void (^usage)(const char* message, ...),
-                               void (^check_error)(rsvc_error_t));
+                               void (^done)(rsvc_error_t));
 
 struct ls_options {
 };
 typedef struct ls_options* ls_options_t;
 static void rsvc_command_ls(ls_options_t options,
                             void (^usage)(const char* message, ...),
-                            void (^check_error)(rsvc_error_t));
+                            void (^done)(rsvc_error_t));
 
 struct watch_options {
 };
 typedef struct watch_options* watch_options_t;
 static void rsvc_command_watch(watch_options_t options,
                                void (^usage)(const char* message, ...),
-                               void (^check_error)(rsvc_error_t));
+                               void (^done)(rsvc_error_t));
 
 typedef enum rip_format {
     FORMAT_NONE = 0,
@@ -92,7 +92,7 @@ struct rip_options {
 typedef struct rip_options* rip_options_t;
 static void rsvc_command_rip(rip_options_t options,
                              void (^usage)(const char* message, ...),
-                             void (^check_error)(rsvc_error_t));
+                             void (^done)(rsvc_error_t));
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error_t error));
 static bool read_format(const char* in, rip_format_t* out);
@@ -264,12 +264,14 @@ static void rsvc_main(int argc, char* const* argv) {
 
     rsvc_options(argc, argv, &callbacks);
 
-    void (^check_error)(rsvc_error_t) = ^(rsvc_error_t error){
+    void (^done)(rsvc_error_t) = ^(rsvc_error_t error){
         if (error) {
             fprintf(stderr, "%s%s: %s (%s:%d)\n",
                     progname, progname_suffix[command], error->message,
                     error->file, error->lineno);
             exit(1);
+        } else {
+            exit(EX_OK);
         }
     };
 
@@ -278,19 +280,19 @@ static void rsvc_main(int argc, char* const* argv) {
         callbacks.usage(NULL);
 
       case COMMAND_PRINT:
-        rsvc_command_print(&print_options, callbacks.usage, check_error);
+        rsvc_command_print(&print_options, callbacks.usage, done);
         break;
 
       case COMMAND_LS:
-        rsvc_command_ls(&ls_options, callbacks.usage, check_error);
+        rsvc_command_ls(&ls_options, callbacks.usage, done);
         break;
 
       case COMMAND_WATCH:
-        rsvc_command_watch(&watch_options, callbacks.usage, check_error);
+        rsvc_command_watch(&watch_options, callbacks.usage, done);
         break;
 
       case COMMAND_RIP:
-        rsvc_command_rip(&rip_options, callbacks.usage, check_error);
+        rsvc_command_rip(&rip_options, callbacks.usage, done);
         break;
     }
 
@@ -299,12 +301,15 @@ static void rsvc_main(int argc, char* const* argv) {
 
 static void rsvc_command_print(print_options_t options,
                                void (^usage)(const char* message, ...),
-                               void (^check_error)(rsvc_error_t)) {
+                               void (^done)(rsvc_error_t)) {
     if (options->disk == NULL) {
         usage(NULL);
     }
     rsvc_cd_create(options->disk, ^(rsvc_cd_t cd, rsvc_error_t error){
-        check_error(error);
+        if (error) {
+            done(error);
+            return;
+        }
         dispatch_async(dispatch_get_main_queue(), ^{
             const char* mcn = rsvc_cd_mcn(cd);
             if (*mcn) {
@@ -339,14 +344,14 @@ static void rsvc_command_print(print_options_t options,
             });
 
             rsvc_cd_destroy(cd);
-            exit(EX_OK);
+            done(NULL);
         });
     });
 }
 
 static void rsvc_command_ls(ls_options_t options,
                             void (^usage)(const char* message, ...),
-                            void (^check_error)(rsvc_error_t)) {
+                            void (^done)(rsvc_error_t)) {
     static const char* types[] = {"cd", "dvd", "bd"};
     __block rsvc_stop_t stop = rsvc_disc_watch(
             ^(rsvc_disc_type_t type, const char* path){
@@ -355,13 +360,13 @@ static void rsvc_command_ls(ls_options_t options,
             ^(rsvc_disc_type_t type, const char* path){ },
             ^{
                 stop();
-                exit(0);
+                done(NULL);
             });
 }
 
 static void rsvc_command_watch(watch_options_t options,
                                void (^usage)(const char* message, ...),
-                               void (^check_error)(rsvc_error_t)) {
+                               void (^done)(rsvc_error_t)) {
     static const char* types[] = {"cd", "dvd", "bd"};
     __block bool show = false;
     rsvc_disc_watch(
@@ -380,11 +385,10 @@ static void rsvc_command_watch(watch_options_t options,
 
 static void rsvc_command_rip(rip_options_t options,
                              void (^usage)(const char* message, ...),
-                             void (^check_error)(rsvc_error_t)) {
+                             void (^done)(rsvc_error_t)) {
     if (!options->disk) {
         usage(NULL);
-    }
-    if (!options->format) {
+    } else if (!options->format) {
         usage("must choose format");
     }
     switch (options->format) {
@@ -411,12 +415,14 @@ static void rsvc_command_rip(rip_options_t options,
         break;
     }
     rsvc_cd_create(options->disk, ^(rsvc_cd_t cd, rsvc_error_t error){
-        check_error(error);
+        if (error) {
+            done(error);
+            return;
+        }
         dispatch_async(dispatch_get_main_queue(), ^{
             rip_all(cd, options, ^(rsvc_error_t error){
-                check_error(error);
                 rsvc_cd_destroy(cd);
-                exit(EX_OK);
+                done(error);
             });
         });
     });
