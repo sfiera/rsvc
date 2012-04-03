@@ -74,7 +74,7 @@ OSStatus core_audio_set_size(void* userdata, SInt64 size) {
 static void core_audio_encode(
         int read_fd, int write_fd, size_t samples_per_channel, rsvc_tags_t tags,
         int container_id, int codec_id, int bitrate,
-        rsvc_encode_progress_t progress, rsvc_encode_done_t done) {
+        rsvc_encode_progress_t progress, rsvc_done_t done) {
     (void)samples_per_channel;
     done = Block_copy(done);
     progress = Block_copy(progress);
@@ -212,7 +212,7 @@ cleanup:
 void rsvc_aac_encode(
         int read_fd, int write_fd, size_t samples_per_channel,
         rsvc_tags_t tags, int bitrate,
-        rsvc_encode_progress_t progress, rsvc_encode_done_t done) {
+        rsvc_encode_progress_t progress, rsvc_done_t done) {
     core_audio_encode(
             read_fd, write_fd, samples_per_channel, tags,
             kAudioFileM4AType, kAudioFormatMPEG4AAC, bitrate,
@@ -222,7 +222,7 @@ void rsvc_aac_encode(
 void rsvc_alac_encode(
         int read_fd, int write_fd, size_t samples_per_channel,
         rsvc_tags_t tags,
-        rsvc_encode_progress_t progress, rsvc_encode_done_t done) {
+        rsvc_encode_progress_t progress, rsvc_done_t done) {
     core_audio_encode(
             read_fd, write_fd, samples_per_channel, tags,
             kAudioFileM4AType, kAudioFormatAppleLossless, -1,

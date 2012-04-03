@@ -59,21 +59,21 @@ struct print_options {
 typedef struct print_options* print_options_t;
 static void rsvc_command_print(print_options_t options,
                                void (^usage)(const char* message, ...),
-                               void (^done)(rsvc_error_t));
+                               rsvc_done_t done);
 
 struct ls_options {
 };
 typedef struct ls_options* ls_options_t;
 static void rsvc_command_ls(ls_options_t options,
                             void (^usage)(const char* message, ...),
-                            void (^done)(rsvc_error_t));
+                            rsvc_done_t done);
 
 struct watch_options {
 };
 typedef struct watch_options* watch_options_t;
 static void rsvc_command_watch(watch_options_t options,
                                void (^usage)(const char* message, ...),
-                               void (^done)(rsvc_error_t));
+                               rsvc_done_t done);
 
 typedef enum rip_format {
     FORMAT_NONE = 0,
@@ -92,9 +92,9 @@ struct rip_options {
 typedef struct rip_options* rip_options_t;
 static void rsvc_command_rip(rip_options_t options,
                              void (^usage)(const char* message, ...),
-                             void (^done)(rsvc_error_t));
+                             rsvc_done_t done);
 
-static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error_t error));
+static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
 static bool read_format(const char* in, rip_format_t* out);
 static bool read_si_number(const char* in, int64_t* out);
 
@@ -264,7 +264,7 @@ static void rsvc_main(int argc, char* const* argv) {
 
     rsvc_options(argc, argv, &callbacks);
 
-    void (^done)(rsvc_error_t) = ^(rsvc_error_t error){
+    rsvc_done_t done = ^(rsvc_error_t error){
         if (error) {
             fprintf(stderr, "%s%s: %s (%s:%d)\n",
                     progname, progname_suffix[command], error->message,
@@ -301,7 +301,7 @@ static void rsvc_main(int argc, char* const* argv) {
 
 static void rsvc_command_print(print_options_t options,
                                void (^usage)(const char* message, ...),
-                               void (^done)(rsvc_error_t)) {
+                               rsvc_done_t done) {
     if (options->disk == NULL) {
         usage(NULL);
     }
@@ -351,7 +351,7 @@ static void rsvc_command_print(print_options_t options,
 
 static void rsvc_command_ls(ls_options_t options,
                             void (^usage)(const char* message, ...),
-                            void (^done)(rsvc_error_t)) {
+                            rsvc_done_t done) {
     static const char* types[] = {"cd", "dvd", "bd"};
     __block rsvc_stop_t stop = rsvc_disc_watch(
             ^(rsvc_disc_type_t type, const char* path){
@@ -366,7 +366,7 @@ static void rsvc_command_ls(ls_options_t options,
 
 static void rsvc_command_watch(watch_options_t options,
                                void (^usage)(const char* message, ...),
-                               void (^done)(rsvc_error_t)) {
+                               rsvc_done_t done) {
     static const char* types[] = {"cd", "dvd", "bd"};
     __block bool show = false;
     rsvc_disc_watch(
@@ -385,7 +385,7 @@ static void rsvc_command_watch(watch_options_t options,
 
 static void rsvc_command_rip(rip_options_t options,
                              void (^usage)(const char* message, ...),
-                             void (^done)(rsvc_error_t)) {
+                             rsvc_done_t done) {
     if (!options->disk) {
         usage(NULL);
     } else if (!options->format) {
@@ -525,7 +525,7 @@ static progress_node_t progress_start(progress_t progress, const char* name) {
     return node;
 }
 
-static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error_t error)) {
+static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
     printf("Ripping…\n");
     rsvc_cd_session_t session = rsvc_cd_session(cd, 0);
     const size_t ntracks = rsvc_cd_session_ntracks(session);
@@ -627,7 +627,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, void (^done)(rsvc_error
         size_t nsamples = rsvc_cd_track_nsamples(track);
         rsvc_tags_t tags = rsvc_tags_create();
 
-        void (^encode_done)(rsvc_error_t) = ^(rsvc_error_t error){
+        rsvc_done_t encode_done = ^(rsvc_error_t error){
             if (error) {
                 done(error);
                 return;

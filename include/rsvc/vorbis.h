@@ -29,10 +29,10 @@
 /// ==========
 /// Encoder for Ogg Vorbis.
 ///
-/// ..  function:: void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel, rsvc_tags_t tags, int bitrate, rsvc_encode_progress_t progress, rsvc_encode_done_t done)
+/// ..  function:: void rsvc_vorbis_encode(int read_fd, int file, size_t samples_per_channel, rsvc_tags_t tags, int bitrate, rsvc_encode_progress_t progress, rsvc_done_t done)
 void                    rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
                                            rsvc_tags_t tags, int bitrate,
                                            rsvc_encode_progress_t progress,
-                                           rsvc_encode_done_t done);
+                                           rsvc_done_t done);
 
 #endif  // RSVC_VORBIS_H_

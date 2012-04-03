@@ -317,7 +317,7 @@ const char* rsvc_cd_track_isrc(rsvc_cd_track_t track) {
     return track->isrc;
 }
 
-void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, void (^done)(rsvc_error_t)) {
+void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done) {
     done = Block_copy(done);
     dispatch_async(track->cd->queue, ^{
         uint8_t buffer[kCDSectorSizeCDDA];

@@ -27,11 +27,11 @@
 
 typedef struct rsvc_tags* rsvc_tags_t;
 struct rsvc_tags_methods {
-    bool (*remove)(rsvc_tags_t tags, const char* name, void (^fail)(rsvc_error_t));
-    bool (*add)(rsvc_tags_t tags, const char* name, const char* value, void (^fail)(rsvc_error_t));
+    bool (*remove)(rsvc_tags_t tags, const char* name, rsvc_done_t fail);
+    bool (*add)(rsvc_tags_t tags, const char* name, const char* value, rsvc_done_t fail);
     bool (*each)(rsvc_tags_t tags,
                  void (^block)(const char* name, const char* value, rsvc_stop_t stop));
-    void (*save)(rsvc_tags_t tags, void (^done)(rsvc_error_t));
+    void (*save)(rsvc_tags_t tags, rsvc_done_t done);
     void (*destroy)(rsvc_tags_t tags);
 };
 struct rsvc_tags {
@@ -56,22 +56,22 @@ struct rsvc_tags {
 ///
 ///     :returns:       An empty set of tags.
 ///
-/// ..  function:: void rsvc_tags_save(rsvc_tags_t, void (^done)(rsvc_error_t))
+/// ..  function:: void rsvc_tags_save(rsvc_tags_t, rsvc_done_t done)
 ///
 /// ..  function:: void rsvc_tags_destroy(rsvc_tags_t tags)
 ///
 ///     Destroys a :type:`rsvc_tags_t`, reclaiming its resources.
 rsvc_tags_t             rsvc_tags_create();
-void                    rsvc_tags_save(rsvc_tags_t tags, void (^done)(rsvc_error_t));
+void                    rsvc_tags_save(rsvc_tags_t tags, rsvc_done_t done);
 void                    rsvc_tags_destroy(rsvc_tags_t tags);
 
-/// ..  function:: bool rsvc_tags_clear(rsvc_tags_t tags, void (^fail)(rsvc_error_t error))
-/// ..  function:: bool rsvc_tags_remove(rsvc_tags_t tags, const char* name, void (^fail)(rsvc_error_t error))
+/// ..  function:: bool rsvc_tags_clear(rsvc_tags_t tags, rsvc_done_t fail)
+/// ..  function:: bool rsvc_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail)
 ///
 ///     Removes all tags with name `name`, or all tags.
 ///
-/// ..  function:: bool rsvc_tags_add(rsvc_tags_t tags, void (^fail)(rsvc_error_t error), const char* name, const char* value)
-/// ..  function:: bool rsvc_tags_addf(rsvc_tags_t tags, void (^fail)(rsvc_error_t error), const char* name, const char* format, ...)
+/// ..  function:: bool rsvc_tags_add(rsvc_tags_t tags, rsvc_done_t fail, const char* name, const char* value)
+/// ..  function:: bool rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail, const char* name, const char* format, ...)
 ///
 ///     Adds a tag with name `name` and value `value`.  Does not modify
 ///     or overwrite any existing tag with name `name`.
@@ -81,12 +81,11 @@ void                    rsvc_tags_destroy(rsvc_tags_t tags);
 ///     :param fail:    invoked on failure with a description of the
 ///                     error.
 ///     :returns:       true on success
-bool                    rsvc_tags_clear(rsvc_tags_t tags, void (^fail)(rsvc_error_t error));
-bool                    rsvc_tags_remove(rsvc_tags_t tags, const char* name,
-                                         void (^fail)(rsvc_error_t error));
-bool                    rsvc_tags_add(rsvc_tags_t tags, void (^fail)(rsvc_error_t error),
+bool                    rsvc_tags_clear(rsvc_tags_t tags, rsvc_done_t fail);
+bool                    rsvc_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail);
+bool                    rsvc_tags_add(rsvc_tags_t tags, rsvc_done_t fail,
                                       const char* name, const char* value);
-bool                    rsvc_tags_addf(rsvc_tags_t tags, void (^fail)(rsvc_error_t error),
+bool                    rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
                                        const char* name, const char* format, ...);
 
 /// ..  function:: size_t rsvc_tags_size(rsvc_tags_t tags)

@@ -81,7 +81,9 @@ struct rsvc_error {
     int lineno;
 };
 
-/// ..  function:: void rsvc_errorf(void (^callback)(rsvc_error_t), const char* file, int lineno, const char* format, ...)
+typedef void (^rsvc_done_t)(rsvc_error_t error);
+
+/// ..  function:: void rsvc_errorf(rsvc_done_t callback, const char* file, int lineno, const char* format, ...)
 ///
 ///     Formats a printf-style error message, calling `callback` with an
 ///     :type:`rsvc_error_t` constructed from the formatted error
@@ -103,7 +105,7 @@ struct rsvc_error {
 ///     :param format:      A `printf()`-style format string.
 ///     :param ...:         Format values for `format`.
 ///
-/// ..  function:: void rsvc_strerrorf(void (^callback)(rsvc_error_t), const char* file, int lineno, const char* format, ...)
+/// ..  function:: void rsvc_strerrorf(rsvc_done_t callback, const char* file, int lineno, const char* format, ...)
 ///
 ///     Like :func:`rsvc_errorf`, except that it describes the current
 ///     value of `errno`.  If `format` is non-NULL, then the formatted
@@ -115,13 +117,12 @@ struct rsvc_error {
 ///     :param format:      A `printf()`-style format string.  May be
 ///                         `NULL`.
 ///     :param ...:         Format values for `format`.
-void                    rsvc_errorf(void (^callback)(rsvc_error_t),
+void                    rsvc_errorf(rsvc_done_t callback,
                                     const char* file, int lineno, const char* format, ...);
-void                    rsvc_strerrorf(void (^callback)(rsvc_error_t),
+void                    rsvc_strerrorf(rsvc_done_t callback,
                                        const char* file, int lineno, const char* format, ...);
 
-bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd,
-               void (^fail)(rsvc_error_t error));
+bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail);
 
 /// Option Parsing
 /// --------------

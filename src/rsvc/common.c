@@ -28,7 +28,7 @@
 #include <string.h>
 #include <sysexits.h>
 
-void rsvc_errorf(void (^callback)(rsvc_error_t),
+void rsvc_errorf(rsvc_done_t callback,
                  const char* file, int lineno, const char* format, ...) {
     char* message;
     va_list vl;
@@ -40,7 +40,7 @@ void rsvc_errorf(void (^callback)(rsvc_error_t),
     free(message);
 }
 
-void rsvc_strerrorf(void (^callback)(rsvc_error_t),
+void rsvc_strerrorf(rsvc_done_t callback,
                     const char* file, int lineno, const char* format, ...) {
     size_t buflen = strerror_r(errno, NULL, 0);
     char* strerror = malloc(buflen);
@@ -59,8 +59,7 @@ void rsvc_strerrorf(void (^callback)(rsvc_error_t),
     free(strerror);
 }
 
-bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd,
-               void (^fail)(rsvc_error_t error)) {
+bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail) {
     *fd = open(path, oflag, mode);
     if (*fd < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);

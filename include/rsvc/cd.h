@@ -224,7 +224,7 @@ size_t                  rsvc_cd_track_nsamples(rsvc_cd_track_t track);
 ///                 have one, returns an empty string.
 const char*             rsvc_cd_track_isrc(rsvc_cd_track_t track);
 
-/// ..  function:: void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, void (^done)(rsvc_error_t))
+/// ..  function:: void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done)
 ///
 ///     Begins ripping data from the track and writing it to `fd`.  The
 ///     data written will be a sequence of native-endian int16_t
@@ -238,7 +238,6 @@ const char*             rsvc_cd_track_isrc(rsvc_cd_track_t track);
 ///     :param done:    Invoked when the rip is complete; either with
 ///                     `NULL` to indicate success, or with an error to
 ///                     indicate failure.
-void                    rsvc_cd_track_rip(rsvc_cd_track_t track, int fd,
-                                          void (^done)(rsvc_error_t));
+void                    rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done);
 
 #endif  // RSVC_CD_H_
