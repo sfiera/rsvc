@@ -21,6 +21,7 @@
 #include <rsvc/common.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,6 +57,16 @@ void rsvc_strerrorf(void (^callback)(rsvc_error_t),
         rsvc_errorf(callback, file, lineno, "%s", strerror);
     }
     free(strerror);
+}
+
+bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd,
+               void (^fail)(rsvc_error_t error)) {
+    *fd = open(path, oflag, mode);
+    if (*fd < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
+        return false;
+    }
+    return true;
 }
 
 void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callbacks) {

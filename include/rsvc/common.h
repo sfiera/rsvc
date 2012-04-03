@@ -120,6 +120,9 @@ void                    rsvc_errorf(void (^callback)(rsvc_error_t),
 void                    rsvc_strerrorf(void (^callback)(rsvc_error_t),
                                        const char* file, int lineno, const char* format, ...);
 
+bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd,
+               void (^fail)(rsvc_error_t error));
+
 /// Option Parsing
 /// --------------
 ///
