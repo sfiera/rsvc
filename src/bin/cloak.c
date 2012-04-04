@@ -373,7 +373,7 @@ static void tag_files(size_t nfiles, char** files,
     }
     tag_file(files[0], nops, ops, list_mode, ^(rsvc_error_t error){
         if (error) {
-            rsvc_errorf(done, error->file, error->lineno, "%s: %s", files[0], error->message);
+            done(error);
             return;
         }
         if (list_mode && (nfiles > 1)) {
@@ -391,18 +391,25 @@ static void tag_file(const char* path, size_t nops, op_t* ops,
     if (!rsvc_open(path, O_RDONLY, 0644, &fd, done)) {
         return;
     }
+    // From here on, prepend the file name to the error message.
+    done = ^(rsvc_error_t error) {
+        if (error) {
+            rsvc_errorf(done, error->file, error->lineno, "%s: %s", path, error->message);
+        } else {
+            done(NULL);
+        }
+    };
 
     // Don't open directories.
     struct stat st;
     if (fstat(fd, &st) < 0) {
-        rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path);
+        rsvc_strerrorf(done, __FILE__, __LINE__, NULL);
         return;
     }
     if (st.st_mode & S_IFDIR) {
-        rsvc_errorf(done, __FILE__, __LINE__, "%s: is a directory", path);
+        rsvc_errorf(done, __FILE__, __LINE__, "is a directory");
         return;
     }
-    printf("%d\n", st.st_flags);
 
     // Detect file type by magic number.
     char data[12];
@@ -412,7 +419,7 @@ static void tag_file(const char* path, size_t nops, op_t* ops,
     } else if ((size >= 12) && (memcmp(data + 4, "ftypM4A ", 8) == 0)) {
         read_tags = rsvc_mp4_read_tags;
     } else {
-        rsvc_errorf(done, __FILE__, __LINE__, "%s: couldn't detect file type", path);
+        rsvc_errorf(done, __FILE__, __LINE__, "couldn't detect file type");
         return;
     }
     close(fd);
