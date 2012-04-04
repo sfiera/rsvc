@@ -385,15 +385,23 @@ static void tag_files(size_t nfiles, char** files,
 static void tag_file(const char* path, size_t nops, op_t* ops,
                      list_mode_t list_mode, rsvc_done_t done) {
     void (*read_tags)(const char*, void (^read_done)(rsvc_tags_t, rsvc_error_t)) = NULL;
-    char* dot = strrchr(path, '.');
-    if (dot && (strcmp(dot + 1, "flac") == 0)) {
+
+    int fd;
+    if (!rsvc_open(path, O_RDONLY, 0644, &fd, done)) {
+        return;
+    }
+    char data[12];
+    ssize_t size = read(fd, data, 12);
+    if ((size >= 4) && (memcmp(data, "fLaC", 4) == 0)) {
         read_tags = rsvc_flac_read_tags;
-    } else if (dot && (strcmp(dot + 1, "m4a") == 0)) {
+    } else if ((size >= 12) && (memcmp(data + 4, "ftypM4A ", 8) == 0)) {
         read_tags = rsvc_mp4_read_tags;
     } else {
         rsvc_errorf(done, __FILE__, __LINE__, "%s: couldn't detect file type", path);
         return;
     }
+    close(fd);
+
     read_tags(path, ^(rsvc_tags_t tags, rsvc_error_t error){
         if (error) {
             done(error);
