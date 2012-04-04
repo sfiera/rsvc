@@ -29,6 +29,7 @@
 #include <stdlib.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sysexits.h>
 
@@ -390,6 +391,20 @@ static void tag_file(const char* path, size_t nops, op_t* ops,
     if (!rsvc_open(path, O_RDONLY, 0644, &fd, done)) {
         return;
     }
+
+    // Don't open directories.
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path);
+        return;
+    }
+    if (st.st_mode & S_IFDIR) {
+        rsvc_errorf(done, __FILE__, __LINE__, "%s: is a directory", path);
+        return;
+    }
+    printf("%d\n", st.st_flags);
+
+    // Detect file type by magic number.
     char data[12];
     ssize_t size = read(fd, data, 12);
     if ((size >= 4) && (memcmp(data, "fLaC", 4) == 0)) {
