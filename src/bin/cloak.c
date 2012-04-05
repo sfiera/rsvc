@@ -156,7 +156,7 @@ static void usage(const char* progname) {
             progname);
 }
 
-static const char* tag_name(int opt) {
+static const char* get_tag_name(int opt) {
     switch (opt) {
       case ARTIST:          return "ARTIST";
       case ALBUM:           return "ALBUM";
@@ -171,15 +171,38 @@ static const char* tag_name(int opt) {
     abort();
 }
 
-typedef void (^op_t)(rsvc_tags_t, rsvc_done_t done);
+struct string_list {
+    size_t nstrings;
+    char** strings;
+};
+typedef struct string_list string_list_t;
+static void add_string(string_list_t* list, const char* string) {
+    char** new_strings = calloc(list->nstrings + 1, sizeof(char*));
+    for (size_t i = 0; i < list->nstrings; ++i) {
+        new_strings[i] = list->strings[i];
+    }
+    new_strings[list->nstrings++] = strdup(string);
+    if (list->strings) {
+        free(list->strings);
+    }
+    list->strings = new_strings;
+}
 
-static void tag_files(size_t nfiles, char** files,
-                      size_t nops, op_t* ops,
-                      list_mode_t list_mode, rsvc_done_t done);
-static void tag_file(const char* path, size_t nops, op_t* ops,
-                     list_mode_t list_mode, rsvc_done_t done);
-static void apply_ops(rsvc_tags_t tags, size_t nops, op_t* ops,
-                      rsvc_done_t done);
+struct ops {
+    bool            delete_all_tags;
+    string_list_t   delete_tags;
+
+    string_list_t   add_tag_names;
+    string_list_t   add_tag_values;
+
+    bool            auto_mode;
+    list_mode_t     list_mode;
+};
+typedef struct ops* ops_t;
+
+static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done);
+static void tag_file(const char* path, ops_t ops, rsvc_done_t done);
+static void apply_ops(rsvc_tags_t tags, ops_t ops, rsvc_done_t done);
 
 static void validate_name(const char* progname, char* name);
 static void split_assignment(const char* progname, const char* assignment,
@@ -190,35 +213,14 @@ static void cloak_main(int argc, char* const* argv) {
     const char* progname = strdup(basename(argv[0]));
 
     __block rsvc_option_callbacks_t callbacks;
-    __block list_mode_t list_mode = LIST_MODE_NONE;
 
-    __block int nops = 0;
-    __block op_t* ops = NULL;
-    void (^add_op)(op_t op) = ^(op_t op) {
-        op_t* new_ops = calloc(nops + 1, sizeof(op_t));
-        for (size_t i = 0; i < nops; ++i) {
-            new_ops[i] = ops[i];
-        }
-        new_ops[nops++] = Block_copy(op);
-        if (ops) {
-            free(ops);
-        }
-        ops = new_ops;
+    __block bool no_actions = true;
+    __block struct ops ops = {
+        .auto_mode          = false,
+        .list_mode          = LIST_MODE_NONE,
+        .delete_all_tags    = false,
     };
-
-    __block int nfiles = 0;
-    __block char** files = NULL;
-    void (^add_file)(const char*) = ^(const char* path){
-        char** new_files = calloc(nfiles + 1, sizeof(char*));
-        for (size_t i = 0; i < nfiles; ++i) {
-            new_files[i] = files[i];
-        }
-        new_files[nfiles++] = strdup(path);
-        if (files) {
-            free(files);
-        }
-        files = new_files;
-    };
+    __block string_list_t files = {};
 
     bool (^option)(int opt, char* (^value)()) = ^bool (int opt, char* (^value)()){
         switch (opt) {
@@ -235,50 +237,36 @@ static void cloak_main(int argc, char* const* argv) {
             exit(0);
 
           case LIST:
-            list_mode = LIST_MODE_SHORT;
+            ops.list_mode = LIST_MODE_SHORT;
+            no_actions = false;
             return true;
 
           case DELETE:
-            {
-                char* tag_name = strdup(value());  // leak
-                validate_name(progname, tag_name);
-                add_op(^(rsvc_tags_t tags, rsvc_done_t done){
-                    if (rsvc_tags_remove(tags, tag_name, done)) {
-                        done(NULL);
-                    }
-                });
-            }
+            validate_name(progname, value());
+            add_string(&ops.delete_tags, value());
+            no_actions = false;
             return true;
 
           case DELETE_ALL:
-            add_op(^(rsvc_tags_t tags, rsvc_done_t done){
-                if (rsvc_tags_clear(tags, done)) {
-                    done(NULL);
-                }
-            });
+            ops.delete_all_tags = true;
+            no_actions = false;
             return true;
 
           case ADD:
           case SET:
             {
-                char* tag_name;  // leak
-                char* tag_value;  // leak
+                char* tag_name;
+                char* tag_value;
                 split_assignment(progname, value(), &tag_name, &tag_value);
                 validate_name(progname, tag_name);
                 if (opt == SET) {
-                    add_op(^(rsvc_tags_t tags, rsvc_done_t done){
-                        if (rsvc_tags_remove(tags, tag_name, done)
-                                && rsvc_tags_add(tags, done, tag_name, tag_value)) {
-                            done(NULL);
-                        }
-                    });
-                } else {
-                    add_op(^(rsvc_tags_t tags, rsvc_done_t done){
-                        if (rsvc_tags_add(tags, done, tag_name, tag_value)) {
-                            done(NULL);
-                        }
-                    });
+                    add_string(&ops.delete_tags, tag_name);
                 }
+                add_string(&ops.add_tag_names, tag_name);
+                add_string(&ops.add_tag_values, tag_value);
+                free(tag_name);
+                free(tag_value);
+                no_actions = false;
             }
             return true;
 
@@ -292,20 +280,19 @@ static void cloak_main(int argc, char* const* argv) {
           case DISC:
           case DISC_TOTAL:
             {
-                char* tag_value = strdup(value());  // leak
-                add_op(^(rsvc_tags_t tags, rsvc_done_t done){
-                    if (rsvc_tags_remove(tags, tag_name(opt), done)
-                            && rsvc_tags_add(tags, done, tag_name(opt), tag_value)) {
-                        done(NULL);
-                    }
-                });
+                const char* tag_name = get_tag_name(opt);
+                char* tag_value = strdup(value());
+                add_string(&ops.delete_tags, tag_name);
+                add_string(&ops.add_tag_names, tag_name);
+                add_string(&ops.add_tag_values, tag_value);
+                free(tag_value);
+                no_actions = false;
             }
             return true;
 
           case AUTO:
-            add_op(^(rsvc_tags_t tags, rsvc_done_t done){
-                auto_tag(tags, done);
-            });
+            ops.auto_mode = true;
+            no_actions = false;
             return true;
         }
         return false;
@@ -325,7 +312,7 @@ static void cloak_main(int argc, char* const* argv) {
     };
 
     callbacks.argument = ^bool (char* arg){
-        add_file(arg);
+        add_string(&files, arg);
         return true;
     };
 
@@ -344,16 +331,16 @@ static void cloak_main(int argc, char* const* argv) {
 
     rsvc_options(argc, argv, &callbacks);
 
-    if (files == NULL) {
+    if (files.nstrings == 0) {
         callbacks.usage("no input files");
-    } else if ((ops == NULL) && !list_mode) {
+    } else if (no_actions) {
         callbacks.usage("no actions");
     }
 
-    if ((nfiles > 1) && (list_mode == LIST_MODE_SHORT)) {
-        list_mode = LIST_MODE_LONG;
+    if ((files.nstrings > 1) && (ops.list_mode == LIST_MODE_SHORT)) {
+        ops.list_mode = LIST_MODE_LONG;
     }
-    tag_files(nfiles, files, nops, ops, list_mode, ^(rsvc_error_t error){
+    tag_files(files.nstrings, files.strings, &ops, ^(rsvc_error_t error){
         if (error) {
             fprintf(stderr, "%s: %s\n", progname, error->message);
             exit(1);
@@ -364,22 +351,20 @@ static void cloak_main(int argc, char* const* argv) {
     dispatch_main();
 }
 
-static void tag_files(size_t nfiles, char** files,
-                      size_t nops, op_t* ops,
-                      list_mode_t list_mode, rsvc_done_t done) {
+static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done) {
     if (nfiles == 0) {
         done(NULL);
         return;
     }
-    tag_file(files[0], nops, ops, list_mode, ^(rsvc_error_t error){
+    tag_file(files[0], ops, ^(rsvc_error_t error){
         if (error) {
             done(error);
             return;
         }
-        if (list_mode && (nfiles > 1)) {
+        if (ops->list_mode && (nfiles > 1)) {
             printf("\n");
         }
-        tag_files(nfiles - 1, files + 1, nops, ops, list_mode, done);
+        tag_files(nfiles - 1, files + 1, ops, done);
     });
 }
 
@@ -449,8 +434,7 @@ next_container_type:
     return false;
 }
 
-static void tag_file(const char* path, size_t nops, op_t* ops,
-                     list_mode_t list_mode, rsvc_done_t done) {
+static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
     int fd;
     if (!rsvc_open(path, O_RDONLY, 0644, &fd, done)) {
         return;
@@ -476,7 +460,7 @@ static void tag_file(const char* path, size_t nops, op_t* ops,
             done(error);
             return;
         }
-        apply_ops(tags, nops, ops, ^(rsvc_error_t error){
+        apply_ops(tags, ops, ^(rsvc_error_t error){
             if (error) {
                 done(error);
                 return;
@@ -486,10 +470,10 @@ static void tag_file(const char* path, size_t nops, op_t* ops,
                     done(error);
                     return;
                 }
-                if (list_mode == LIST_MODE_LONG) {
+                if (ops->list_mode == LIST_MODE_LONG) {
                     printf("%s:\n", path);
                 }
-                if (list_mode) {
+                if (ops->list_mode) {
                     rsvc_tags_each(tags, ^(const char* name, const char* value,
                                            rsvc_stop_t stop){
                         printf("%s=%s\n", name, value);
@@ -502,19 +486,32 @@ static void tag_file(const char* path, size_t nops, op_t* ops,
     });
 }
 
-static void apply_ops(rsvc_tags_t tags, size_t nops, op_t* ops,
-                      rsvc_done_t done) {
-    if (nops == 0) {
-        done(NULL);
-        return;
-    }
-    ops[0](tags, ^(rsvc_error_t error){
-        if (error) {
-            done(error);
+static void apply_ops(rsvc_tags_t tags, ops_t ops, rsvc_done_t done) {
+    if (ops->delete_all_tags) {
+        if (!rsvc_tags_clear(tags, done)) {
             return;
         }
-        apply_ops(tags, nops - 1, ops + 1, done);
-    });
+    } else {
+        for (size_t i = 0; i < ops->delete_tags.nstrings; ++i) {
+            if (!rsvc_tags_remove(tags, ops->delete_tags.strings[i], done)) {
+                return;
+            }
+        }
+    }
+
+    for (size_t i = 0; i < ops->add_tag_names.nstrings; ++i) {
+        const char* name = ops->add_tag_names.strings[i];
+        const char* value = ops->add_tag_values.strings[i];
+        if (!rsvc_tags_add(tags, done, name, value)) {
+            return;
+        }
+    }
+
+    if (ops->auto_mode) {
+        auto_tag(tags, done);
+    } else {
+        done(NULL);
+    }
 }
 
 static bool set_mb_tag(rsvc_tags_t tags, const char* tag_name,
