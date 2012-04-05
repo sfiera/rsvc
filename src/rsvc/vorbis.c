@@ -31,8 +31,6 @@
 void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
                         rsvc_tags_t tags, int bitrate,
                         rsvc_encode_progress_t progress, rsvc_done_t done) {
-    done = Block_copy(done);
-    progress = Block_copy(progress);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // Largely cribbed from libvorbis's examples/encoder_example.c.
         // Some comments there imply that it is doing things a certain
@@ -151,7 +149,6 @@ void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
 
         done(NULL);
 encode_cleanup:
-        Block_release(progress);
-        Block_release(done);
+        ;
     });
 }

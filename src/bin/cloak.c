@@ -432,11 +432,13 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
         }
         apply_ops(tags, ops, ^(rsvc_error_t error){
             if (error) {
+                rsvc_tags_destroy(tags);
                 done(error);
                 return;
             }
             rsvc_tags_save(tags, ^(rsvc_error_t error){
                 if (error) {
+                    rsvc_tags_destroy(tags);
                     done(error);
                     return;
                 }

@@ -601,7 +601,6 @@ static struct rsvc_tags_methods mp4_vptr = {
 };
 
 void rsvc_mp4_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t)) {
-    done = Block_copy(done);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         struct rsvc_mp4_tags tags = {
             .super = {

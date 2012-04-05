@@ -87,7 +87,6 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
     cd->mcn[0]      = '\0';
     cd->ntracks     = 0;
 
-    done = Block_copy(done);
     dispatch_async(cd->queue, ^{
         // Read the CD's MCN, if it has one.
         dk_cd_read_mcn_t cd_read_mcn;
@@ -209,7 +208,7 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
 
         done(cd, NULL);
 create_cleanup:
-        Block_release(done);
+        ;
     });
 }
 
@@ -318,7 +317,6 @@ const char* rsvc_cd_track_isrc(rsvc_cd_track_t track) {
 }
 
 void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done) {
-    done = Block_copy(done);
     dispatch_async(track->cd->queue, ^{
         uint8_t buffer[kCDSectorSizeCDDA];
         dk_cd_read_t cd_read;
@@ -363,6 +361,6 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done) {
         }
         done(NULL);
 rip_cleanup:
-        Block_release(done);
+        ;
     });
 }

@@ -78,7 +78,6 @@ static void mb4_query_cached(const char* discid, void (^done)(rsvc_error_t, Mb4M
     };
     static struct cache_entry* cache = NULL;
 
-    done = Block_copy(done);
     dispatch_async(cache_queue, ^{
         // Look for `discid` in the cache.
         //
@@ -88,7 +87,6 @@ static void mb4_query_cached(const char* discid, void (^done)(rsvc_error_t, Mb4M
             if (strcmp(discid, curr->discid) == 0) {
                 rsvc_logf(1, "mb request in cache for %s", discid);
                 done(NULL, curr->meta);
-                Block_release(done);
                 return;
             }
         }
@@ -118,7 +116,6 @@ static void mb4_query_cached(const char* discid, void (^done)(rsvc_error_t, Mb4M
                     cache = memdup(&new_cache, sizeof new_cache);
                 });
                 mb4_query_delete(q);
-                Block_release(done);
             });
 
             // usleep() returns early if there is a signal.  Make sure that
@@ -214,7 +211,6 @@ void rsvc_apply_musicbrainz_tags(rsvc_tags_t tags, rsvc_done_t done) {
 
         rsvc_errorf(done, __FILE__, __LINE__, "discid not found: %s\n", discid);
 cleanup:
-        Block_release(done);
         free(discid);
     });
 }

@@ -56,8 +56,6 @@ static bool rsvc_tags_to_vorbis_comments(rsvc_tags_t tags, FLAC__StreamMetadata*
 
 void rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel, rsvc_tags_t tags,
                       rsvc_encode_progress_t progress, rsvc_done_t done) {
-    done = Block_copy(done);
-    progress = Block_copy(progress);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         FLAC__StreamEncoder *encoder = NULL;
         FLAC__StreamMetadata* comment_metadata = NULL;
@@ -158,8 +156,6 @@ encode_cleanup:
         if (encoder) FLAC__stream_encoder_delete(encoder);
         if (padding_metadata) FLAC__metadata_object_delete(padding_metadata);
         if (comment_metadata) FLAC__metadata_object_delete(comment_metadata);
-        Block_release(progress);
-        Block_release(done);
     });
 }
 
@@ -252,7 +248,6 @@ static struct rsvc_tags_methods flac_vptr = {
 };
 
 void rsvc_flac_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t)) {
-    done = Block_copy(done);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         struct rsvc_flac_tags tags = {
             .super = {
