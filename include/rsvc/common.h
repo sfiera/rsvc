@@ -189,4 +189,7 @@ typedef struct option_callbacks {
 void                    rsvc_options(size_t argc, char* const* argv,
                                      rsvc_option_callbacks_t* callbacks);
 
+extern int verbosity;
+void rsvc_logf(int level, const char* format, ...);
+
 #endif  // RSVC_COMMON_H_

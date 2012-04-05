@@ -20,12 +20,14 @@
 
 #include <rsvc/common.h>
 
+#include <dispatch/dispatch.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 #include <sysexits.h>
 
 void rsvc_errorf(rsvc_done_t callback,
@@ -142,5 +144,32 @@ void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
         if (!callbacks->argument(argv[i])) {
             callbacks->usage("too many arguments");
         }
+    }
+}
+
+int verbosity = 0;
+void rsvc_logf(int level, const char* format, ...) {
+    static dispatch_queue_t log_queue;
+    static dispatch_once_t log_queue_init;
+    dispatch_once(&log_queue_init, ^{
+        log_queue = dispatch_queue_create("net.sfiera.ripservice.log", NULL);
+    });
+    if (level <= verbosity) {
+        time_t t;
+        time(&t);
+        struct tm tm;
+        gmtime_r(&t, &tm);
+        char strtime[20];
+        strftime(strtime, 20, "%F %T", &tm);
+        const char* time = strtime;
+
+        char* message;
+        va_list vl;
+        va_start(vl, format);
+        vasprintf(&message, format, vl);
+        va_end(vl);
+
+        fprintf(stderr, "%s log: %s\n", time, message);
+        free(message);
     }
 }

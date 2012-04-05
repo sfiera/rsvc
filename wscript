@@ -42,10 +42,7 @@ def build(bld):
         source="src/bin/cloak.c",
         includes="include",
         cflags=WARNINGS,
-        use=[
-            "ripservice/librsvc",
-            "libmusicbrainz/libmusicbrainz-c",
-        ],
+        use="ripservice/librsvc",
     )
 
     bld.stlib(
@@ -57,6 +54,7 @@ def build(bld):
             "src/rsvc/common.c",
             "src/rsvc/flac.c",
             "src/rsvc/mp4.c",
+            "src/rsvc/musicbrainz.c",
             "src/rsvc/tag.c",
             "src/rsvc/vorbis.c",
         ],
@@ -67,6 +65,7 @@ def build(bld):
             "discid/libdiscid",
             "flac/libflac",
             "mp4v2/libmp4v2",
+            "libmusicbrainz/libmusicbrainz-c",
             "vorbis/libvorbis",
         ],
     )
