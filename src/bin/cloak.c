@@ -383,16 +383,82 @@ static void tag_files(size_t nfiles, char** files,
     });
 }
 
+struct rsvc_container_type {
+    size_t magic_size;
+    const char* magic;
+    void (*read_tags)(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t));
+    struct rsvc_container_type* next;
+};
+typedef struct rsvc_container_type* rsvc_container_type_t;
+
+struct rsvc_container_types {
+    size_t max_magic_size;
+    rsvc_container_type_t head;
+};
+
+static struct rsvc_container_type mp4_container = {
+    .magic_size = 12,
+    .magic = "????ftypM4A ",
+    .read_tags = rsvc_mp4_read_tags,
+};
+static struct rsvc_container_type flac_container = {
+    .magic_size = 4,
+    .magic = "fLaC",
+    .read_tags = rsvc_flac_read_tags,
+    .next = &mp4_container,
+};
+static struct rsvc_container_types container_types = {
+    .max_magic_size = 12,
+    .head = &flac_container,
+};
+
+static bool detect_container_type(int fd, rsvc_container_type_t* container, rsvc_done_t fail) {
+    // Don't open directories.
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+    if (st.st_mode & S_IFDIR) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "is a directory");
+        return false;
+    }
+
+    // Detect file type by magic number.
+    uint8_t* data = alloca(container_types.max_magic_size);
+    ssize_t size = read(fd, data, container_types.max_magic_size);
+    if (size < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+    for (rsvc_container_type_t curr = container_types.head; curr; curr = curr->next) {
+        if (size < curr->magic_size) {
+            continue;
+        }
+        for (size_t i = 0; i < curr->magic_size; ++i) {
+            if ((curr->magic[i] != '?') && (curr->magic[i] != data[i])) {
+                goto next_container_type;
+            }
+        }
+        *container = curr;
+        return true;
+next_container_type:
+        ;
+    }
+    rsvc_errorf(fail, __FILE__, __LINE__, "couldn't detect file type");
+    return false;
+}
+
 static void tag_file(const char* path, size_t nops, op_t* ops,
                      list_mode_t list_mode, rsvc_done_t done) {
-    void (*read_tags)(const char*, void (^read_done)(rsvc_tags_t, rsvc_error_t)) = NULL;
-
     int fd;
     if (!rsvc_open(path, O_RDONLY, 0644, &fd, done)) {
         return;
     }
-    // From here on, prepend the file name to the error message.
+    // From here on, prepend the file name to the error message, and
+    // close the file when we're done.
     done = ^(rsvc_error_t error) {
+        close(fd);
         if (error) {
             rsvc_errorf(done, error->file, error->lineno, "%s: %s", path, error->message);
         } else {
@@ -400,31 +466,12 @@ static void tag_file(const char* path, size_t nops, op_t* ops,
         }
     };
 
-    // Don't open directories.
-    struct stat st;
-    if (fstat(fd, &st) < 0) {
-        rsvc_strerrorf(done, __FILE__, __LINE__, NULL);
-        return;
-    }
-    if (st.st_mode & S_IFDIR) {
-        rsvc_errorf(done, __FILE__, __LINE__, "is a directory");
+    rsvc_container_type_t container;
+    if (!detect_container_type(fd, &container, done)) {
         return;
     }
 
-    // Detect file type by magic number.
-    char data[12];
-    ssize_t size = read(fd, data, 12);
-    if ((size >= 4) && (memcmp(data, "fLaC", 4) == 0)) {
-        read_tags = rsvc_flac_read_tags;
-    } else if ((size >= 12) && (memcmp(data + 4, "ftypM4A ", 8) == 0)) {
-        read_tags = rsvc_mp4_read_tags;
-    } else {
-        rsvc_errorf(done, __FILE__, __LINE__, "couldn't detect file type");
-        return;
-    }
-    close(fd);
-
-    read_tags(path, ^(rsvc_tags_t tags, rsvc_error_t error){
+    container->read_tags(path, ^(rsvc_tags_t tags, rsvc_error_t error){
         if (error) {
             done(error);
             return;
