@@ -53,8 +53,7 @@ typedef struct rsvc_cd_track* rsvc_cd_track_t;
 ///     the CD drive.  If initialization completes successfully, calls
 ///     `done` with the result as the first argument and `NULL` as the
 ///     second.  If it fails, passes `NULL` as the first argument and an
-///     error as the second.  The callback runs on the CD's internal
-///     queue and must not block.
+///     error as the second.
 ///
 ///     :param path:    A short-form device name, such as "disk1".
 ///     :param done:    A completion callback.  Receives exactly one of

@@ -87,6 +87,14 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
     cd->mcn[0]      = '\0';
     cd->ntracks     = 0;
 
+    // Ensure that the done callback does not run in cd->queue.
+    done = ^(rsvc_cd_t cd, rsvc_error_t error){
+        rsvc_error_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), error,
+                         ^(rsvc_error_t error){
+            done(cd, error);
+        });
+    };
+
     dispatch_async(cd->queue, ^{
         // Read the CD's MCN, if it has one.
         dk_cd_read_mcn_t cd_read_mcn;
@@ -317,6 +325,12 @@ const char* rsvc_cd_track_isrc(rsvc_cd_track_t track) {
 }
 
 void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done) {
+    // Ensure that the done callback does not run in cd->queue.
+    done = ^(rsvc_error_t error){
+        rsvc_error_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
+                         error, done);
+    };
+
     dispatch_async(track->cd->queue, ^{
         uint8_t buffer[kCDSectorSizeCDDA];
         dk_cd_read_t cd_read;

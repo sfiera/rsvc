@@ -61,6 +61,24 @@ void rsvc_strerrorf(rsvc_done_t callback,
     free(strerror);
 }
 
+void rsvc_error_async(dispatch_queue_t queue, rsvc_error_t error, rsvc_done_t done) {
+    if (error) {
+        char* message = strdup(error->message);
+        char* file = strdup(error->file);
+        int lineno = error->lineno;
+        dispatch_async(queue, ^{
+            struct rsvc_error error = {message, file, lineno};
+            done(&error);
+            free(message);
+            free(file);
+        });
+    } else {
+        dispatch_async(queue, ^{
+            done(NULL);
+        });
+    }
+}
+
 bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail) {
     *fd = open(path, oflag, mode);
     if (*fd < 0) {

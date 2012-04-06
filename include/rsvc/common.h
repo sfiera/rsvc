@@ -21,6 +21,7 @@
 #ifndef RSVC_COMMON_H_
 #define RSVC_COMMON_H_
 
+#include <dispatch/dispatch.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -121,6 +122,8 @@ void                    rsvc_errorf(rsvc_done_t callback,
                                     const char* file, int lineno, const char* format, ...);
 void                    rsvc_strerrorf(rsvc_done_t callback,
                                        const char* file, int lineno, const char* format, ...);
+void                    rsvc_error_async(dispatch_queue_t queue, rsvc_error_t error,
+                                         rsvc_done_t done);
 
 bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail);
 
