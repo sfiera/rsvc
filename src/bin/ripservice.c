@@ -352,10 +352,9 @@ static void rsvc_command_print(print_options_t options,
 static void rsvc_command_ls(ls_options_t options,
                             void (^usage)(const char* message, ...),
                             rsvc_done_t done) {
-    static const char* types[] = {"cd", "dvd", "bd"};
     __block rsvc_stop_t stop = rsvc_disc_watch(
             ^(rsvc_disc_type_t type, const char* path){
-                printf("%s\t%s\n", path, types[type]);
+                printf("%s\t%s\n", path, rsvc_disc_type_name[type]);
             },
             ^(rsvc_disc_type_t type, const char* path){ },
             ^{
@@ -367,16 +366,15 @@ static void rsvc_command_ls(ls_options_t options,
 static void rsvc_command_watch(watch_options_t options,
                                void (^usage)(const char* message, ...),
                                rsvc_done_t done) {
-    static const char* types[] = {"cd", "dvd", "bd"};
     __block bool show = false;
     rsvc_disc_watch(
             ^(rsvc_disc_type_t type, const char* path){
                 if (show) {
-                    printf("+\t%s\t%s\n", path, types[type]);
+                    printf("+\t%s\t%s\n", path, rsvc_disc_type_name[type]);
                 }
             },
             ^(rsvc_disc_type_t type, const char* path){
-                printf("-\t%s\t%s\n", path, types[type]);
+                printf("-\t%s\t%s\n", path, rsvc_disc_type_name[type]);
             },
             ^{
                 show = true;
