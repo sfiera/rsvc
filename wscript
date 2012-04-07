@@ -28,9 +28,9 @@ def build(bld):
     common(bld)
 
     bld.program(
-        target="ripservice/ripservice",
+        target="ripservice/rsvc",
         features="universal",
-        source="src/bin/ripservice.c",
+        source="src/bin/rsvc.c",
         includes="include",
         cflags=WARNINGS,
         use="ripservice/librsvc",
