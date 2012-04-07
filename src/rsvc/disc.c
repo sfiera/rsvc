@@ -55,9 +55,7 @@ struct watch_context {
     dispatch_queue_t queue;
     bool enable;
     struct watch_node* head;
-    void (^appeared)(rsvc_disc_type_t, const char*);
-    void (^disappeared)(rsvc_disc_type_t, const char*);
-    void (^initialized)();
+    rsvc_disc_watch_callbacks_t callbacks;
 };
 
 struct watch_node {
@@ -104,7 +102,7 @@ static void yield_disc(struct watch_context* watch,
                 .next = watch->head,
             };
             watch->head = memdup(&head, sizeof(head));
-            watch->appeared(type, name);
+            watch->callbacks.appeared(type, name);
         }
     }
 yield_cleanup:
@@ -130,7 +128,7 @@ static void start_watch(struct watch_context* watch) {
         IOObjectRelease(object);
     }
 
-    watch->initialized();
+    watch->callbacks.initialized();
     watch->enable = true;
 }
 
@@ -152,7 +150,7 @@ static void disappeared_callback(DADiskRef disk, void* userdata) {
             struct watch_node* node = *curr;
             if (strcmp(name, node->name) == 0) {
                 io_service_t object = DADiskCopyIOMedia(disk);
-                watch->disappeared(node->type, node->name);
+                watch->callbacks.disappeared(node->type, node->name);
                 IOObjectRelease(object);
 
                 *curr = node->next;
@@ -165,16 +163,16 @@ static void disappeared_callback(DADiskRef disk, void* userdata) {
     }
 }
 
-rsvc_stop_t rsvc_disc_watch(void (^appeared)(rsvc_disc_type_t, const char*),
-                            void (^disappeared)(rsvc_disc_type_t, const char*),
-                            void (^initialized)()) {
+rsvc_stop_t rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
     struct watch_context build_userdata = {
         .queue = dispatch_queue_create("net.sfiera.ripservice.disc", NULL),
         .enable = false,
         .head = NULL,
-        .appeared = Block_copy(appeared),
-        .disappeared = Block_copy(disappeared),
-        .initialized = Block_copy(initialized),
+        .callbacks = {
+            .appeared = Block_copy(callbacks.appeared),
+            .disappeared = Block_copy(callbacks.disappeared),
+            .initialized = Block_copy(callbacks.initialized),
+        },
     };
     struct watch_context* userdata = memdup(&build_userdata, sizeof(build_userdata));
 
@@ -196,9 +194,9 @@ rsvc_stop_t rsvc_disc_watch(void (^appeared)(rsvc_disc_type_t, const char*),
                 free(node->name);
                 free(node);
             }
-            Block_release(userdata->disappeared);
-            Block_release(userdata->appeared);
-            Block_release(userdata->initialized);
+            Block_release(userdata->callbacks.disappeared);
+            Block_release(userdata->callbacks.appeared);
+            Block_release(userdata->callbacks.initialized);
             free(userdata);
             Block_release(stop);
             CFRelease(session);

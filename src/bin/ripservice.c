@@ -352,33 +352,40 @@ static void rsvc_command_print(print_options_t options,
 static void rsvc_command_ls(ls_options_t options,
                             void (^usage)(const char* message, ...),
                             rsvc_done_t done) {
-    __block rsvc_stop_t stop = rsvc_disc_watch(
-            ^(rsvc_disc_type_t type, const char* path){
-                printf("%s\t%s\n", path, rsvc_disc_type_name[type]);
-            },
-            ^(rsvc_disc_type_t type, const char* path){ },
-            ^{
-                stop();
-                done(NULL);
-            });
+    __block rsvc_stop_t stop;
+
+    rsvc_disc_watch_callbacks_t callbacks;
+    callbacks.appeared = ^(rsvc_disc_type_t type, const char* path){
+        printf("%s\t%s\n", path, rsvc_disc_type_name[type]);
+    };
+    callbacks.disappeared = ^(rsvc_disc_type_t type, const char* path){};
+    callbacks.initialized = ^{
+        stop();
+        done(NULL);
+    };
+
+    stop = rsvc_disc_watch(callbacks);
 }
 
 static void rsvc_command_watch(watch_options_t options,
                                void (^usage)(const char* message, ...),
                                rsvc_done_t done) {
     __block bool show = false;
-    rsvc_disc_watch(
-            ^(rsvc_disc_type_t type, const char* path){
-                if (show) {
-                    printf("+\t%s\t%s\n", path, rsvc_disc_type_name[type]);
-                }
-            },
-            ^(rsvc_disc_type_t type, const char* path){
-                printf("-\t%s\t%s\n", path, rsvc_disc_type_name[type]);
-            },
-            ^{
-                show = true;
-            });
+
+    rsvc_disc_watch_callbacks_t callbacks;
+    callbacks.appeared = ^(rsvc_disc_type_t type, const char* path){
+        if (show) {
+            printf("+\t%s\t%s\n", path, rsvc_disc_type_name[type]);
+        }
+    };
+    callbacks.disappeared = ^(rsvc_disc_type_t type, const char* path){
+        printf("-\t%s\t%s\n", path, rsvc_disc_type_name[type]);
+    };
+    callbacks.initialized = ^{
+        show = true;
+    };
+
+    rsvc_disc_watch(callbacks);
 }
 
 static void rsvc_command_rip(rip_options_t options,

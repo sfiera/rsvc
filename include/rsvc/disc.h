@@ -50,23 +50,24 @@ typedef enum rsvc_disc_type {
 
 extern const char* rsvc_disc_type_name[];
 
+typedef struct rsvc_disc_callbacks {
+    void (^appeared)(rsvc_disc_type_t, const char*);
+    void (^disappeared)(rsvc_disc_type_t, const char*);
+    void (^initialized)();
+} rsvc_disc_watch_callbacks_t;
+
 /// ..  function:: rsvc_stop_t rsvc_disc_watch(void (^appeared)(rsvc_disc_type_t, const char*), void (^disappeared)(rsvc_disc_type_t, const char*), void (^initialized)())
 ///
-///     When first called, invokes `appeared` for every disc which is
-///     currently available, then invokes `initialized`.  After that,
-///     continues to invoke `appeared` and `disappeared` as discs appear
+///     When first called, invokes `callbacks.appeared` for every disc
+///     which is currently available, then invokes
+///     `callbacks.initialized`.  After that, continues to invoke
+///     `callbacks.appeared` and `callbacks.disappeared` as discs appear
 ///     and disappear from the computer.  Stops watching for discs when
 ///     the returned closure is invoked.  The return value may be called
-///     from `initialized` to get a simple list of discs.
+///     from `callbacks.initialized` to get a simple list of discs.
 ///
 ///     All callbacks are serialized on an internal, single-threaded
 ///     dispatch queue to maintain consistency.
-///
-///     :param appeared:        
-///     :param disappeared:     
-///     :param initialized:     
-rsvc_stop_t             rsvc_disc_watch(void (^appeared)(rsvc_disc_type_t, const char*),
-                                        void (^disappeared)(rsvc_disc_type_t, const char*),
-                                        void (^initialized)());
+rsvc_stop_t             rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks);
 
 #endif  // RSVC_DISC_H_
