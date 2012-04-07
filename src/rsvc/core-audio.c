@@ -75,7 +75,6 @@ static void core_audio_encode(
         int read_fd, int write_fd, size_t samples_per_channel, rsvc_tags_t tags,
         int container_id, int codec_id, int bitrate,
         rsvc_encode_progress_t progress, rsvc_done_t done) {
-    (void)samples_per_channel;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         OSStatus err;
         AudioStreamBasicDescription asbd_out = {
