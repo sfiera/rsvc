@@ -347,7 +347,6 @@ struct rsvc_container_type {
 typedef struct rsvc_container_type* rsvc_container_type_t;
 
 struct rsvc_container_types {
-    size_t max_magic_size;
     rsvc_container_type_t head;
 };
 
@@ -363,7 +362,6 @@ static struct rsvc_container_type flac_container = {
     .next = &mp4_container,
 };
 static struct rsvc_container_types container_types = {
-    .max_magic_size = 12,
     .head = &flac_container,
 };
 
@@ -379,16 +377,16 @@ static bool detect_container_type(int fd, rsvc_container_type_t* container, rsvc
         return false;
     }
 
-    // Detect file type by magic number.
-    uint8_t* data = alloca(container_types.max_magic_size);
-    ssize_t size = read(fd, data, container_types.max_magic_size);
-    if (size < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
-        return false;
-    }
     for (rsvc_container_type_t curr = container_types.head; curr; curr = curr->next) {
-        if (size < curr->magic_size) {
-            continue;
+        // Detect file type by magic number.
+        uint8_t* data = malloc(curr->magic_size);
+        ssize_t size = pread(fd, data, curr->magic_size, 0);
+        if (size < 0) {
+            free(data);
+            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+            return false;
+        } else if (size < curr->magic_size) {
+            goto next_container_type;
         }
         for (size_t i = 0; i < curr->magic_size; ++i) {
             if ((curr->magic[i] != '?') && (curr->magic[i] != data[i])) {
@@ -396,9 +394,10 @@ static bool detect_container_type(int fd, rsvc_container_type_t* container, rsvc
             }
         }
         *container = curr;
+        free(data);
         return true;
 next_container_type:
-        ;
+        free(data);
     }
     rsvc_errorf(fail, __FILE__, __LINE__, "couldn't detect file type");
     return false;
