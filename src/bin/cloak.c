@@ -96,7 +96,7 @@ typedef enum list_mode {
     LIST_MODE_LONG,
 } list_mode_t;
 
-static void usage(const char* progname) {
+static void cloak_usage(const char* progname) {
     fprintf(stderr,
             "usage: %s [OPTIONS] FILE...\n"
             "\n"
@@ -197,7 +197,7 @@ static void cloak_main(int argc, char* const* argv) {
     bool (^option)(int opt, char* (^value)()) = ^bool (int opt, char* (^value)()){
         switch (opt) {
           case HELP:
-            usage(progname);
+            cloak_usage(progname);
             exit(0);
 
           case VERBOSE:
@@ -297,7 +297,7 @@ static void cloak_main(int argc, char* const* argv) {
             va_end(vl);
             fprintf(stderr, "\n");
         }
-        usage(progname);
+        cloak_usage(progname);
         exit(EX_USAGE);
     };
 
