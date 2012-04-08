@@ -71,7 +71,7 @@ struct rsvc_error {
     /// ..  member:: const char* message
     ///
     ///     A description of the error that occurred.
-    const char* message;
+    char* message;
     /// ..  member:: const char* file
     ///
     ///     The source file which reported the error.
@@ -122,6 +122,8 @@ void                    rsvc_errorf(rsvc_done_t callback,
                                     const char* file, int lineno, const char* format, ...);
 void                    rsvc_strerrorf(rsvc_done_t callback,
                                        const char* file, int lineno, const char* format, ...);
+rsvc_error_t            rsvc_error_copy(rsvc_error_t error);
+void                    rsvc_error_destroy(rsvc_error_t error);
 void                    rsvc_error_async(dispatch_queue_t queue, rsvc_error_t error,
                                          rsvc_done_t done);
 

@@ -30,6 +30,12 @@
 #include <sys/time.h>
 #include <sysexits.h>
 
+static void* memdup(const void* data, size_t size) {
+    void* copy = malloc(size);
+    memcpy(copy, data, size);
+    return copy;
+}
+
 void rsvc_errorf(rsvc_done_t callback,
                  const char* file, int lineno, const char* format, ...) {
     char* message;
@@ -61,16 +67,34 @@ void rsvc_strerrorf(rsvc_done_t callback,
     free(strerror);
 }
 
-void rsvc_error_async(dispatch_queue_t queue, rsvc_error_t error, rsvc_done_t done) {
+rsvc_error_t rsvc_error_copy(rsvc_error_t error) {
     if (error) {
         char* message = strdup(error->message);
         char* file = strdup(error->file);
+        int lineno = error->lineno;
+        struct rsvc_error copy = {message, file, lineno};
+        return memdup(&copy, sizeof(copy));
+    } else {
+        return error;
+    }
+}
+
+void rsvc_error_destroy(rsvc_error_t error) {
+    if (error) {
+        free(error->message);
+        free(error);
+    }
+}
+
+void rsvc_error_async(dispatch_queue_t queue, rsvc_error_t error, rsvc_done_t done) {
+    if (error) {
+        char* message = strdup(error->message);
+        const char* file = error->file;
         int lineno = error->lineno;
         dispatch_async(queue, ^{
             struct rsvc_error error = {message, file, lineno};
             done(&error);
             free(message);
-            free(file);
         });
     } else {
         dispatch_async(queue, ^{

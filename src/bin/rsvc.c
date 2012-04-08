@@ -97,6 +97,10 @@ static void rsvc_command_rip(rip_options_t options,
                              rsvc_done_t done);
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
+static void format_path(char* path, rip_format_t format, size_t track_number);
+static void encode(rip_format_t format, int read_fd, int write_fd,
+                   size_t samples_per_channel, rsvc_tags_t tags, int bitrate,
+                   rsvc_encode_progress_t progress, rsvc_done_t done);
 static bool read_format(const char* in, rip_format_t* out);
 static bool read_si_number(const char* in, int64_t* out);
 
@@ -442,19 +446,31 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
     // are encoding, plus 1 for ripping the whole disc.  This must only
     // be modified on the main queue; increment_pending() and
     // decrement_pending() guarantee this invariant, and perform
-    // appropriate cleanup when it reaches 0.  Can't keep the blocks on
-    // the stack.
+    // appropriate cleanup when it reaches 0.  We also track the error
+    // that should be returned when done.
     __block size_t pending = 1;
+    __block rsvc_error_t final_error = NULL;
     void (^increment_pending)() = ^{
         dispatch_async(dispatch_get_main_queue(), ^{
             ++pending;
         });
     };
-    void (^decrement_pending)() = ^{
+    rsvc_done_t decrement_pending = ^(rsvc_error_t error){
+        error = rsvc_error_copy(error);
         dispatch_async(dispatch_get_main_queue(), ^{
+            if (error) {
+                if (final_error) {
+                    rsvc_error_destroy(error);
+                } else {
+                    final_error = error;
+                }
+            }
             if (--pending == 0) {
-                printf("all rips done.\n");
-                done(NULL);
+                if (!final_error) {
+                    printf("all rips done.\n");
+                }
+                done(final_error);
+                rsvc_error_destroy(final_error);
                 Block_release(rip_track);
                 rsvc_progress_destroy(progress);
             }
@@ -467,7 +483,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
     // stack, since we exit this function immediately.
     rip_track = ^(size_t n){
         if (n == ntracks) {
-            decrement_pending();
+            decrement_pending(NULL);
             return;
         }
         rsvc_cd_track_t track = rsvc_cd_session_track(session, n);
@@ -482,100 +498,109 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
             return;
         }
 
-        // Must increment pending before we start ripping.
-        increment_pending();
-
         // Open up a pipe to run between the ripper and encoder, and a
-        // file to receive the encoded content.
+        // file to receive the encoded content.  If either of these
+        // fails, then stop encoding without proceeding on to the next
+        // track.
         int pipe_fd[2];
         if (pipe(pipe_fd) < 0) {
-            rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
+            rsvc_strerrorf(decrement_pending, __FILE__, __LINE__, "pipe");
+            decrement_pending(NULL);
             return;
         }
         int write_pipe = pipe_fd[1];
         int read_pipe = pipe_fd[0];
-        char filename[256];
-        switch (options->format) {
-          case FORMAT_NONE:
-            abort();
-          case FORMAT_FLAC:
-            sprintf(filename, "%02ld.flac", track_number);
-            break;
-          case FORMAT_AAC:
-            sprintf(filename, "%02ld.m4a", track_number);
-            break;
-          case FORMAT_ALAC:
-            sprintf(filename, "%02ld.m4a", track_number);
-            break;
-          case FORMAT_VORBIS:
-            sprintf(filename, "%02ld.ogv", track_number);
-            break;
-        }
+
         int file;
-        if (!rsvc_open(filename, O_RDWR | O_CREAT | O_TRUNC, 0644, &file, done)) {
+        char path[256];
+        format_path(path, options->format, track_number);
+        if (!rsvc_open(path, O_RDWR | O_CREAT | O_TRUNC, 0644, &file, decrement_pending)) {
+            decrement_pending(NULL);
+            return;
+        }
+
+        // Set up the tags for the resulting file.  If that doesn't work
+        // for some reason, bail without proceeding to the next track.
+        rsvc_tags_t tags = rsvc_tags_create();
+        const char* discid = rsvc_cd_session_discid(session);
+        if (!rsvc_tags_addf(tags, decrement_pending, RSVC_ENCODER, "ripservice %s", RSVC_VERSION)
+                || !rsvc_tags_add(tags, decrement_pending, RSVC_MUSICBRAINZ_DISCID, discid)
+                || !rsvc_tags_addf(tags, decrement_pending, RSVC_TRACKNUMBER, "%ld", track_number)
+                || !rsvc_tags_addf(tags, decrement_pending, RSVC_TRACKTOTAL, "%ld", ntracks)
+                || (*mcn && !rsvc_tags_add(tags, decrement_pending, RSVC_MCN, mcn))
+                || (*isrc && !rsvc_tags_add(tags, decrement_pending, RSVC_ISRC, isrc))) {
+            decrement_pending(NULL);
             return;
         }
 
         // Rip the current track.  If that fails, bail.  If it succeeds,
         // start ripping the next track.
+        increment_pending();
         rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
-            if (error) {
-                done(error);
-                return;
-            }
             close(write_pipe);
             rip_track(n + 1);
+            decrement_pending(error);
         });
 
         // Encode the current track.  If that fails, bail.  If it
         // succeeds, decrement the number of pending operations.
-        rsvc_progress_node_t node = rsvc_progress_start(progress, filename);
+        rsvc_progress_node_t node = rsvc_progress_start(progress, path);
         size_t nsamples = rsvc_cd_track_nsamples(track);
-        rsvc_tags_t tags = rsvc_tags_create();
-
-        rsvc_done_t encode_done = ^(rsvc_error_t error){
-            if (error) {
-                done(error);
-                return;
-            }
-            close(read_pipe);
-            rsvc_progress_done(node);
-            rsvc_tags_destroy(tags);
-            decrement_pending();
-        };
         void (^progress)(double) = ^(double fraction){
             rsvc_progress_update(node, fraction);
         };
 
-        const char* discid = rsvc_cd_session_discid(session);
-        if (rsvc_tags_addf(tags, encode_done, RSVC_ENCODER, "ripservice %s", RSVC_VERSION)
-                && rsvc_tags_add(tags, encode_done, RSVC_MUSICBRAINZ_DISCID, discid)
-                && rsvc_tags_addf(tags, encode_done, RSVC_TRACKNUMBER, "%d", track_number)
-                && rsvc_tags_addf(tags, encode_done, RSVC_TRACKTOTAL, "%d", ntracks)
-                && (!*mcn || rsvc_tags_add(tags, encode_done, RSVC_MCN, mcn))
-                && (!*isrc || rsvc_tags_add(tags, encode_done, RSVC_ISRC, isrc))) {
-            switch (options->format) {
-              case FORMAT_NONE:
-                abort();
-              case FORMAT_FLAC:
-                rsvc_flac_encode(read_pipe, file, nsamples, tags, progress, encode_done);
-                return;
-              case FORMAT_AAC:
-                rsvc_aac_encode(read_pipe, file, nsamples, tags, options->bitrate,
-                                progress, encode_done);
-                return;
-              case FORMAT_ALAC:
-                rsvc_alac_encode(read_pipe, file, nsamples, tags, progress, encode_done);
-                return;
-              case FORMAT_VORBIS:
-                rsvc_vorbis_encode(read_pipe, file, nsamples, tags, options->bitrate,
-                                   progress, encode_done);
-                return;
-            }
-        }
+        increment_pending();
+        encode(options->format, read_pipe, file, nsamples, tags, options->bitrate, progress,
+               ^(rsvc_error_t error){
+            close(read_pipe);
+            rsvc_tags_destroy(tags);
+            rsvc_progress_done(node);
+            decrement_pending(error);
+        });
     };
     rip_track = Block_copy(rip_track);
     rip_track(0);
+}
+
+static void format_path(char* path, rip_format_t format, size_t track_number) {
+    switch (format) {
+      case FORMAT_NONE:
+        abort();
+      case FORMAT_FLAC:
+        sprintf(path, "%02ld.flac", track_number);
+        break;
+      case FORMAT_AAC:
+        sprintf(path, "%02ld.m4a", track_number);
+        break;
+      case FORMAT_ALAC:
+        sprintf(path, "%02ld.m4a", track_number);
+        break;
+      case FORMAT_VORBIS:
+        sprintf(path, "%02ld.ogv", track_number);
+        break;
+    }
+}
+
+static void encode(rip_format_t format, int read_fd, int write_fd,
+                   size_t samples_per_channel, rsvc_tags_t tags, int bitrate,
+                   rsvc_encode_progress_t progress, rsvc_done_t done) {
+    switch (format) {
+      case FORMAT_NONE:
+        abort();
+      case FORMAT_FLAC:
+        rsvc_flac_encode(read_fd, write_fd, samples_per_channel, tags, progress, done);
+        return;
+      case FORMAT_AAC:
+        rsvc_aac_encode(read_fd, write_fd, samples_per_channel, tags, bitrate, progress, done);
+        return;
+      case FORMAT_ALAC:
+        rsvc_alac_encode(read_fd, write_fd, samples_per_channel, tags, progress, done);
+        return;
+      case FORMAT_VORBIS:
+        rsvc_vorbis_encode(read_fd, write_fd, samples_per_channel, tags, bitrate, progress, done);
+        return;
+    }
 }
 
 static bool read_format(const char* in, rip_format_t* out) {
