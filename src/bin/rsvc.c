@@ -38,6 +38,7 @@
 #include <rsvc/flac.h>
 #include <rsvc/vorbis.h>
 
+#include "../rsvc/options.h"
 #include "../rsvc/progress.h"
 
 typedef enum command {

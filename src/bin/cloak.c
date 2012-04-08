@@ -36,6 +36,8 @@
 #include <rsvc/musicbrainz.h>
 #include <rsvc/vorbis.h>
 
+#include "../rsvc/options.h"
+
 enum short_flag {
     HELP        = 'h',
     VERBOSE     = 'v',
