@@ -86,7 +86,8 @@ bool                    rsvc_tags_remove(rsvc_tags_t tags, const char* name, rsv
 bool                    rsvc_tags_add(rsvc_tags_t tags, rsvc_done_t fail,
                                       const char* name, const char* value);
 bool                    rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
-                                       const char* name, const char* format, ...);
+                                       const char* name, const char* format, ...)
+                        __attribute__((format(printf, 4, 5)));
 
 /// ..  function:: size_t rsvc_tags_size(rsvc_tags_t tags)
 ///
