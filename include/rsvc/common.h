@@ -119,9 +119,11 @@ typedef void (^rsvc_done_t)(rsvc_error_t error);
 ///                         `NULL`.
 ///     :param ...:         Format values for `format`.
 void                    rsvc_errorf(rsvc_done_t callback,
-                                    const char* file, int lineno, const char* format, ...);
+                                    const char* file, int lineno, const char* format, ...)
+                        __attribute__((format(printf, 4, 5)));
 void                    rsvc_strerrorf(rsvc_done_t callback,
-                                       const char* file, int lineno, const char* format, ...);
+                                       const char* file, int lineno, const char* format, ...)
+                        __attribute__((format(printf, 4, 5)));
 rsvc_error_t            rsvc_error_clone(rsvc_error_t error);
 void                    rsvc_error_destroy(rsvc_error_t error);
 void                    rsvc_error_async(dispatch_queue_t queue, rsvc_error_t error,

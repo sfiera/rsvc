@@ -71,6 +71,21 @@ OSStatus core_audio_set_size(void* userdata, SInt64 size) {
     return noErr;
 }
 
+typedef struct four_char {
+    char string[5];
+} four_char_t;
+
+static four_char_t fourcc(uint32_t value) {
+    four_char_t result = {{
+        0xff & (value >> 24),
+        0xff & (value >> 16),
+        0xff & (value >> 8),
+        0xff & value,
+        '\0',
+    }};
+    return result;
+}
+
 static void core_audio_encode(
         int read_fd, int write_fd, size_t samples_per_channel, rsvc_tags_t tags,
         int container_id, int codec_id, int bitrate,
@@ -92,13 +107,13 @@ static void core_audio_encode(
             &fd, core_audio_read, core_audio_write, core_audio_get_size, core_audio_set_size,
             container_id, &asbd_out, 0, &file_id);
         if (err != noErr) {
-            rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+            rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
             goto cleanup;
         }
         ExtAudioFileRef file_ref = NULL;
         err = ExtAudioFileWrapAudioFileID(file_id, true, &file_ref);
         if (err != noErr) {
-            rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+            rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
             goto cleanup;
         }
 
@@ -117,7 +132,7 @@ static void core_audio_encode(
         err = ExtAudioFileSetProperty(
                 file_ref, kExtAudioFileProperty_ClientDataFormat, sizeof(asbd_in), &asbd_in);
         if (err != noErr) {
-            rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+            rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
             goto cleanup;
         }
 
@@ -128,17 +143,17 @@ static void core_audio_encode(
             err = ExtAudioFileGetProperty(
                     file_ref, kExtAudioFileProperty_AudioConverter, &converter_size, &converter);
             if (err != noErr) {
-                rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+                rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
                 goto cleanup;
             }
             if (converter == NULL) {
-                rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+                rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
                 goto cleanup;
             }
             err = AudioConverterSetProperty(
                     converter, kAudioConverterEncodeBitRate, sizeof(bitrate), &bitrate);
             if (err != noErr) {
-                rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+                rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
                 goto cleanup;
             }
             CFArrayRef converter_properties;
@@ -147,14 +162,14 @@ static void core_audio_encode(
                     converter, kAudioConverterPropertySettings,
                     &converter_properties_size, &converter_properties);
             if (err != noErr) {
-                rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+                rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
                 goto cleanup;
             }
             err = ExtAudioFileSetProperty(
                     file_ref, kExtAudioFileProperty_ConverterConfig,
                     sizeof(converter_properties), &converter_properties);
             if (err != noErr) {
-                rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+                rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
                 goto cleanup;
             }
         }
@@ -188,7 +203,7 @@ static void core_audio_encode(
                 };
                 err = ExtAudioFileWrite(file_ref, nsamples, &buffer_list);
                 if (err != noErr) {
-                    rsvc_errorf(done, __FILE__, __LINE__, "some error: %.4s", &err);
+                    rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
                     goto cleanup;
                 }
                 memcpy(buffer, buffer + result, remainder);
