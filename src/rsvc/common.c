@@ -67,7 +67,7 @@ void rsvc_strerrorf(rsvc_done_t callback,
     free(strerror);
 }
 
-rsvc_error_t rsvc_error_copy(rsvc_error_t error) {
+rsvc_error_t rsvc_error_clone(rsvc_error_t error) {
     if (error) {
         char* message = strdup(error->message);
         char* file = strdup(error->file);

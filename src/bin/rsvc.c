@@ -457,7 +457,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
         });
     };
     rsvc_done_t decrement_pending = ^(rsvc_error_t error){
-        error = rsvc_error_copy(error);
+        error = rsvc_error_clone(error);
         dispatch_async(dispatch_get_main_queue(), ^{
             if (error) {
                 if (final_error) {
