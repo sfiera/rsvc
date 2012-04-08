@@ -129,7 +129,7 @@ void                    rsvc_error_async(dispatch_queue_t queue, rsvc_error_t er
 
 bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail);
 
-extern int verbosity;
+extern int rsvc_verbosity;
 void rsvc_logf(int level, const char* format, ...);
 
 #endif  // RSVC_COMMON_H_

@@ -112,14 +112,14 @@ bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fa
     return true;
 }
 
-int verbosity = 0;
+int rsvc_verbosity = 0;
 void rsvc_logf(int level, const char* format, ...) {
     static dispatch_queue_t log_queue;
     static dispatch_once_t log_queue_init;
     dispatch_once(&log_queue_init, ^{
         log_queue = dispatch_queue_create("net.sfiera.ripservice.log", NULL);
     });
-    if (level <= verbosity) {
+    if (level <= rsvc_verbosity) {
         time_t t;
         time(&t);
         struct tm tm;

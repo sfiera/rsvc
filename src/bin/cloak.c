@@ -201,7 +201,7 @@ static void cloak_main(int argc, char* const* argv) {
             exit(0);
 
           case VERBOSE:
-            ++verbosity;
+            ++rsvc_verbosity;
             return true;
 
           case VERSION:
