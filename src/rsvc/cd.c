@@ -324,6 +324,56 @@ const char* rsvc_cd_track_isrc(rsvc_cd_track_t track) {
     return track->isrc;
 }
 
+static void read_range(
+        rsvc_cd_track_t track, int fd, size_t begin, size_t end, rsvc_done_t done) {
+    uint8_t buffer[kCDSectorSizeCDDA];
+    dk_cd_read_t cd_read;
+
+    memset(&cd_read, 0, sizeof(dk_cd_read_t));
+    memset(buffer, 0, kCDSectorSizeCDDA);
+
+    cd_read.offset          = begin;
+    cd_read.sectorArea      = kCDSectorAreaUser;
+    cd_read.sectorType      = kCDSectorTypeCDDA;
+    cd_read.buffer          = buffer;
+    cd_read.bufferLength    = sizeof(buffer);
+    if ((end - begin) < cd_read.bufferLength) {
+        cd_read.bufferLength = (end - begin);
+    }
+
+    if (ioctl(track->cd->fd, DKIOCCDREAD, &cd_read) < 0) {
+        rsvc_strerrorf(done, __FILE__, __LINE__, "%s", track->cd->path);
+        return;
+    }
+
+    // TODO(sfiera): swap on big-endian, I guess.
+    size_t written = 0;
+    size_t remaining = cd_read.bufferLength;
+    while (remaining > 0) {
+        int result = write(fd, buffer + written, remaining);
+        if (result < 0) {
+            rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
+            return;
+        } else if (result == 0) {
+            // TODO(sfiera): 0 is not an error, but we must break early.
+            rsvc_errorf(done, __FILE__, __LINE__, "pipe closed");
+            return;
+        } else {
+            written += result;
+            remaining -= result;
+        }
+    }
+
+    begin += cd_read.bufferLength;
+    if (begin < end) {
+        dispatch_async(track->cd->queue, ^{
+            read_range(track, fd, begin, end, done);
+        });
+    } else {
+        done(NULL);
+    }
+}
+
 void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done) {
     // Ensure that the done callback does not run in cd->queue.
     done = ^(rsvc_error_t error){
@@ -332,49 +382,11 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done) {
     };
 
     dispatch_async(track->cd->queue, ^{
-        uint8_t buffer[kCDSectorSizeCDDA];
-        dk_cd_read_t cd_read;
-
         uint16_t speed = kCDSpeedMax;
         ioctl(track->cd->fd, DKIOCCDSETSPEED, &speed);
 
-        size_t offset = track->sector_begin * kCDSectorSizeCDDA;
-        for (size_t sector = track->sector_begin; sector < track->sector_end; ++sector) {
-            memset(&cd_read, 0, sizeof(dk_cd_read_t));
-            memset(buffer, 0, kCDSectorSizeCDDA);
-
-            cd_read.offset          = offset;
-            cd_read.sectorArea      = kCDSectorAreaUser;
-            cd_read.sectorType      = kCDSectorTypeCDDA;
-            cd_read.buffer          = buffer;
-            cd_read.bufferLength    = sizeof(buffer);
-
-            if (ioctl(track->cd->fd, DKIOCCDREAD, &cd_read) < 0) {
-                rsvc_strerrorf(done, __FILE__, __LINE__, "%s", track->cd->path);
-                goto rip_cleanup;
-            }
-
-            // TODO(sfiera): swap on big-endian, I guess.
-            size_t written = 0;
-            size_t remaining = cd_read.bufferLength;
-            while (remaining > 0) {
-                int result = write(fd, buffer + written, remaining);
-                if (result < 0) {
-                    rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
-                    goto rip_cleanup;
-                } else if (result == 0) {
-                    // TODO(sfiera): 0 is not an error, but we must break early.
-                    rsvc_errorf(done, __FILE__, __LINE__, "pipe closed");
-                    goto rip_cleanup;
-                } else {
-                    written += result;
-                    remaining -= result;
-                }
-            }
-            offset += cd_read.bufferLength;
-        }
-        done(NULL);
-rip_cleanup:
-        ;
+        size_t begin = track->sector_begin * kCDSectorSizeCDDA;
+        size_t end = track->sector_end * kCDSectorSizeCDDA;
+        read_range(track, fd, begin, end, done);
     });
 }
