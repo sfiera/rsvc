@@ -35,8 +35,9 @@
 #include <rsvc/cd.h>
 #include <rsvc/core-audio.h>
 #include <rsvc/disc.h>
-#include <rsvc/tag.h>
 #include <rsvc/flac.h>
+#include <rsvc/mp4.h>
+#include <rsvc/tag.h>
 #include <rsvc/vorbis.h>
 
 #include "../rsvc/options.h"
@@ -101,8 +102,11 @@ static void rsvc_command_rip(rip_options_t options,
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
 static void format_path(char* path, rip_format_t format, size_t track_number);
 static void encode(rip_format_t format, int read_fd, int write_fd,
-                   size_t samples_per_channel, rsvc_tags_t tags, int bitrate,
+                   size_t samples_per_channel, int bitrate,
                    rsvc_encode_progress_t progress, rsvc_done_t done);
+static void set_tags(rip_format_t format, char* path,
+                     rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
+                     rsvc_done_t done);
 static bool read_format(const char* in, rip_format_t* out);
 static bool read_si_number(const char* in, int64_t* out);
 
@@ -530,8 +534,6 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
         }
         rsvc_cd_track_t track = rsvc_cd_session_track(session, n);
         size_t track_number = rsvc_cd_track_number(track);
-        const char* mcn = rsvc_cd_mcn(cd);
-        const char* isrc = rsvc_cd_track_isrc(track);
 
         // Skip data tracks.
         if (rsvc_cd_track_type(track) == RSVC_CD_TRACK_DATA) {
@@ -554,23 +556,9 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
         int read_pipe = pipe_fd[0];
 
         int file;
-        char path[256];
+        char* path = malloc(256);
         format_path(path, options->format, track_number);
         if (!rsvc_open(path, O_RDWR | O_CREAT | O_TRUNC, 0644, &file, decrement_pending)) {
-            decrement_pending(NULL);
-            return;
-        }
-
-        // Set up the tags for the resulting file.  If that doesn't work
-        // for some reason, bail without proceeding to the next track.
-        rsvc_tags_t tags = rsvc_tags_create();
-        const char* discid = rsvc_cd_session_discid(session);
-        if (!rsvc_tags_addf(tags, decrement_pending, RSVC_ENCODER, "ripservice %s", RSVC_VERSION)
-                || !rsvc_tags_add(tags, decrement_pending, RSVC_MUSICBRAINZ_DISCID, discid)
-                || !rsvc_tags_addf(tags, decrement_pending, RSVC_TRACKNUMBER, "%ld", track_number)
-                || !rsvc_tags_addf(tags, decrement_pending, RSVC_TRACKTOTAL, "%ld", ntracks)
-                || (*mcn && !rsvc_tags_add(tags, decrement_pending, RSVC_MCN, mcn))
-                || (*isrc && !rsvc_tags_add(tags, decrement_pending, RSVC_ISRC, isrc))) {
             decrement_pending(NULL);
             return;
         }
@@ -599,12 +587,19 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
         };
 
         increment_pending();
-        encode(options->format, read_pipe, file, nsamples, tags, options->bitrate, progress,
+        encode(options->format, read_pipe, file, nsamples, options->bitrate, progress,
                ^(rsvc_error_t error){
             close(read_pipe);
-            rsvc_tags_destroy(tags);
-            rsvc_progress_done(node);
-            decrement_pending(error);
+            if (error) {
+                decrement_pending(error);
+                free(path);
+                return;
+            }
+            set_tags(options->format, path, cd, session, track, ^(rsvc_error_t error){
+                free(path);
+                rsvc_progress_done(node);
+                decrement_pending(error);
+            });
         });
     };
     rip_track = Block_copy(rip_track);
@@ -631,24 +626,72 @@ static void format_path(char* path, rip_format_t format, size_t track_number) {
 }
 
 static void encode(rip_format_t format, int read_fd, int write_fd,
-                   size_t samples_per_channel, rsvc_tags_t tags, int bitrate,
+                   size_t samples_per_channel, int bitrate,
                    rsvc_encode_progress_t progress, rsvc_done_t done) {
     switch (format) {
       case FORMAT_NONE:
         abort();
       case FORMAT_FLAC:
-        rsvc_flac_encode(read_fd, write_fd, samples_per_channel, tags, progress, done);
+        rsvc_flac_encode(read_fd, write_fd, samples_per_channel, progress, done);
         return;
       case FORMAT_AAC:
-        rsvc_aac_encode(read_fd, write_fd, samples_per_channel, tags, bitrate, progress, done);
+        rsvc_aac_encode(read_fd, write_fd, samples_per_channel, bitrate, progress, done);
         return;
       case FORMAT_ALAC:
-        rsvc_alac_encode(read_fd, write_fd, samples_per_channel, tags, progress, done);
+        rsvc_alac_encode(read_fd, write_fd, samples_per_channel, progress, done);
         return;
       case FORMAT_VORBIS:
-        rsvc_vorbis_encode(read_fd, write_fd, samples_per_channel, tags, bitrate, progress, done);
+        rsvc_vorbis_encode(read_fd, write_fd, samples_per_channel, bitrate, progress, done);
         return;
     }
+}
+
+static void rsvc_read_tags(rip_format_t format, char* path,
+                           void (^done)(rsvc_tags_t, rsvc_error_t)) {
+    switch (format) {
+      case FORMAT_NONE:
+        abort();
+      case FORMAT_FLAC:
+        rsvc_flac_read_tags(path, done);
+        break;
+      case FORMAT_AAC:
+      case FORMAT_ALAC:
+        rsvc_mp4_read_tags(path, done);
+        break;
+      case FORMAT_VORBIS:
+        // TODO(sfiera): vorbis tags.
+        break;
+    }
+}
+
+static void set_tags(rip_format_t format, char* path,
+                     rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
+                     rsvc_done_t done) {
+    const char* discid = rsvc_cd_session_discid(session);
+    size_t track_number = rsvc_cd_track_number(track);
+    const size_t ntracks = rsvc_cd_session_ntracks(session);
+    const char* mcn = rsvc_cd_mcn(cd);
+    const char* isrc = rsvc_cd_track_isrc(track);
+
+    rsvc_read_tags(format, path, ^(rsvc_tags_t tags, rsvc_error_t error){
+        if (error) {
+            done(error);
+            return;
+        }
+        if (!rsvc_tags_addf(tags, done, RSVC_ENCODER, "ripservice %s", RSVC_VERSION)
+                || !rsvc_tags_add(tags, done, RSVC_MUSICBRAINZ_DISCID, discid)
+                || !rsvc_tags_addf(tags, done, RSVC_TRACKNUMBER, "%ld", track_number)
+                || !rsvc_tags_addf(tags, done, RSVC_TRACKTOTAL, "%ld", ntracks)
+                || (*mcn && !rsvc_tags_add(tags, done, RSVC_MCN, mcn))
+                || (*isrc && !rsvc_tags_add(tags, done, RSVC_ISRC, isrc))) {
+            rsvc_tags_destroy(tags);
+            return;
+        }
+        rsvc_tags_save(tags, ^(rsvc_error_t error){
+            rsvc_tags_destroy(tags);
+            done(error);
+        });
+    });
 }
 
 static bool read_format(const char* in, rip_format_t* out) {

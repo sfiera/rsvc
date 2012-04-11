@@ -24,14 +24,13 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <rsvc/encode.h>
-#include <rsvc/tag.h>
 
 void                    rsvc_aac_encode(int read_fd, int write_fd,
-                                        size_t samples_per_channel, rsvc_tags_t tags, int bitrate,
+                                        size_t samples_per_channel, int bitrate,
                                         rsvc_encode_progress_t progress,
                                         rsvc_done_t done);
 void                    rsvc_alac_encode(int read_fd, int write_fd,
-                                         size_t samples_per_channel, rsvc_tags_t tags,
+                                         size_t samples_per_channel,
                                          rsvc_encode_progress_t progress,
                                          rsvc_done_t done);
 

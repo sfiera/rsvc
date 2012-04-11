@@ -29,7 +29,7 @@
 #include <unistd.h>
 
 void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
-                        rsvc_tags_t tags, int bitrate,
+                        int bitrate,
                         rsvc_encode_progress_t progress, rsvc_done_t done) {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // Largely cribbed from libvorbis's examples/encoder_example.c.
@@ -51,7 +51,7 @@ void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
         ret = vorbis_encode_init(&vi, 2, 44100, -1, bitrate, -1);
         if (ret != 0 ) {
             rsvc_errorf(done, __FILE__, __LINE__, "couldn't init vorbis encoder");
-            goto encode_cleanup;
+            return;
         }
         vorbis_analysis_init(&vd, &vi);
         vorbis_block_init(&vd, &vb);
@@ -63,11 +63,11 @@ void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
         ogg_stream_init(&os, rand_r(&seed));
 
         // Copy `tags` into `vc`.
-        vorbis_comment_init(&vc);
-        vorbis_comment* vcp = &vc;
-        rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-            vorbis_comment_add_tag(vcp, name, value);
-        });
+        // vorbis_comment_init(&vc);
+        // vorbis_comment* vcp = &vc;
+        // rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+        //     vorbis_comment_add_tag(vcp, name, value);
+        // });
 
         {
             ogg_packet header;
@@ -96,7 +96,7 @@ void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
             ssize_t size = read(read_fd, in, sizeof(in));
             if (size < 0) {
                 rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
-                goto encode_cleanup;
+                return;
             } else if (size == 0) {
                 vorbis_analysis_wrote(&vd, 0);
             } else {
@@ -148,7 +148,5 @@ void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
         vorbis_info_clear(&vi);
 
         done(NULL);
-encode_cleanup:
-        ;
     });
 }

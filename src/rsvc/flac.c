@@ -44,29 +44,32 @@ static seek_status_t    flac_seek(const FLAC__StreamEncoder* encoder,
 static tell_status_t    flac_tell(const FLAC__StreamEncoder* encoder,
                                   FLAC__uint64* absolute_byte_offset, void* userdata);
 
-static bool rsvc_tags_to_vorbis_comments(rsvc_tags_t tags, FLAC__StreamMetadata* metadata) {
-    return rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        FLAC__StreamMetadata_VorbisComment_Entry entry;
-        if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(&entry, name, value) ||
-            !FLAC__metadata_object_vorbiscomment_append_comment(metadata, entry, false)) {
-            stop();
-        }
-    });
-}
+// static bool rsvc_tags_to_vorbis_comments(rsvc_tags_t tags, FLAC__StreamMetadata* metadata) {
+//     return rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+//         FLAC__StreamMetadata_VorbisComment_Entry entry;
+//         if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(&entry, name, value) ||
+//             !FLAC__metadata_object_vorbiscomment_append_comment(metadata, entry, false)) {
+//             stop();
+//         }
+//     });
+// }
 
-void rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel, rsvc_tags_t tags,
+void rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel,
                       rsvc_encode_progress_t progress, rsvc_done_t done) {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         FLAC__StreamEncoder *encoder = NULL;
-        FLAC__StreamMetadata* comment_metadata = NULL;
-        FLAC__StreamMetadata* padding_metadata = NULL;
+        // FLAC__StreamMetadata* comment_metadata = NULL;
+        // FLAC__StreamMetadata* padding_metadata = NULL;
         size_t samples_per_channel_read = 0;
 
         encoder = FLAC__stream_encoder_new();
         if (encoder == NULL) {
             rsvc_errorf(done, __FILE__, __LINE__, "couldn't allocate FLAC encoder");
-            goto encode_cleanup;
+            return;
         }
+        void (^cleanup)() = ^{
+            FLAC__stream_encoder_delete(encoder);
+        };
 
         if (!(FLAC__stream_encoder_set_verify(encoder, true) &&
               FLAC__stream_encoder_set_compression_level(encoder, 8) &&
@@ -77,23 +80,24 @@ void rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel, rsv
             FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
             const char* message = FLAC__StreamEncoderStateString[state];
             rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
-            goto encode_cleanup;
         }
 
-        comment_metadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
-        padding_metadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_PADDING);
-        padding_metadata->length = 1024;
-        if (!comment_metadata || !rsvc_tags_to_vorbis_comments(tags, comment_metadata)
-                || !padding_metadata) {
-            rsvc_errorf(done, __FILE__, __LINE__, "comment failure");
-            goto encode_cleanup;
-        }
-
-        FLAC__StreamMetadata* metadata[2] = {comment_metadata, padding_metadata};
-        if (!FLAC__stream_encoder_set_metadata(encoder, metadata, 2)) {
-            rsvc_errorf(done, __FILE__, __LINE__, "comment failure");
-            goto encode_cleanup;
-        }
+        // comment_metadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
+        // padding_metadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_PADDING);
+        // padding_metadata->length = 1024;
+        // if (!comment_metadata || !rsvc_tags_to_vorbis_comments(tags, comment_metadata)
+        //         || !padding_metadata) {
+        //     cleanup();
+        //     rsvc_errorf(done, __FILE__, __LINE__, "comment failure");
+        //     return;
+        // }
+        //
+        // FLAC__StreamMetadata* metadata[2] = {comment_metadata, padding_metadata};
+        // if (!FLAC__stream_encoder_set_metadata(encoder, metadata, 2)) {
+        //     cleanup();
+        //     rsvc_errorf(done, __FILE__, __LINE__, "comment failure");
+        //     return;
+        // }
 
         int fd = write_fd;
         FLAC__StreamEncoderInitStatus init_status = FLAC__stream_encoder_init_stream(
@@ -106,8 +110,9 @@ void rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel, rsv
             } else {
                 message = FLAC__StreamEncoderInitStatusString[init_status];
             }
+            cleanup();
             rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
-            goto encode_cleanup;
+            return;
         }
 
         size_t start = 0;
@@ -116,8 +121,9 @@ void rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel, rsv
         while (true) {
             ssize_t result = read(read_fd, buffer + start, sizeof(buffer) - start);
             if (result < 0) {
+                cleanup();
                 rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
-                goto encode_cleanup;
+                return;
             } else if (result == 0) {
                 break;
             }
@@ -137,8 +143,9 @@ void rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel, rsv
                 if (!FLAC__stream_encoder_process_interleaved(encoder, samples, nsamples)) {
                     FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
                     const char* message = FLAC__StreamEncoderStateString[state];
+                    cleanup();
                     rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
-                    goto encode_cleanup;
+                    return;
                 }
                 memcpy(buffer, buffer + result, remainder);
             }
@@ -148,14 +155,12 @@ void rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel, rsv
         if (!FLAC__stream_encoder_finish(encoder)) {
             FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
             const char* message = FLAC__StreamEncoderStateString[state];
+            cleanup();
             rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
-            goto encode_cleanup;
+            return;
         }
+        cleanup();
         done(NULL);
-encode_cleanup:
-        if (encoder) FLAC__stream_encoder_delete(encoder);
-        if (padding_metadata) FLAC__metadata_object_delete(padding_metadata);
-        if (comment_metadata) FLAC__metadata_object_delete(comment_metadata);
     });
 }
 

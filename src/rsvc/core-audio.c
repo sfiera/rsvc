@@ -87,7 +87,7 @@ static four_char_t fourcc(uint32_t value) {
 }
 
 static void core_audio_encode(
-        int read_fd, int write_fd, size_t samples_per_channel, rsvc_tags_t tags,
+        int read_fd, int write_fd, size_t samples_per_channel,
         int container_id, int codec_id, int bitrate,
         rsvc_encode_progress_t progress, rsvc_done_t done) {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -108,14 +108,22 @@ static void core_audio_encode(
             container_id, &asbd_out, 0, &file_id);
         if (err != noErr) {
             rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
-            goto cleanup;
+            return;
         }
+        void (^cleanup)() = ^{
+            AudioFileClose(file_id);
+        };
         ExtAudioFileRef file_ref = NULL;
         err = ExtAudioFileWrapAudioFileID(file_id, true, &file_ref);
         if (err != noErr) {
+            cleanup();
             rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
-            goto cleanup;
+            return;
         }
+        cleanup = ^{
+            ExtAudioFileDispose(file_ref);
+            cleanup();
+        };
 
         const AudioStreamBasicDescription asbd_in = {
             .mFormatID          = kAudioFormatLinearPCM,
@@ -132,8 +140,9 @@ static void core_audio_encode(
         err = ExtAudioFileSetProperty(
                 file_ref, kExtAudioFileProperty_ClientDataFormat, sizeof(asbd_in), &asbd_in);
         if (err != noErr) {
+            cleanup();
             rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
-            goto cleanup;
+            return;
         }
 
         // Set the bitrate if encoding with a lossy codec.
@@ -143,18 +152,21 @@ static void core_audio_encode(
             err = ExtAudioFileGetProperty(
                     file_ref, kExtAudioFileProperty_AudioConverter, &converter_size, &converter);
             if (err != noErr) {
+                cleanup();
                 rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
-                goto cleanup;
+                return;
             }
             if (converter == NULL) {
+                cleanup();
                 rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
-                goto cleanup;
+                return;
             }
             err = AudioConverterSetProperty(
                     converter, kAudioConverterEncodeBitRate, sizeof(bitrate), &bitrate);
             if (err != noErr) {
+                cleanup();
                 rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
-                goto cleanup;
+                return;
             }
             CFArrayRef converter_properties;
             UInt32 converter_properties_size = sizeof(converter_properties);
@@ -162,15 +174,17 @@ static void core_audio_encode(
                     converter, kAudioConverterPropertySettings,
                     &converter_properties_size, &converter_properties);
             if (err != noErr) {
+                cleanup();
                 rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
-                goto cleanup;
+                return;
             }
             err = ExtAudioFileSetProperty(
                     file_ref, kExtAudioFileProperty_ConverterConfig,
                     sizeof(converter_properties), &converter_properties);
             if (err != noErr) {
+                cleanup();
                 rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
-                goto cleanup;
+                return;
             }
         }
 
@@ -181,8 +195,9 @@ static void core_audio_encode(
         while (true) {
             ssize_t result = read(read_fd, buffer + start, sizeof(buffer) - start);
             if (result < 0) {
+                cleanup();
                 rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
-                goto cleanup;
+                return;
             } else if (result == 0) {
                 break;
             }
@@ -203,8 +218,9 @@ static void core_audio_encode(
                 };
                 err = ExtAudioFileWrite(file_ref, nsamples, &buffer_list);
                 if (err != noErr) {
+                    cleanup();
                     rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
-                    goto cleanup;
+                    return;
                 }
                 memcpy(buffer, buffer + result, remainder);
             }
@@ -213,30 +229,26 @@ static void core_audio_encode(
         }
         ExtAudioFileDispose(file_ref);
         AudioFileClose(file_id);
+        cleanup();
         done(NULL);
-        return;
-cleanup:
-        ExtAudioFileDispose(file_ref);
-        AudioFileClose(file_id);
     });
 }
 
 void rsvc_aac_encode(
         int read_fd, int write_fd, size_t samples_per_channel,
-        rsvc_tags_t tags, int bitrate,
+        int bitrate,
         rsvc_encode_progress_t progress, rsvc_done_t done) {
     core_audio_encode(
-            read_fd, write_fd, samples_per_channel, tags,
+            read_fd, write_fd, samples_per_channel,
             kAudioFileM4AType, kAudioFormatMPEG4AAC, bitrate,
             progress, done);
 }
 
 void rsvc_alac_encode(
         int read_fd, int write_fd, size_t samples_per_channel,
-        rsvc_tags_t tags,
         rsvc_encode_progress_t progress, rsvc_done_t done) {
     core_audio_encode(
-            read_fd, write_fd, samples_per_channel, tags,
+            read_fd, write_fd, samples_per_channel,
             kAudioFileM4AType, kAudioFormatAppleLossless, -1,
             progress, done);
 }
