@@ -94,7 +94,7 @@ static bool add_date_tag(MP4FileHandle* file, mp4_tag_t tag, const char* value,
                          rsvc_done_t fail) {
     bool valid = false;
     size_t size = strlen(value);
-    if ((size == 4) || (size == 10)) {
+    if ((size == 4) || (size == 7) || (size == 10)) {
         valid = true;
         for (int i = 0; i < size; ++i) {
             if ((i == 4) || (i == 7)) {
