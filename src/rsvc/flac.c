@@ -248,7 +248,11 @@ static struct rsvc_tags_methods flac_vptr = {
 };
 
 void rsvc_flac_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t)) {
+    char* path_copy = strdup(path);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        void (^cleanup)() = ^{
+            free(path_copy);
+        };
         struct rsvc_flac_tags tags = {
             .super = {
                 .vptr   = &flac_vptr,
@@ -258,13 +262,14 @@ void rsvc_flac_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_
             .block      = NULL,
             .comments   = NULL,
         };
-        if (!FLAC__metadata_chain_read(tags.chain, path)) {
+        if (!FLAC__metadata_chain_read(tags.chain, path_copy)) {
+            cleanup();
+            FLAC__metadata_iterator_delete(tags.it);
+            FLAC__metadata_chain_delete(tags.chain);
             rsvc_errorf(^(rsvc_error_t error){
                 done(NULL, error);
             }, __FILE__, __LINE__, "%s",
                FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(tags.chain)]);
-            FLAC__metadata_iterator_delete(tags.it);
-            FLAC__metadata_chain_delete(tags.chain);
             return;
         }
         FLAC__metadata_iterator_init(tags.it, tags.chain);
@@ -278,6 +283,7 @@ void rsvc_flac_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_
             break;
         }
         rsvc_flac_tags_t copy = memdup(&tags, sizeof(tags));
+        cleanup();
         done(&copy->super, NULL);
     });
 }

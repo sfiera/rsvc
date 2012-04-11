@@ -601,23 +601,26 @@ static struct rsvc_tags_methods mp4_vptr = {
 };
 
 void rsvc_mp4_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t)) {
+    char* path_copy = strdup(path);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        void (^cleanup)() = ^{
+            free(path_copy);
+        };
         struct rsvc_mp4_tags tags = {
             .super = {
                 .vptr   = &mp4_vptr,
             },
-            .file = MP4Modify(path, 0),
+            .file = MP4Modify(path_copy, 0),
         };
         if (tags.file == MP4_INVALID_FILE_HANDLE) {
+            cleanup();
             rsvc_errorf(^(rsvc_error_t error){
                 done(NULL, error);
             }, __FILE__, __LINE__, "MP4_INVALID_FILE_HANDLE");
-            goto cleanup;
+            return;
         }
         rsvc_mp4_tags_t copy = memdup(&tags, sizeof(tags));
+        cleanup();
         done(&copy->super, NULL);
-        return;
-cleanup:
-        ;
     });
 }
