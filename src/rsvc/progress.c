@@ -102,7 +102,11 @@ void rsvc_progress_update(rsvc_progress_node_t node, double fraction) {
 void rsvc_progress_done(rsvc_progress_node_t node) {
     dispatch_async(dispatch_get_main_queue(), ^{
         progress_hide(node->parent);
-        printf(" done   %s\n", node->name);
+        if (node->percent >= 100) {
+            printf(" done   %s\n", node->name);
+        } else {
+            printf("%4d%%   %s\n", node->percent, node->name);
+        }
         free(node->name);
         if (node->prev) {
             node->prev->next = node->next;

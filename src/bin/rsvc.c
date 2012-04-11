@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -436,6 +437,45 @@ static void rsvc_command_rip(rip_options_t options,
     });
 }
 
+static dispatch_source_t    sigint_source       = NULL;
+static bool                 sigint_received     = false;
+static rsvc_stop_t          sigint_callback     = NULL;
+
+static void set_sigint_callback(rsvc_stop_t stop) {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (sigint_received) {
+            stop();
+        } else {
+            if (sigint_callback) {
+                Block_release(sigint_callback);
+            } else if (stop) {
+                if (!sigint_source) {
+                    sigint_source = dispatch_source_create(
+                        DISPATCH_SOURCE_TYPE_SIGNAL, SIGINT, 0, dispatch_get_main_queue());
+                    dispatch_source_set_event_handler(sigint_source, ^{
+                        sigint_received = true;
+                        if (sigint_callback) {
+                            sigint_callback();
+                        }
+                        Block_release(sigint_callback);
+                        sigint_callback = NULL;
+                    });
+                }
+                dispatch_resume(sigint_source);
+                signal(SIGINT, SIG_IGN);
+            }
+
+            if (stop) {
+                sigint_callback = Block_copy(stop);
+            } else {
+                sigint_callback = NULL;
+                signal(SIGINT, SIG_DFL);
+                dispatch_source_cancel(sigint_source);
+            }
+        }
+    });
+}
+
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
     printf("Ripping…\n");
     rsvc_cd_session_t session = rsvc_cd_session(cd, 0);
@@ -467,6 +507,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
                 }
             }
             if (--pending == 0) {
+                set_sigint_callback(NULL);
                 if (!final_error) {
                     printf("all rips done.\n");
                 }
@@ -537,11 +578,17 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
         // Rip the current track.  If that fails, bail.  If it succeeds,
         // start ripping the next track.
         increment_pending();
-        rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
+        rsvc_stop_t stop_rip = rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
             close(write_pipe);
-            rip_track(n + 1);
             decrement_pending(error);
+            if (error) {
+                decrement_pending(NULL);
+            } else {
+                rip_track(n + 1);
+            }
         });
+        set_sigint_callback(stop_rip);
+        Block_release(stop_rip);
 
         // Encode the current track.  If that fails, bail.  If it
         // succeeds, decrement the number of pending operations.

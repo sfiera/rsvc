@@ -237,6 +237,6 @@ const char*             rsvc_cd_track_isrc(rsvc_cd_track_t track);
 ///     :param done:    Invoked when the rip is complete; either with
 ///                     `NULL` to indicate success, or with an error to
 ///                     indicate failure.
-void                    rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done);
+rsvc_stop_t             rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done);
 
 #endif  // RSVC_CD_H_
