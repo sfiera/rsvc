@@ -48,20 +48,11 @@ struct rsvc_tags {
 ///     strings.  The names may have any uppercase ASCII string as their
 ///     value, but see :ref:`tag_constants` for well-known values.
 ///
-///     :type:`rsvc_tags_t` objects are created with
-///     :func:`rsvc_tags_create()` or :func:`rsvc_tags_copy()` and
-///     destroyed with :func:`rsvc_tags_destroy()`.
-///
-/// ..  function:: rsvc_tags_t rsvc_tags_create()
-///
-///     :returns:       An empty set of tags.
-///
 /// ..  function:: void rsvc_tags_save(rsvc_tags_t, rsvc_done_t done)
 ///
 /// ..  function:: void rsvc_tags_destroy(rsvc_tags_t tags)
 ///
 ///     Destroys a :type:`rsvc_tags_t`, reclaiming its resources.
-rsvc_tags_t             rsvc_tags_create();
 void                    rsvc_tags_save(rsvc_tags_t tags, rsvc_done_t done);
 void                    rsvc_tags_destroy(rsvc_tags_t tags);
 
