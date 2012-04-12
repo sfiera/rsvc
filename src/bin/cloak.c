@@ -352,10 +352,16 @@ struct rsvc_container_types {
     rsvc_container_type_t head;
 };
 
+static struct rsvc_container_type vorbis_container = {
+    .magic_size = 4,
+    .magic = "OggS",
+    .read_tags = rsvc_vorbis_read_tags,
+};
 static struct rsvc_container_type mp4_container = {
     .magic_size = 12,
     .magic = "????ftypM4A ",
     .read_tags = rsvc_mp4_read_tags,
+    .next = &vorbis_container,
 };
 static struct rsvc_container_type flac_container = {
     .magic_size = 4,

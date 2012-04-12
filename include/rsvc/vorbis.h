@@ -22,7 +22,9 @@
 #define RSVC_VORBIS_H_
 
 #include <stdlib.h>
+#include <rsvc/common.h>
 #include <rsvc/encode.h>
+#include <rsvc/tag.h>
 
 /// Ogg Vorbis
 /// ==========
@@ -33,5 +35,9 @@ void                    rsvc_vorbis_encode(int read_fd, int write_fd, size_t sam
                                            int bitrate,
                                            rsvc_encode_progress_t progress,
                                            rsvc_done_t done);
+
+/// ..  function:: void rsvc_vorbis_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t));
+void                    rsvc_vorbis_read_tags(const char* path,
+                                              void (^done)(rsvc_tags_t, rsvc_error_t));
 
 #endif  // RSVC_VORBIS_H_
