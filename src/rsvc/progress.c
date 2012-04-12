@@ -24,11 +24,7 @@
 #include <stdio.h>
 #include <string.h>
 
-static void* memdup(void* data, size_t size) {
-    void* copy = malloc(size);
-    memcpy(copy, data, size);
-    return copy;
-}
+#include "common.h"
 
 struct rsvc_progress_node {
     char* name;

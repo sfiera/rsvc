@@ -25,11 +25,7 @@
 #include <string.h>
 #include <sys/time.h>
 
-static void* memdup(const void* data, size_t size) {
-    void* copy = malloc(size);
-    memcpy(copy, data, size);
-    return copy;
-}
+#include "common.h"
 
 static int64_t now_usecs() {
     struct timeval tv;

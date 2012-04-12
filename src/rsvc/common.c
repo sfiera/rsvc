@@ -18,7 +18,7 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#include <rsvc/common.h>
+#include "common.h"
 
 #include <dispatch/dispatch.h>
 #include <errno.h>
@@ -29,12 +29,6 @@
 #include <string.h>
 #include <sys/time.h>
 #include <sysexits.h>
-
-static void* memdup(const void* data, size_t size) {
-    void* copy = malloc(size);
-    memcpy(copy, data, size);
-    return copy;
-}
 
 void rsvc_errorf(rsvc_done_t callback,
                  const char* file, int lineno, const char* format, ...) {
@@ -137,4 +131,10 @@ void rsvc_logf(int level, const char* format, ...) {
         fprintf(stderr, "%s log: %s\n", time, message);
         free(message);
     }
+}
+
+void* memdup(const void* data, size_t size) {
+    void* copy = malloc(size);
+    memcpy(copy, data, size);
+    return copy;
 }

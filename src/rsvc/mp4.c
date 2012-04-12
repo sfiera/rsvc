@@ -31,11 +31,7 @@
 #include <sys/param.h>
 #include <unistd.h>
 
-static void* memdup(const void* data, size_t size) {
-    void* copy = malloc(size);
-    memcpy(copy, data, size);
-    return copy;
-}
+#include "common.h"
 
 typedef struct mp4_tag* mp4_tag_t;
 typedef struct mp4_tag_type* mp4_tag_type_t;
@@ -443,9 +439,6 @@ static struct mp4_tag mp4_tags[] = {
 
     {},
 };
-
-#define DOWN_CAST(TYPE, PTR) \
-    ((TYPE*)((void*)PTR - offsetof(TYPE, super)))
 
 struct rsvc_mp4_tags {
     struct rsvc_tags super;

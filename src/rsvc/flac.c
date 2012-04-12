@@ -32,6 +32,8 @@
 #include <sys/param.h>
 #include <unistd.h>
 
+#include "common.h"
+
 typedef FLAC__StreamEncoderWriteStatus write_status_t;
 typedef FLAC__StreamEncoderSeekStatus seek_status_t;
 typedef FLAC__StreamEncoderTellStatus tell_status_t;
@@ -163,15 +165,6 @@ void rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel,
         done(NULL);
     });
 }
-
-static void* memdup(const void* data, size_t size) {
-    void* copy = malloc(size);
-    memcpy(copy, data, size);
-    return copy;
-}
-
-#define DOWN_CAST(TYPE, PTR) \
-    ((TYPE*)((void*)PTR - offsetof(TYPE, super)))
 
 struct rsvc_flac_tags {
     struct rsvc_tags super;
