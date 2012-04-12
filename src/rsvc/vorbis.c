@@ -63,7 +63,7 @@ void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
         ogg_stream_init(&os, rand_r(&seed));
 
         // Copy `tags` into `vc`.
-        // vorbis_comment_init(&vc);
+        vorbis_comment_init(&vc);
         // vorbis_comment* vcp = &vc;
         // rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
         //     vorbis_comment_add_tag(vcp, name, value);
