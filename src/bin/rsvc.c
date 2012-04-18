@@ -659,7 +659,7 @@ static void rsvc_read_tags(rip_format_t format, char* path,
         rsvc_mp4_read_tags(path, done);
         break;
       case FORMAT_VORBIS:
-        // TODO(sfiera): vorbis tags.
+        rsvc_vorbis_read_tags(path, done);
         break;
     }
 }
