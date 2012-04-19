@@ -26,4 +26,6 @@
 void                    rsvc_mp4_read_tags(const char* path,
                                            void (^done)(rsvc_tags_t, rsvc_error_t));
 
+void rsvc_mp4_format_register();
+
 #endif  // RSVC_FLAC_H_

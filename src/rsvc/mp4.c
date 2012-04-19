@@ -24,6 +24,7 @@
 #include <mp4v2/mp4v2.h>
 #include <dispatch/dispatch.h>
 #include <rsvc/common.h>
+#include <rsvc/format.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -616,4 +617,8 @@ void rsvc_mp4_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t
         cleanup();
         done(&copy->super, NULL);
     });
+}
+
+void rsvc_mp4_format_register() {
+    rsvc_container_format_register("mp4", 12, "????ftypM4A ", rsvc_mp4_read_tags);
 }

@@ -25,6 +25,7 @@
 #include <FLAC/stream_encoder.h>
 #include <dispatch/dispatch.h>
 #include <rsvc/common.h>
+#include <rsvc/format.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -319,4 +320,8 @@ static tell_status_t flac_tell(const FLAC__StreamEncoder* encoder,
     }
     *absolute_byte_offset = offset;
     return FLAC__STREAM_ENCODER_TELL_STATUS_OK;
+}
+
+void rsvc_flac_format_register() {
+    rsvc_container_format_register("flac", 4, "fLaC", rsvc_flac_read_tags);
 }

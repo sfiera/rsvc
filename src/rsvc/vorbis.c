@@ -23,6 +23,7 @@
 #include <Block.h>
 #include <dispatch/dispatch.h>
 #include <fcntl.h>
+#include <rsvc/format.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -506,3 +507,7 @@ void rsvc_vorbis_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_erro
 }
 
 #undef FAIL
+
+void rsvc_vorbis_format_register() {
+    rsvc_container_format_register("vorbis", 4, "OggS", rsvc_vorbis_read_tags);
+}

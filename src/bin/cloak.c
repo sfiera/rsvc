@@ -32,6 +32,7 @@
 
 #include <rsvc/tag.h>
 #include <rsvc/flac.h>
+#include <rsvc/format.h>
 #include <rsvc/mp4.h>
 #include <rsvc/musicbrainz.h>
 #include <rsvc/vorbis.h>
@@ -183,6 +184,10 @@ static void split_assignment(const char* progname, const char* assignment,
 
 static void cloak_main(int argc, char* const* argv) {
     const char* progname = strdup(basename(argv[0]));
+
+    rsvc_flac_format_register();
+    rsvc_vorbis_format_register();
+    rsvc_mp4_format_register();
 
     __block rsvc_option_callbacks_t callbacks;
 
@@ -340,77 +345,6 @@ static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done) 
     });
 }
 
-struct rsvc_container_type {
-    size_t magic_size;
-    const char* magic;
-    void (*read_tags)(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t));
-    struct rsvc_container_type* next;
-};
-typedef struct rsvc_container_type* rsvc_container_type_t;
-
-struct rsvc_container_types {
-    rsvc_container_type_t head;
-};
-
-static struct rsvc_container_type vorbis_container = {
-    .magic_size = 4,
-    .magic = "OggS",
-    .read_tags = rsvc_vorbis_read_tags,
-};
-static struct rsvc_container_type mp4_container = {
-    .magic_size = 12,
-    .magic = "????ftypM4A ",
-    .read_tags = rsvc_mp4_read_tags,
-    .next = &vorbis_container,
-};
-static struct rsvc_container_type flac_container = {
-    .magic_size = 4,
-    .magic = "fLaC",
-    .read_tags = rsvc_flac_read_tags,
-    .next = &mp4_container,
-};
-static struct rsvc_container_types container_types = {
-    .head = &flac_container,
-};
-
-static bool detect_container_type(int fd, rsvc_container_type_t* container, rsvc_done_t fail) {
-    // Don't open directories.
-    struct stat st;
-    if (fstat(fd, &st) < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
-        return false;
-    }
-    if (st.st_mode & S_IFDIR) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "is a directory");
-        return false;
-    }
-
-    for (rsvc_container_type_t curr = container_types.head; curr; curr = curr->next) {
-        // Detect file type by magic number.
-        uint8_t* data = malloc(curr->magic_size);
-        ssize_t size = pread(fd, data, curr->magic_size, 0);
-        if (size < 0) {
-            free(data);
-            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
-            return false;
-        } else if (size < curr->magic_size) {
-            goto next_container_type;
-        }
-        for (size_t i = 0; i < curr->magic_size; ++i) {
-            if ((curr->magic[i] != '?') && (curr->magic[i] != data[i])) {
-                goto next_container_type;
-            }
-        }
-        *container = curr;
-        free(data);
-        return true;
-next_container_type:
-        free(data);
-    }
-    rsvc_errorf(fail, __FILE__, __LINE__, "couldn't detect file type");
-    return false;
-}
-
 static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
     int fd;
     if (!rsvc_open(path, O_RDONLY, 0644, &fd, done)) {
@@ -427,12 +361,12 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
         }
     };
 
-    rsvc_container_type_t container;
-    if (!detect_container_type(fd, &container, done)) {
+    rsvc_container_format_t format;
+    if (!rsvc_container_format_detect(fd, &format, done)) {
         return;
     }
 
-    container->read_tags(path, ^(rsvc_tags_t tags, rsvc_error_t error){
+    format->read_tags(path, ^(rsvc_tags_t tags, rsvc_error_t error){
         if (error) {
             done(error);
             return;
