@@ -30,30 +30,34 @@
         } else { \
             (list)->head = (list)->tail = (node); \
         } \
-    } while (false);
+    } while (false)
 
 #define RSVC_LIST_CLEAR(list, block) \
-    while ((list)->head) { \
-        (block)((list)->head); \
-        void* old = (list)->head; \
-        (list)->head = (list)->head->next; \
-        if ((list)->head) { \
-            (list)->head->prev = NULL; \
+    do { \
+        while ((list)->head) { \
+            (block)((list)->head); \
+            void* old = (list)->head; \
+            (list)->head = (list)->head->next; \
+            if ((list)->head) { \
+                (list)->head->prev = NULL; \
+            } \
+            free(old); \
         } \
-        free(old); \
-    } \
-    (list)->tail = NULL;
+        (list)->tail = NULL; \
+    } while (false)
 
 #define RSVC_LIST_ERASE(list, node) \
-    if ((node)->prev) { \
-        (node)->prev->next = (node)->next; \
-    } else { \
-        (list)->head = (node)->next; \
-    } \
-    if ((node)->next) { \
-        (node)->next->prev = (node)->prev; \
-    } else { \
-        (list)->tail = (node)->prev; \
-    }
+    do { \
+        if ((node)->prev) { \
+            (node)->prev->next = (node)->next; \
+        } else { \
+            (list)->head = (node)->next; \
+        } \
+        if ((node)->next) { \
+            (node)->next->prev = (node)->prev; \
+        } else { \
+            (list)->tail = (node)->prev; \
+        } \
+    } while (false)
 
 #endif  // RSVC_LIST_H_
