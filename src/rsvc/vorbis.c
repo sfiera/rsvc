@@ -160,20 +160,26 @@ void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
 typedef struct rsvc_ogg_page_node* rsvc_ogg_page_node_t;
 struct rsvc_ogg_page_node {
     ogg_page                page;
+    rsvc_ogg_page_node_t    prev;
     rsvc_ogg_page_node_t    next;
+};
+
+typedef struct rsvc_ogg_page_list* rsvc_ogg_page_list_t;
+struct rsvc_ogg_page_list {
+    rsvc_ogg_page_node_t    head;
+    rsvc_ogg_page_node_t    tail;
 };
 
 typedef struct rsvc_vorbis_tags* rsvc_vorbis_tags_t;
 struct rsvc_vorbis_tags {
-    struct rsvc_tags        super;
-    char*                   path;
-    uint32_t                serial;
-    vorbis_comment          vc;
+    struct rsvc_tags            super;
+    char*                       path;
+    uint32_t                    serial;
+    vorbis_comment              vc;
 
-    ogg_packet              header;
-    ogg_packet              header_code;
-    rsvc_ogg_page_node_t    page_head;
-    rsvc_ogg_page_node_t    page_tail;
+    ogg_packet                  header;
+    ogg_packet                  header_code;
+    struct rsvc_ogg_page_list   pages;
 };
 
 static void rsvc_ogg_packet_clear(ogg_packet* op) {
@@ -213,17 +219,19 @@ static void rsvc_ogg_page_copy(ogg_page* dst, const ogg_page* src) {
 
 // Copies `op` and appends it to the list of pages in `tags`.
 static void rsvc_ogg_page_push(rsvc_vorbis_tags_t tags, ogg_page* og) {
+    rsvc_ogg_page_list_t pages = &tags->pages;
     struct rsvc_ogg_page_node node = {
         .page = {},
+        .prev = NULL,
         .next = NULL,
     };
     rsvc_ogg_page_copy(&node.page, og);
-    if (tags->page_head) {
-        tags->page_tail->next = memdup(&node, sizeof(node));
-        tags->page_tail = tags->page_tail->next;
+    if (pages->head) {
+        pages->tail->next = memdup(&node, sizeof(node));
+        pages->tail->next->prev = pages->tail;
+        pages->tail = pages->tail->next;
     } else {
-        tags->page_head = memdup(&node, sizeof(node));
-        tags->page_tail = tags->page_head;
+        pages->head = pages->tail = memdup(&node, sizeof(node));
     }
 }
 
@@ -311,7 +319,7 @@ static void rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
             write(fd, og.body, og.body_len);
         }
 
-        for (rsvc_ogg_page_node_t curr = self->page_head; curr; curr = curr->next) {
+        for (rsvc_ogg_page_node_t curr = self->pages.head; curr; curr = curr->next) {
             write(fd, curr->page.header, curr->page.header_len);
             write(fd, curr->page.body, curr->page.body_len);
         }
@@ -326,13 +334,18 @@ static void rsvc_vorbis_tags_clear(rsvc_tags_t tags) {
     vorbis_comment_clear(&self->vc);
     rsvc_ogg_packet_clear(&self->header);
     rsvc_ogg_packet_clear(&self->header_code);
-    while (self->page_head) {
-        rsvc_ogg_page_node_t old = self->page_head;
-        self->page_head = self->page_head->next;
+
+    rsvc_ogg_page_list_t pages = &self->pages;
+    while (pages->head) {
+        rsvc_ogg_page_node_t old = pages->head;
+        pages->head = pages->head->next;
+        if (pages->head) {
+            pages->head->prev = NULL;
+        }
         rsvc_ogg_page_clear(&old->page);
         free(old);
     }
-    self->page_tail = NULL;
+    pages->tail = NULL;
 }
 
 static void rsvc_vorbis_tags_destroy(rsvc_tags_t tags) {
