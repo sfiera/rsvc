@@ -54,7 +54,6 @@
         (node)->next->prev = (node)->prev; \
     } else { \
         (list)->tail = (node)->prev; \
-    } \
-    free(node);
+    }
 
 #endif  // RSVC_LIST_H_

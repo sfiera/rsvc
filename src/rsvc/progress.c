@@ -99,6 +99,7 @@ void rsvc_progress_done(rsvc_progress_node_t node) {
         }
         free(node->name);
         RSVC_LIST_ERASE(node->parent, node);
+        free(node);
         progress_show(node->parent);
     });
 }
