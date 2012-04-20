@@ -29,8 +29,7 @@
 typedef struct rsvc_container_format_node* rsvc_container_format_node_t;
 struct rsvc_container_format_node {
     struct rsvc_container_format format;
-    rsvc_container_format_node_t prev;
-    rsvc_container_format_node_t next;
+    rsvc_container_format_node_t prev, next;
 };
 
 struct {

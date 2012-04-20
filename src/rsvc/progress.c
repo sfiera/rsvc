@@ -31,13 +31,11 @@ struct rsvc_progress_node {
     char* name;
     int percent;
     rsvc_progress_t parent;
-    rsvc_progress_node_t prev;
-    rsvc_progress_node_t next;
+    rsvc_progress_node_t prev, next;
 };
 
 struct rsvc_progress {
-    rsvc_progress_node_t head;
-    rsvc_progress_node_t tail;
+    rsvc_progress_node_t head, tail;
 };
 
 rsvc_progress_t rsvc_progress_create() {

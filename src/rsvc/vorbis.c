@@ -161,14 +161,12 @@ void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
 typedef struct rsvc_ogg_page_node* rsvc_ogg_page_node_t;
 struct rsvc_ogg_page_node {
     ogg_page                page;
-    rsvc_ogg_page_node_t    prev;
-    rsvc_ogg_page_node_t    next;
+    rsvc_ogg_page_node_t    prev, next;
 };
 
 typedef struct rsvc_ogg_page_list* rsvc_ogg_page_list_t;
 struct rsvc_ogg_page_list {
-    rsvc_ogg_page_node_t    head;
-    rsvc_ogg_page_node_t    tail;
+    rsvc_ogg_page_node_t    head, tail;
 };
 
 typedef struct rsvc_vorbis_tags* rsvc_vorbis_tags_t;
