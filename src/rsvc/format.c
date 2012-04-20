@@ -24,14 +24,18 @@
 #include <sys/stat.h>
 
 #include "common.h"
+#include "list.h"
 
 typedef struct rsvc_container_format_node* rsvc_container_format_node_t;
 struct rsvc_container_format_node {
     struct rsvc_container_format format;
+    rsvc_container_format_node_t prev;
     rsvc_container_format_node_t next;
 };
 
-static rsvc_container_format_node_t formats = NULL;
+struct {
+    rsvc_container_format_node_t head, tail;
+} formats;
 
 void rsvc_container_format_register(const char* name, size_t magic_size, const char* magic,
                                     rsvc_read_tags_f read_tags) {
@@ -42,13 +46,12 @@ void rsvc_container_format_register(const char* name, size_t magic_size, const c
             .magic = strdup(magic),
             .read_tags = read_tags,
         },
-        .next = formats,
     };
-    formats = memdup(&node, sizeof(node));
+    RSVC_LIST_PUSH(&formats, memdup(&node, sizeof(node)));
 }
 
 rsvc_container_format_t rsvc_container_format_named(const char* name) {
-    for (rsvc_container_format_node_t curr = formats; curr; curr = curr->next) {
+    for (rsvc_container_format_node_t curr = formats.head; curr; curr = curr->next) {
         rsvc_container_format_t format = &curr->format;
         if (strcmp(format->name, name) == 0) {
             return format;
@@ -69,7 +72,7 @@ bool rsvc_container_format_detect(int fd, rsvc_container_format_t* format, rsvc_
         return false;
     }
 
-    for (rsvc_container_format_node_t curr = formats; curr; curr = curr->next) {
+    for (rsvc_container_format_node_t curr = formats.head; curr; curr = curr->next) {
         uint8_t* data = malloc(curr->format.magic_size);
         ssize_t size = pread(fd, data, curr->format.magic_size, 0);
         if (size < 0) {
