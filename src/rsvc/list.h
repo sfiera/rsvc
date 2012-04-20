@@ -21,14 +21,14 @@
 #ifndef SRC_RSVC_LIST_H_
 #define SRC_RSVC_LIST_H_
 
-#define RSVC_LIST_PUSH(list, node_data, node_size) \
+#define RSVC_LIST_PUSH(list, node) \
     do { \
         if ((list)->head) { \
-            (list)->tail->next = memdup((node_data), (node_size)); \
+            (list)->tail->next = (node); \
             (list)->tail->next->prev = (list)->tail; \
             (list)->tail = (list)->tail->next; \
         } else { \
-            (list)->head = (list)->tail = memdup((node_data), (node_size)); \
+            (list)->head = (list)->tail = (node); \
         } \
     } while (false);
 
@@ -43,5 +43,18 @@
         free(old); \
     } \
     (list)->tail = NULL;
+
+#define RSVC_LIST_ERASE(list, node) \
+    if ((node)->prev) { \
+        (node)->prev->next = (node)->next; \
+    } else { \
+        (list)->head = (node)->next; \
+    } \
+    if ((node)->next) { \
+        (node)->next->prev = (node)->prev; \
+    } else { \
+        (list)->tail = (node)->prev; \
+    } \
+    free(node);
 
 #endif  // RSVC_LIST_H_

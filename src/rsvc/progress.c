@@ -25,6 +25,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "list.h"
 
 struct rsvc_progress_node {
     char* name;
@@ -63,21 +64,16 @@ static void progress_show(rsvc_progress_t progress) {
 }
 
 rsvc_progress_node_t rsvc_progress_start(rsvc_progress_t progress, const char* name) {
-    rsvc_progress_node_t node = malloc(sizeof(struct rsvc_progress_node));
-    node->name = strdup(name);
-    node->percent = 0;
-    node->parent = progress;
-    node->prev = node->next = NULL;
+    struct rsvc_progress_node node_data = {
+        .name = strdup(name),
+        .percent = 0,
+        .parent = progress,
+    };
+    rsvc_progress_node_t node = memdup(&node_data, sizeof(node_data));
 
     dispatch_async(dispatch_get_main_queue(), ^{
         progress_hide(progress);
-        if (progress->tail) {
-            progress->tail->next = node;
-        } else {
-            progress->head = node;
-        }
-        node->prev = progress->tail;
-        progress->tail = node;
+        RSVC_LIST_PUSH(progress, node);
         progress_show(progress);
     });
     return node;
@@ -104,17 +100,7 @@ void rsvc_progress_done(rsvc_progress_node_t node) {
             printf("%4d%%   %s\n", node->percent, node->name);
         }
         free(node->name);
-        if (node->prev) {
-            node->prev->next = node->next;
-        } else {
-            node->parent->head = node->next;
-        }
-        if (node->next) {
-            node->next->prev = node->prev;
-        } else {
-            node->parent->tail = node->prev;
-        }
-        free(node);
+        RSVC_LIST_ERASE(node->parent, node);
         progress_show(node->parent);
     });
 }

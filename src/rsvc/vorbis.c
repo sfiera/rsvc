@@ -483,7 +483,7 @@ void rsvc_vorbis_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_erro
                           og.header_len, og.body_len);
                 struct rsvc_ogg_page_node node = {};
                 rsvc_ogg_page_copy(&node.page, &og);
-                RSVC_LIST_PUSH(&tags.pages, &node, sizeof(node));
+                RSVC_LIST_PUSH(&tags.pages, memdup(&node, sizeof(node)));
             }
         }
 
