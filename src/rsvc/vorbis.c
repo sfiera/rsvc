@@ -33,6 +33,7 @@
 #include <sys/param.h>
 
 #include "common.h"
+#include "list.h"
 
 void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
                         int bitrate,
@@ -217,24 +218,6 @@ static void rsvc_ogg_page_copy(ogg_page* dst, const ogg_page* src) {
     dst->body_len       = src->body_len;
 }
 
-// Copies `op` and appends it to the list of pages in `tags`.
-static void rsvc_ogg_page_push(rsvc_vorbis_tags_t tags, ogg_page* og) {
-    rsvc_ogg_page_list_t pages = &tags->pages;
-    struct rsvc_ogg_page_node node = {
-        .page = {},
-        .prev = NULL,
-        .next = NULL,
-    };
-    rsvc_ogg_page_copy(&node.page, og);
-    if (pages->head) {
-        pages->tail->next = memdup(&node, sizeof(node));
-        pages->tail->next->prev = pages->tail;
-        pages->tail = pages->tail->next;
-    } else {
-        pages->head = pages->tail = memdup(&node, sizeof(node));
-    }
-}
-
 static bool rsvc_vorbis_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail) {
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
     // I bet this is not the most efficient thing to do.
@@ -335,17 +318,9 @@ static void rsvc_vorbis_tags_clear(rsvc_tags_t tags) {
     rsvc_ogg_packet_clear(&self->header);
     rsvc_ogg_packet_clear(&self->header_code);
 
-    rsvc_ogg_page_list_t pages = &self->pages;
-    while (pages->head) {
-        rsvc_ogg_page_node_t old = pages->head;
-        pages->head = pages->head->next;
-        if (pages->head) {
-            pages->head->prev = NULL;
-        }
-        rsvc_ogg_page_clear(&old->page);
-        free(old);
-    }
-    pages->tail = NULL;
+    RSVC_LIST_CLEAR(&self->pages, ^(rsvc_ogg_page_node_t node){
+        rsvc_ogg_page_clear(&node->page);
+    });
 }
 
 static void rsvc_vorbis_tags_destroy(rsvc_tags_t tags) {
@@ -506,7 +481,9 @@ void rsvc_vorbis_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_erro
             } else {
                 rsvc_logf(2, "read ogg page (header_len=%lu, body_len=%lu)",
                           og.header_len, og.body_len);
-                rsvc_ogg_page_push(&tags, &og);
+                struct rsvc_ogg_page_node node = {};
+                rsvc_ogg_page_copy(&node.page, &og);
+                RSVC_LIST_PUSH(&tags.pages, &node, sizeof(node));
             }
         }
 
