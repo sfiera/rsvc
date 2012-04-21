@@ -23,40 +23,44 @@
 
 #define RSVC_LIST_PUSH(list, node) \
     do { \
-        if ((list)->head) { \
-            (list)->tail->next = (node); \
-            (list)->tail->next->prev = (list)->tail; \
-            (list)->tail = (list)->tail->next; \
+        __typeof__(list) RSVC_LIST_list = (list); \
+        if (RSVC_LIST_list->head) { \
+            RSVC_LIST_list->tail->next = (node); \
+            RSVC_LIST_list->tail->next->prev = RSVC_LIST_list->tail; \
+            RSVC_LIST_list->tail = RSVC_LIST_list->tail->next; \
         } else { \
-            (list)->head = (list)->tail = (node); \
+            RSVC_LIST_list->head = RSVC_LIST_list->tail = (node); \
         } \
     } while (false)
 
 #define RSVC_LIST_CLEAR(list, block) \
     do { \
-        while ((list)->head) { \
-            (block)((list)->head); \
-            void* old = (list)->head; \
-            (list)->head = (list)->head->next; \
-            if ((list)->head) { \
-                (list)->head->prev = NULL; \
+        __typeof__(list) RSVC_LIST_list = (list); \
+        while (RSVC_LIST_list->head) { \
+            (block)(RSVC_LIST_list->head); \
+            void* old = RSVC_LIST_list->head; \
+            RSVC_LIST_list->head = RSVC_LIST_list->head->next; \
+            if (RSVC_LIST_list->head) { \
+                RSVC_LIST_list->head->prev = NULL; \
             } \
             free(old); \
         } \
-        (list)->tail = NULL; \
+        RSVC_LIST_list->tail = NULL; \
     } while (false)
 
 #define RSVC_LIST_ERASE(list, node) \
     do { \
-        if ((node)->prev) { \
-            (node)->prev->next = (node)->next; \
+        __typeof__(list) RSVC_LIST_list = (list); \
+        __typeof__(node) RSVC_LIST_node = (node); \
+        if (RSVC_LIST_node->prev) { \
+            RSVC_LIST_node->prev->next = RSVC_LIST_node->next; \
         } else { \
-            (list)->head = (node)->next; \
+            RSVC_LIST_list->head = RSVC_LIST_node->next; \
         } \
-        if ((node)->next) { \
-            (node)->next->prev = (node)->prev; \
+        if (RSVC_LIST_node->next) { \
+            RSVC_LIST_node->next->prev = RSVC_LIST_node->prev; \
         } else { \
-            (list)->tail = (node)->prev; \
+            RSVC_LIST_list->tail = RSVC_LIST_node->prev; \
         } \
     } while (false)
 
