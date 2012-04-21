@@ -132,15 +132,15 @@ static void cloak_usage(const char* progname) {
 
 static const char* get_tag_name(int opt) {
     switch (opt) {
-      case ARTIST:          return "ARTIST";
-      case ALBUM:           return "ALBUM";
-      case TITLE:           return "TITLE";
-      case GENRE:           return "GENRE";
-      case YEAR:            return "YEAR";
-      case TRACK:           return "TRACKNUMBER";
-      case TRACK_TOTAL:     return "TRACKTOTAL";
-      case DISC:            return "DISCNUMBER";
-      case DISC_TOTAL:      return "DISCTOTAL";
+      case ARTIST:          return RSVC_ARTIST;
+      case ALBUM:           return RSVC_ALBUM;
+      case TITLE:           return RSVC_TITLE;
+      case GENRE:           return RSVC_GENRE;
+      case YEAR:            return RSVC_DATE;
+      case TRACK:           return RSVC_TRACKNUMBER;
+      case TRACK_TOTAL:     return RSVC_TRACKTOTAL;
+      case DISC:            return RSVC_DISCNUMBER;
+      case DISC_TOTAL:      return RSVC_DISCTOTAL;
     }
     abort();
 }
