@@ -23,44 +23,38 @@
 
 #define RSVC_LIST_PUSH(list, node) \
     do { \
-        __typeof__(list) RSVC_LIST_list = (list); \
-        if (RSVC_LIST_list->head) { \
-            RSVC_LIST_list->tail->next = (node); \
-            RSVC_LIST_list->tail->next->prev = RSVC_LIST_list->tail; \
-            RSVC_LIST_list->tail = RSVC_LIST_list->tail->next; \
+        __typeof__(list) RSVC_LIST_PUSH_list = (list); \
+        if (RSVC_LIST_PUSH_list->head) { \
+            RSVC_LIST_PUSH_list->tail->next = (node); \
+            RSVC_LIST_PUSH_list->tail->next->prev = RSVC_LIST_PUSH_list->tail; \
+            RSVC_LIST_PUSH_list->tail = RSVC_LIST_PUSH_list->tail->next; \
         } else { \
-            RSVC_LIST_list->head = RSVC_LIST_list->tail = (node); \
+            RSVC_LIST_PUSH_list->head = RSVC_LIST_PUSH_list->tail = (node); \
         } \
-    } while (false)
-
-#define RSVC_LIST_CLEAR(list, block) \
-    do { \
-        __typeof__(list) RSVC_LIST_list = (list); \
-        while (RSVC_LIST_list->head) { \
-            (block)(RSVC_LIST_list->head); \
-            void* old = RSVC_LIST_list->head; \
-            RSVC_LIST_list->head = RSVC_LIST_list->head->next; \
-            if (RSVC_LIST_list->head) { \
-                RSVC_LIST_list->head->prev = NULL; \
-            } \
-            free(old); \
-        } \
-        RSVC_LIST_list->tail = NULL; \
     } while (false)
 
 #define RSVC_LIST_ERASE(list, node) \
     do { \
-        __typeof__(list) RSVC_LIST_list = (list); \
-        __typeof__(node) RSVC_LIST_node = (node); \
-        if (RSVC_LIST_node->prev) { \
-            RSVC_LIST_node->prev->next = RSVC_LIST_node->next; \
+        __typeof__(list) RSVC_LIST_ERASE_list = (list); \
+        __typeof__(node) RSVC_LIST_ERASE_node = (node); \
+        if (RSVC_LIST_ERASE_node->prev) { \
+            RSVC_LIST_ERASE_node->prev->next = RSVC_LIST_ERASE_node->next; \
         } else { \
-            RSVC_LIST_list->head = RSVC_LIST_node->next; \
+            RSVC_LIST_ERASE_list->head = RSVC_LIST_ERASE_node->next; \
         } \
-        if (RSVC_LIST_node->next) { \
-            RSVC_LIST_node->next->prev = RSVC_LIST_node->prev; \
+        if (RSVC_LIST_ERASE_node->next) { \
+            RSVC_LIST_ERASE_node->next->prev = RSVC_LIST_ERASE_node->prev; \
         } else { \
-            RSVC_LIST_list->tail = RSVC_LIST_node->prev; \
+            RSVC_LIST_ERASE_list->tail = RSVC_LIST_ERASE_node->prev; \
+        } \
+        free(RSVC_LIST_ERASE_node); \
+    } while (false)
+
+#define RSVC_LIST_CLEAR(list, block) \
+    do { \
+        __typeof__(list) RSVC_LIST_CLEAR_list = (list); \
+        while (RSVC_LIST_CLEAR_list->head) { \
+            RSVC_LIST_ERASE(RSVC_LIST_CLEAR_list, RSVC_LIST_CLEAR_list->head); \
         } \
     } while (false)
 
