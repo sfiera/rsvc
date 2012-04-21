@@ -54,7 +54,7 @@ enum short_flag {
     ALBUM       = 'A',
     TITLE       = 't',
     GENRE       = 'g',
-    YEAR        = 'y',
+    DATE        = 'y',
     TRACK       = 'n',
     TRACK_TOTAL = 'N',
     DISC        = -2,
@@ -80,7 +80,7 @@ struct long_flag {
     {"album",       ALBUM},
     {"title",       TITLE},
     {"genre",       GENRE},
-    {"year",        YEAR},
+    {"date",        DATE},
     {"track",       TRACK},
     {"track-total", TRACK_TOTAL},
     {"disc",        DISC},
@@ -118,7 +118,7 @@ static void cloak_usage(const char* progname) {
             "    -A, --album ALBUM       set the album name\n"
             "    -t, --title TITLE       set the track title\n"
             "    -g, --genre GENRE       set the genre\n"
-            "    -y, --year YEAR         set the release date\n"
+            "    -y, --date DATE         set the release date\n"
             "    -n, --track NUM         set the track number\n"
             "    -N, --track-total NUM   set the track total\n"
             "        --disc NUM          set the disc number\n"
@@ -136,7 +136,7 @@ static const char* get_tag_name(int opt) {
       case ALBUM:           return RSVC_ALBUM;
       case TITLE:           return RSVC_TITLE;
       case GENRE:           return RSVC_GENRE;
-      case YEAR:            return RSVC_DATE;
+      case DATE:            return RSVC_DATE;
       case TRACK:           return RSVC_TRACKNUMBER;
       case TRACK_TOTAL:     return RSVC_TRACKTOTAL;
       case DISC:            return RSVC_DISCNUMBER;
@@ -251,7 +251,7 @@ static void cloak_main(int argc, char* const* argv) {
           case ALBUM:
           case TITLE:
           case GENRE:
-          case YEAR:
+          case DATE:
           case TRACK:
           case TRACK_TOTAL:
           case DISC:
