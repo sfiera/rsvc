@@ -33,6 +33,7 @@
 #include <rsvc/tag.h>
 #include <rsvc/flac.h>
 #include <rsvc/format.h>
+#include <rsvc/id3.h>
 #include <rsvc/mp4.h>
 #include <rsvc/musicbrainz.h>
 #include <rsvc/vorbis.h>
@@ -188,6 +189,7 @@ static void cloak_main(int argc, char* const* argv) {
     rsvc_flac_format_register();
     rsvc_vorbis_format_register();
     rsvc_mp4_format_register();
+    rsvc_id3_format_register();
 
     __block rsvc_option_callbacks_t callbacks;
 
@@ -319,7 +321,8 @@ static void cloak_main(int argc, char* const* argv) {
     }
     tag_files(files.nstrings, files.strings, &ops, ^(rsvc_error_t error){
         if (error) {
-            fprintf(stderr, "%s: %s\n", progname, error->message);
+            fprintf(stderr, "%s: %s (%s:%d)\n",
+                    progname, error->message, error->file, error->lineno);
             exit(1);
         }
         exit(0);

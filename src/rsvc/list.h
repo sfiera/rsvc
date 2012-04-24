@@ -26,9 +26,11 @@
         if (list->head) { \
             list->tail->next = node; \
             list->tail->next->prev = list->tail; \
+            list->tail->next->next = NULL; \
             list->tail = list->tail->next; \
         } else { \
             list->head = list->tail = node; \
+            list->head->prev = list->head->next = NULL; \
         } \
     })(LIST, NODE))
 
