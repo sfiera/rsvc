@@ -33,6 +33,7 @@
 #include <unistd.h>
 
 #include "common.h"
+#include "encoding.h"
 #include "list.h"
 
 typedef struct id3_frame_type* id3_frame_type_t;
@@ -272,151 +273,6 @@ static void id3_sequence_yield(id3_frame_node_t node,
     }
 }
 
-static void utf8_out(uint32_t rune, char** out) {
-    if (rune < 0x80) {
-        *((*out)++) = rune;
-    } else if (rune < 0x800) {
-        *((*out)++) = 0xc0 | (rune & 0x1f); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f);
-    } else if (rune < 0x10000) {
-        *((*out)++) = 0xe0 | (rune & 0x0f); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f);
-    } else if (rune < 0x110000) {
-        *((*out)++) = 0xf0 | (rune & 0x07); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f);
-    }
-}
-
-static void decode_latin1(uint8_t* data, size_t size,
-                          void (^done)(const char* text, size_t size, rsvc_error_t error)) {
-    char* utf8 = malloc((2 * size) - 1);
-    char* out = utf8;
-    while (size) {
-        utf8_out(*(data++), &out);
-        --size;
-    }
-    done(utf8, out - utf8, NULL);
-    free(utf8);
-}
-
-static void decode_utf16(uint8_t* data, size_t size, bool big_endian,
-                         void (^done)(const char* text, size_t size, rsvc_error_t error)) {
-    rsvc_done_t fail = ^(rsvc_error_t error){
-        done(NULL, 0, error);
-    };
-    if (size % 2) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "invalid UTF-16 data");
-        return;
-    }
-    char* utf8 = malloc(2 * size);
-    char* out = utf8;
-    bool surrogate = false;
-    uint32_t surrogate_head;
-    for (uint8_t* it = data, *end = data + size; it != end; it += 2) {
-        uint32_t rune = 0;
-        if (big_endian) {
-            rune |= it[0]; rune <<= 8;
-            rune |= it[1];
-        } else {
-            rune |= it[1]; rune <<= 8;
-            rune |= it[0];
-        }
-        if (surrogate) {
-            if ((0xd800 <= rune) && (rune < 0xdc00)) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "invalid UTF-16 data");
-                return;
-            } else if ((0xdc00 <= rune) && (rune < 0xe000)) {
-                surrogate = false;
-                rune |= surrogate_head;
-            }
-        } else {
-            if ((0xd800 <= rune) && (rune < 0xdc00)) {
-                surrogate = true;
-                surrogate_head = (rune & 0x3ff) << 10;
-                continue;
-            } else if ((0xdc00 <= rune) && (rune < 0xe000)) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "invalid UTF-16 data");
-                return;
-            }
-        }
-        utf8_out(rune, &out);
-        data += 2;
-        size -= 2;
-    }
-
-    if (surrogate) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "invalid UTF-16 data");
-    } else {
-        done(utf8, out - utf8, NULL);
-        free(utf8);
-    }
-}
-
-static void decode_utf16be(uint8_t* data, size_t size,
-                           void (^done)(const char* text, size_t size, rsvc_error_t error)) {
-    decode_utf16(data, size, true, done);
-}
-
-static void decode_utf16le(uint8_t* data, size_t size,
-                           void (^done)(const char* text, size_t size, rsvc_error_t error)) {
-    decode_utf16(data, size, false, done);
-}
-
-static void decode_utf16bom(uint8_t* data, size_t size,
-                            void (^done)(const char* text, size_t size, rsvc_error_t error)) {
-    if ((size >= 2) && (data[0] == 0xfe) && (data[1] == 0xff)) {
-        decode_utf16be(data + 2, size - 2, done);
-    } else if ((size >= 2) && (data[0] == 0xff) && (data[1] == 0xfe)) {
-        decode_utf16le(data + 2, size - 2, done);
-    } else {
-        rsvc_done_t fail = ^(rsvc_error_t error){
-            done(NULL, 0, error);
-        };
-        rsvc_errorf(fail, __FILE__, __LINE__, "invalid UTF-16 data");
-        return;
-    }
-}
-
-static void decode_utf8(uint8_t* data, size_t size,
-                        void (^done)(const char* text, size_t size, rsvc_error_t error)) {
-    rsvc_done_t fail = ^(rsvc_error_t error){
-        done(NULL, 0, error);
-    };
-    int continuation = 0;
-    uint8_t* curr = data;
-    while (size) {
-        uint8_t byte = *(curr++);
-        --size;
-        if (continuation) {
-            if ((byte & 0xc0) != 0x80) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "invalid UTF-8 data");
-                return;
-            }
-            --continuation;
-        } else if (byte & 0x80) {
-            if ((byte & 0xe0) == 0xc0) {
-                continuation = 1;
-            } else if ((byte & 0xf0) == 0xe0) {
-                continuation = 2;
-            } else if ((byte & 0xf1) == 0xf0) {
-                continuation = 3;
-            } else {
-                rsvc_errorf(fail, __FILE__, __LINE__, "invalid UTF-8 data");
-                return;
-            }
-        }
-    }
-
-    if (continuation) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "invalid UTF-8 data");
-    } else {
-        done((const char*)data, curr - data, NULL);
-    }
-}
-
 static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
                           uint8_t* data, size_t size, rsvc_done_t fail) {
     if (size < 2) {
@@ -425,13 +281,12 @@ static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
     }
 
     uint8_t encoding = *(data++); --size;
-    void (*decode)(uint8_t* data, size_t size,
-                   void (^done)(const char* text, size_t size, rsvc_error_t error));
+    rsvc_decode_f decode;
     switch (encoding) {
-        case 0x00: decode = decode_latin1; break;
-        case 0x01: decode = decode_utf16bom; break;
-        case 0x02: decode = decode_utf16be; break;
-        case 0x03: decode = decode_utf8; break;
+        case 0x00: decode = rsvc_decode_latin1; break;
+        case 0x01: decode = rsvc_decode_utf16bom; break;
+        case 0x02: decode = rsvc_decode_utf16be; break;
+        case 0x03: decode = rsvc_decode_utf8; break;
         default: {
             rsvc_errorf(fail, __FILE__, __LINE__, "unknown encoding");
             return false;

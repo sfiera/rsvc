@@ -52,6 +52,7 @@ def build(bld):
             "src/rsvc/cd.c",
             "src/rsvc/disc.c",
             "src/rsvc/common.c",
+            "src/rsvc/encoding.c",
             "src/rsvc/flac.c",
             "src/rsvc/format.c",
             "src/rsvc/id3.c",
