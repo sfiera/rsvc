@@ -105,6 +105,17 @@ static struct id3_frame_spec {
 
 #define ID3_FRAME_SPECS_SIZE (sizeof(id3_frame_specs) / sizeof(id3_frame_specs[0]))
 
+static bool get_id3_frame_spec(const uint8_t* data, id3_frame_spec_t* spec, rsvc_done_t fail) {
+    for (size_t i = 0; i < ID3_FRAME_SPECS_SIZE; ++i) {
+        if (memcmp(id3_frame_specs[i].id3_name, data, 4) == 0) {
+            *spec = &id3_frame_specs[i];
+            return true;
+        }
+    }
+    rsvc_errorf(fail, __FILE__, __LINE__, "%.4s: invalid ID3 frame type", (const char*)data);
+    return false;
+}
+
 struct id3_frame_node {
     id3_frame_node_t        prev, next;
     id3_frame_spec_t        spec;
@@ -129,6 +140,8 @@ struct rsvc_id3_tags {
     // ID3 tag content:
     struct id3_frame_list   frames;
 };
+
+////////////////////////////////////////////////////////////////////////
 
 static bool rsvc_id3_tags_remove(rsvc_tags_t tags, const char* name,
                                  rsvc_done_t fail) {
@@ -184,6 +197,61 @@ static struct rsvc_tags_methods id3_vptr = {
     .destroy    = rsvc_id3_tags_destroy,
 };
 
+void rsvc_id3_format_register() {
+    rsvc_container_format_register("id3", 4, "ID3\004", rsvc_id3_read_tags);
+}
+
+////////////////////////////////////////////////////////////////////////
+
+static bool read_id3_header(rsvc_id3_tags_t tags, rsvc_done_t fail);
+static bool read_id3_frames(rsvc_id3_tags_t tags, rsvc_done_t fail);
+static bool read_id3_frame(rsvc_id3_tags_t tags, uint8_t** data, size_t* size, rsvc_done_t fail);
+
+void rsvc_id3_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t)) {
+    char* path_copy = strdup(path);
+    void (^done_copy)(rsvc_tags_t, rsvc_error_t) = done;
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        void (^done)(rsvc_tags_t, rsvc_error_t) = done_copy;
+        rsvc_logf(1, "reading ID3 file");
+        __block struct rsvc_id3_tags tags = {
+            .super = {
+                .vptr = &id3_vptr,
+            },
+            .path = path_copy,
+        };
+        done = ^(rsvc_tags_t result_tags, rsvc_error_t error){
+            if (error) {
+                rsvc_id3_tags_clear(&tags);
+            }
+            done(result_tags, error);
+        };
+        rsvc_done_t fail = ^(rsvc_error_t error){
+            done(NULL, error);
+        };
+        if (!rsvc_open(tags.path, O_RDWR, 0644, &tags.fd, fail)
+                || !read_id3_header(&tags, fail)
+                || !read_id3_frames(&tags, fail)) {
+            return;
+        }
+
+        rsvc_id3_tags_t copy = memdup(&tags, sizeof(tags));
+        done(&copy->super, NULL);
+    });
+}
+
+static bool read_sync_safe_size(const uint8_t* data, size_t* out, rsvc_done_t fail) {
+    *out = 0;
+    for (int i = 0; i < 4; ++i) {
+        if (data[i] & 0x80) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "high bit set in ID3 size");
+            return false;
+        }
+        *out <<= 7;
+        *out |= data[i];
+    }
+    return true;
+}
+
 static bool read_id3_header(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     rsvc_logf(2, "reading ID3 header");
     uint8_t data[10];
@@ -201,8 +269,7 @@ static bool read_id3_header(rsvc_id3_tags_t tags, rsvc_done_t fail) {
         return false;
     }
 
-    tags->version[0] = data[3];
-    tags->version[1] = data[4];
+    memcpy(tags->version, data + 3, 2);
     if (tags->version[0] != 4) {
         rsvc_errorf(fail, __FILE__, __LINE__, "unsupported ID3 version 2.%d.%d",
                     tags->version[0], tags->version[1]);
@@ -210,68 +277,90 @@ static bool read_id3_header(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     }
 
     uint8_t flags = data[5];
-    if (flags & 0x80) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "unsynchronized ID3 tags not supported");
-        return false;
-    } else if (flags & 0x40) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "extended ID3 header not supported");
-        return false;
-    } else if (flags & 0x20) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "experimental ID3 tags not supported");
-        return false;
-    } else if (flags & 0x10) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "ID3 footer not supported");
-        return false;
-    } else if (flags & 0x0f) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "unrecognized ID3 flags");
+    if (flags) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "ID3 flags not supported");
         return false;
     }
 
-    tags->size = 0;
-    for (int i = 6; i < 10; ++i) {
-        if (data[i] & 0x80) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "high bit set in ID3 size");
-            return false;
-        }
-        tags->size <<= 7;
-        tags->size |= data[i];
+    if (!read_sync_safe_size(data + 6, &tags->size, fail)) {
+        return false;
     }
     return true;
 }
 
-static bool get_id3_frame_spec(const uint8_t* data, id3_frame_spec_t* spec, rsvc_done_t fail) {
-    for (size_t i = 0; i < ID3_FRAME_SPECS_SIZE; ++i) {
-        if (memcmp(id3_frame_specs[i].id3_name, data, 4) == 0) {
-            *spec = &id3_frame_specs[i];
-            return true;
+static bool read_id3_frames(rsvc_id3_tags_t tags, rsvc_done_t fail) {
+    rsvc_logf(2, "reading ID3 frames");
+    uint8_t* orig_data = malloc(tags->size);
+    uint8_t* data = orig_data;
+    fail = ^(rsvc_error_t error){
+        free(orig_data);
+        fail(error);
+    };
+    ssize_t size = read(tags->fd, data, tags->size);
+    if (size < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    } else if (size < tags->size) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "unexpected end of file");
+        return false;
+    }
+
+    size_t unsigned_size = size;
+    rsvc_logf(4, "%lu bytes to read", unsigned_size);
+    while (unsigned_size > 0) {
+        if ((unsigned_size < 10) || (*data == '\0')) {
+            break;
+        } else if (!read_id3_frame(tags, &data, &unsigned_size, fail)) {
+            return false;
         }
+        rsvc_logf(4, "%lu bytes remain", unsigned_size);
     }
-    rsvc_errorf(fail, __FILE__, __LINE__, "%.4s: invalid ID3 frame type", (const char*)data);
-    return false;
-}
-
-static void id3_text_yield(id3_frame_node_t node,
-                           void (^block)(const char* name, const char* value)) {
-    block(node->spec->vorbis_name, (const char*)&node->data);
-}
-
-static void id3_sequence_yield(id3_frame_node_t node,
-                               void (^block)(const char* name, const char* value)) {
-    const char* text = (const char*)&node->data;
-    const char* slash = text + strcspn(text, "/");
-    if (*slash) {
-        bool sequence_is_track = (strcmp(node->spec->vorbis_name, "TRACKNUMBER") == 0);
-        const char* seq_number = node->spec->vorbis_name;
-        const char* seq_total = sequence_is_track ? "TRACKTOTAL" : "DISCTOTAL";
-
-        char* seq_number_value = strndup(text, slash - text);
-        block(seq_number, seq_number_value);
-        block(seq_total, slash + 1);
-        free(seq_number_value);
-    } else {
-        block(node->spec->vorbis_name, text);
+    while (unsigned_size > 0) {
+        if (*data != '\0') {
+            rsvc_errorf(fail, __FILE__, __LINE__, "junk data after last ID3 tag");
+            return false;
+        }
+        ++data;
+        --unsigned_size;
     }
+
+    free(orig_data);
+    return true;
 }
+
+static bool read_id3_frame(rsvc_id3_tags_t tags, uint8_t** data, size_t* size, rsvc_done_t fail) {
+    rsvc_logf(3, "reading ID3 %.4s frame", *data);
+    id3_frame_spec_t spec;
+    if (!get_id3_frame_spec(*data, &spec, fail)) {
+        return false;
+    }
+    fail = ^(rsvc_error_t error){
+        rsvc_errorf(fail, error->file, error->lineno, "%s: %s", spec->id3_name, error->message);
+    };
+    size_t frame_size;
+    if (!read_sync_safe_size(*data + 4, &frame_size, fail)) {
+        return false;
+    }
+    if (((*data)[8] != 0) || ((*data)[9] != 0)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "ID3 frame flags not supported");
+        return false;
+    }
+
+    *data += 10;
+    *size -= 10;
+    if (frame_size > *size) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "%lu: invalid ID3 frame size", frame_size);
+        return false;
+    }
+
+    spec->id3_type->read(&tags->frames, spec, *data, frame_size, fail);
+
+    *data += frame_size;
+    *size -= frame_size;
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////
 
 static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
                           uint8_t* data, size_t size, rsvc_done_t fail) {
@@ -316,114 +405,25 @@ static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
     return result;
 }
 
-static bool read_id3_frame(rsvc_id3_tags_t tags, uint8_t** data, size_t* size, rsvc_done_t fail) {
-    rsvc_logf(3, "reading ID3 %.4s frame", *data);
-    id3_frame_spec_t spec;
-    if (!get_id3_frame_spec(*data, &spec, fail)) {
-        return false;
-    }
-    fail = ^(rsvc_error_t error){
-        rsvc_errorf(fail, error->file, error->lineno, "%s: %s", spec->id3_name, error->message);
-    };
-    size_t frame_size = 0;
-    for (int i = 4; i < 8; ++i) {
-        if ((*data)[i] & 0x80) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "high bit set in ID3 frame size");
-            return false;
-        }
-        frame_size <<= 7;
-        frame_size |= (*data)[i];
-    }
-    if (((*data)[8] != 0) || ((*data)[9] != 0)) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "ID3 frame flags not supported");
-        return false;
-    }
-
-    *data += 10;
-    *size -= 10;
-    if (frame_size > *size) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "%lu: invalid ID3 frame size", frame_size);
-        return false;
-    }
-
-    spec->id3_type->read(&tags->frames, spec, *data, frame_size, fail);
-
-    *data += frame_size;
-    *size -= frame_size;
-    return true;
+static void id3_text_yield(id3_frame_node_t node,
+                           void (^block)(const char* name, const char* value)) {
+    block(node->spec->vorbis_name, (const char*)&node->data);
 }
 
-static bool read_id3_frames(rsvc_id3_tags_t tags, rsvc_done_t fail) {
-    rsvc_logf(2, "reading ID3 frames");
-    uint8_t* orig_data = malloc(tags->size);
-    uint8_t* data = orig_data;
-    fail = ^(rsvc_error_t error){
-        free(orig_data);
-        fail(error);
-    };
-    ssize_t size = read(tags->fd, data, tags->size);
-    if (size < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
-        return false;
-    } else if (size < tags->size) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "unexpected end of file");
-        return false;
+static void id3_sequence_yield(id3_frame_node_t node,
+                               void (^block)(const char* name, const char* value)) {
+    const char* text = (const char*)&node->data;
+    const char* slash = text + strcspn(text, "/");
+    if (*slash) {
+        bool sequence_is_track = (strcmp(node->spec->vorbis_name, "TRACKNUMBER") == 0);
+        const char* seq_number = node->spec->vorbis_name;
+        const char* seq_total = sequence_is_track ? "TRACKTOTAL" : "DISCTOTAL";
+
+        char* seq_number_value = strndup(text, slash - text);
+        block(seq_number, seq_number_value);
+        block(seq_total, slash + 1);
+        free(seq_number_value);
+    } else {
+        block(node->spec->vorbis_name, text);
     }
-
-    size_t unsigned_size = size;
-    rsvc_logf(4, "%lu bytes to read", unsigned_size);
-    while (unsigned_size > 0) {
-        if ((unsigned_size < 10) || (*data == '\0')) {
-            break;
-        } else if (!read_id3_frame(tags, &data, &unsigned_size, fail)) {
-            return false;
-        }
-        rsvc_logf(4, "%lu bytes remain", unsigned_size);
-    }
-    while (unsigned_size > 0) {
-        if (*data != '\0') {
-            rsvc_errorf(fail, __FILE__, __LINE__, "junk data after last ID3 tag");
-            return false;
-        }
-        ++data;
-        --unsigned_size;
-    }
-
-    free(orig_data);
-    return true;
-}
-
-void rsvc_id3_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t)) {
-    __block struct rsvc_id3_tags tags = {
-        .super = {
-            .vptr = &id3_vptr,
-        },
-        .path = strdup(path),
-    };
-    void (^done_copy)(rsvc_tags_t, rsvc_error_t) = done;
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        rsvc_logf(1, "reading ID3 file");
-        void (^done)(rsvc_tags_t, rsvc_error_t) = done_copy;
-        done = ^(rsvc_tags_t result_tags, rsvc_error_t error){
-            if (error) {
-                rsvc_id3_tags_clear(&tags);
-            }
-            done(result_tags, error);
-        };
-        rsvc_done_t fail = ^(rsvc_error_t error){
-            done(NULL, error);
-        };
-        if (!rsvc_open(tags.path, O_RDWR, 0644, &tags.fd, fail)
-                || !read_id3_header(&tags, fail)
-                || !read_id3_frames(&tags, fail)) {
-            return;
-        }
-
-        rsvc_id3_tags_t copy = memdup(&tags, sizeof(tags));
-        done(&copy->super, NULL);
-    });
-}
-
-void rsvc_id3_format_register() {
-    rsvc_container_format_register("id3", 4, "ID3\004", rsvc_id3_read_tags);
 }
