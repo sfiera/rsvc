@@ -46,6 +46,9 @@ typedef bool (*id3_read_t)(id3_frame_list_t frames, id3_frame_spec_t spec,
                            uint8_t* data, size_t size, rsvc_done_t fail);
 typedef void (*id3_yield_t)(id3_frame_node_t node,
                             void (^block)(const char* name, const char* value));
+typedef bool (*id3_add_t)(id3_frame_list_t frames, id3_frame_spec_t spec,
+                          const char* value, rsvc_done_t fail);
+typedef bool (*id3_remove_t)(id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail);
 typedef size_t (*id3_size_t)(id3_frame_node_t node);
 typedef void (*id3_write_t)(id3_frame_node_t node, uint8_t* data);
 
@@ -55,31 +58,61 @@ static bool     id3_text_read(
 static void     id3_text_yield(
                         id3_frame_node_t node,
                         void (^block)(const char* name, const char* value));
+static bool     id3_text_add(
+                        id3_frame_list_t frames, id3_frame_spec_t spec,
+                        const char* value, rsvc_done_t fail);
+static bool     id3_text_remove(
+                        id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail);
 static size_t   id3_text_size(id3_frame_node_t node);
 static void     id3_text_write(id3_frame_node_t node, uint8_t* data);
 static void     id3_sequence_yield(
                         id3_frame_node_t node,
                         void (^block)(const char* name, const char* value));
+static bool     id3_sequence_number_add(
+                        id3_frame_list_t frames, id3_frame_spec_t spec,
+                        const char* value, rsvc_done_t fail);
+static bool     id3_sequence_number_remove(
+                        id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail);
+static bool     id3_sequence_total_add(
+                        id3_frame_list_t frames, id3_frame_spec_t spec,
+                        const char* value, rsvc_done_t fail);
+static bool     id3_sequence_total_remove(
+                        id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail);
 
 struct id3_frame_type {
     id3_read_t          read;
     id3_yield_t         yield;
+    id3_add_t           add;
+    id3_remove_t        remove;
     id3_size_t          size;
     id3_write_t         write;
 };
 
 static struct id3_frame_type id3_text = {
-    .read   = id3_text_read,
-    .yield  = id3_text_yield,
-    .size   = id3_text_size,
-    .write  = id3_text_write,
+    .read       = id3_text_read,
+    .yield      = id3_text_yield,
+    .add        = id3_text_add,
+    .remove     = id3_text_remove,
+    .size       = id3_text_size,
+    .write      = id3_text_write,
 };
 
-static struct id3_frame_type id3_sequence = {
-    .read   = id3_text_read,
-    .yield  = id3_sequence_yield,
-    .size   = id3_text_size,
-    .write  = id3_text_write,
+static struct id3_frame_type id3_sequence_number = {
+    .read       = id3_text_read,
+    .yield      = id3_sequence_yield,
+    .add        = id3_sequence_number_add,
+    .remove     = id3_sequence_number_remove,
+    .size       = id3_text_size,
+    .write      = id3_text_write,
+};
+
+static struct id3_frame_type id3_sequence_total = {
+    .read       = id3_text_read,
+    .yield      = id3_sequence_yield,
+    .add        = id3_sequence_total_add,
+    .remove     = id3_sequence_total_remove,
+    .size       = id3_text_size,
+    .write      = id3_text_write,
 };
 
 static struct id3_frame_spec {
@@ -92,8 +125,10 @@ static struct id3_frame_spec {
     {"TITLE",           "TIT2",    &id3_text},
     {"SUBTITLE",        "TIT3",    &id3_text},
     {"ALBUM",           "TALB",    &id3_text},
-    {"TRACKNUMBER",     "TRCK",    &id3_sequence},
-    {"DISCNUMBER",      "TPOS",    &id3_sequence},
+    {"TRACKNUMBER",     "TRCK",    &id3_sequence_number},
+    {"TRACKTOTAL",      "TRCK",    &id3_sequence_total},
+    {"DISCNUMBER",      "TPOS",    &id3_sequence_number},
+    {"DISCTOTAL",       "TPOS",    &id3_sequence_total},
     {"ISRC",            "TSRC",    &id3_text},
 
     // 4.2.2. Involved person frames.
@@ -130,6 +165,17 @@ static bool get_id3_frame_spec(const uint8_t* data, id3_frame_spec_t* spec, rsvc
     return false;
 }
 
+static bool get_vorbis_frame_spec(const char* name, id3_frame_spec_t* spec, rsvc_done_t fail) {
+    for (size_t i = 0; i < ID3_FRAME_SPECS_SIZE; ++i) {
+        if (strcmp(id3_frame_specs[i].vorbis_name, name) == 0) {
+            *spec = &id3_frame_specs[i];
+            return true;
+        }
+    }
+    rsvc_errorf(fail, __FILE__, __LINE__, "no such ID3 tag: %s", name);
+    return false;
+}
+
 struct id3_frame_node {
     id3_frame_node_t        prev, next;
     id3_frame_spec_t        spec;
@@ -159,16 +205,23 @@ struct rsvc_id3_tags {
 
 bool            id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail);
 
-static bool rsvc_id3_tags_remove(rsvc_tags_t tags, const char* name,
-                                 rsvc_done_t fail) {
-    rsvc_errorf(fail, __FILE__, __LINE__, "removing id3 tags not supported");
-    return true;
+static bool rsvc_id3_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail) {
+    rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
+    id3_frame_spec_t spec;
+    if (!get_vorbis_frame_spec(name, &spec, fail)) {
+        return false;
+    }
+    return spec->id3_type->remove(&self->frames, spec, fail);
 }
 
 static bool rsvc_id3_tags_add(rsvc_tags_t tags, const char* name, const char* value,
                               rsvc_done_t fail) {
-    rsvc_errorf(fail, __FILE__, __LINE__, "adding id3 tags not supported");
-    return false;
+    rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
+    id3_frame_spec_t spec;
+    if (!get_vorbis_frame_spec(name, &spec, fail)) {
+        return false;
+    }
+    return spec->id3_type->add(&self->frames, spec, value, fail);
 }
 
 static bool rsvc_id3_tags_each(
@@ -540,11 +593,7 @@ static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
             rsvc_errorf(fail, __FILE__, __LINE__, "more than one tag value");
         } else {
             rsvc_logf(3, "read text %s", data);
-            id3_frame_node_t node = malloc(sizeof(struct id3_frame_node) + size);
-            node->spec = spec;
-            memcpy(node->data, data, size);
-            RSVC_LIST_PUSH(frames, node);
-            result = true;
+            result = id3_text_add(frames, spec, data, fail);
         }
     });
     return result;
@@ -553,6 +602,36 @@ static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
 static void id3_text_yield(id3_frame_node_t node,
                            void (^block)(const char* name, const char* value)) {
     block(node->spec->vorbis_name, (const char*)&node->data);
+}
+
+static bool id3_text_add(
+        id3_frame_list_t frames, id3_frame_spec_t spec,
+        const char* value, rsvc_done_t fail) {
+    for (id3_frame_node_t curr = frames->head; curr; curr = curr->next) {
+        if (curr->spec == spec) {
+            rsvc_errorf(fail, __FILE__, __LINE__,
+                        "only one ID3 %s tag permitted", spec->vorbis_name);
+            return false;
+        }
+    }
+
+    size_t size = strlen(value) + 1;
+    id3_frame_node_t node = malloc(sizeof(struct id3_frame_node) + size);
+    node->spec = spec;
+    memcpy(node->data, value, size);
+    RSVC_LIST_PUSH(frames, node);
+    return true;
+}
+
+static bool id3_text_remove(
+        id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail) {
+    for (id3_frame_node_t curr = frames->head; curr; curr = curr->next) {
+        if (curr->spec == spec) {
+            RSVC_LIST_ERASE(frames, curr);
+            return true;
+        }
+    }
+    return true;
 }
 
 static size_t id3_text_size(id3_frame_node_t node) {
@@ -580,4 +659,38 @@ static void id3_sequence_yield(id3_frame_node_t node,
     } else {
         block(node->spec->vorbis_name, text);
     }
+}
+
+static bool id3_sequence_number_add(
+        id3_frame_list_t frames, id3_frame_spec_t spec,
+        const char* value, rsvc_done_t fail) {
+    if (strchr(value, '/')) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid ID3 %s %s", spec->vorbis_name, value);
+        return false;
+    }
+    rsvc_errorf(fail, __FILE__, __LINE__, "setting %s not supported", spec->vorbis_name);
+    return false;
+}
+
+static bool id3_sequence_number_remove(
+        id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail) {
+    rsvc_errorf(fail, __FILE__, __LINE__, "removing %s not supported", spec->vorbis_name);
+    return false;
+}
+
+static bool id3_sequence_total_add(
+        id3_frame_list_t frames, id3_frame_spec_t spec,
+        const char* value, rsvc_done_t fail) {
+    if (strchr(value, '/')) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid ID3 %s %s", spec->vorbis_name, value);
+        return false;
+    }
+    rsvc_errorf(fail, __FILE__, __LINE__, "setting %s not supported", spec->vorbis_name);
+    return false;
+}
+
+static bool id3_sequence_total_remove(
+        id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail) {
+    rsvc_errorf(fail, __FILE__, __LINE__, "removing %s not supported", spec->vorbis_name);
+    return false;
 }
