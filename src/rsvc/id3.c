@@ -27,6 +27,7 @@
 #include <rsvc/format.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
@@ -45,27 +46,40 @@ typedef bool (*id3_read_t)(id3_frame_list_t frames, id3_frame_spec_t spec,
                            uint8_t* data, size_t size, rsvc_done_t fail);
 typedef void (*id3_yield_t)(id3_frame_node_t node,
                             void (^block)(const char* name, const char* value));
+typedef size_t (*id3_size_t)(id3_frame_node_t node);
+typedef void (*id3_write_t)(id3_frame_node_t node, uint8_t* data);
 
-static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
-                          uint8_t* data, size_t size, rsvc_done_t fail);
-static void id3_text_yield(id3_frame_node_t node,
-                           void (^block)(const char* name, const char* value));
-static void id3_sequence_yield(id3_frame_node_t node,
-                               void (^block)(const char* name, const char* value));
+static bool     id3_text_read(
+                        id3_frame_list_t frames, id3_frame_spec_t spec,
+                        uint8_t* data, size_t size, rsvc_done_t fail);
+static void     id3_text_yield(
+                        id3_frame_node_t node,
+                        void (^block)(const char* name, const char* value));
+static size_t   id3_text_size(id3_frame_node_t node);
+static void     id3_text_write(id3_frame_node_t node, uint8_t* data);
+static void     id3_sequence_yield(
+                        id3_frame_node_t node,
+                        void (^block)(const char* name, const char* value));
 
 struct id3_frame_type {
     id3_read_t          read;
     id3_yield_t         yield;
+    id3_size_t          size;
+    id3_write_t         write;
 };
 
 static struct id3_frame_type id3_text = {
     .read   = id3_text_read,
     .yield  = id3_text_yield,
+    .size   = id3_text_size,
+    .write  = id3_text_write,
 };
 
 static struct id3_frame_type id3_sequence = {
     .read   = id3_text_read,
     .yield  = id3_sequence_yield,
+    .size   = id3_text_size,
+    .write  = id3_text_write,
 };
 
 static struct id3_frame_spec {
@@ -143,6 +157,8 @@ struct rsvc_id3_tags {
 
 ////////////////////////////////////////////////////////////////////////
 
+bool            id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail);
+
 static bool rsvc_id3_tags_remove(rsvc_tags_t tags, const char* name,
                                  rsvc_done_t fail) {
     rsvc_errorf(fail, __FILE__, __LINE__, "removing id3 tags not supported");
@@ -171,7 +187,11 @@ static bool rsvc_id3_tags_each(
 }
 
 static void rsvc_id3_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
+    rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        if (!id3_write_tags(self, done)) {
+            return;
+        }
         done(NULL);
     });
 }
@@ -362,6 +382,131 @@ static bool read_id3_frame(rsvc_id3_tags_t tags, uint8_t** data, size_t* size, r
 
 ////////////////////////////////////////////////////////////////////////
 
+static void write_id3_header(rsvc_id3_tags_t tags, uint8_t* data, size_t tags_size);
+static void write_id3_tags(rsvc_id3_tags_t tags, uint8_t* data);
+
+bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
+    rsvc_logf(2, "writing ID3 file");
+
+    // Figure out the number of bytes needed to write the body of the
+    // ID3 tag.  If that's less than the size of the ID3 tag that we
+    // read in, then reuse that; don't shrink the tag.
+    size_t body_size = 0;
+    for (id3_frame_node_t curr = tags->frames.head; curr; curr = curr->next) {
+        body_size += 10 + curr->spec->id3_type->size(curr);
+    }
+    if (body_size < tags->size) {
+        body_size = tags->size;
+    }
+
+    // Header is always 10 bytes; size of body is as determined above.
+    // Allocate space for the body.  Free it automatically on failure;
+    // we'll have to free it manually on success.
+    uint8_t header[10];
+    uint8_t* body = malloc(body_size);
+    memset(body, 0, body_size);
+    fail = ^(rsvc_error_t error){
+        free(body);
+        fail(error);
+    };
+
+    // Write the header and all tags.
+    write_id3_header(tags, header, body_size);
+    write_id3_tags(tags, body);
+
+    // Position tags->fd at the end of the ID3 content.  If we write the
+    // file twice, we will need to return here.  If we write the file
+    // twice at the same time, this function will break.
+    //
+    // TODO(sfiera): serialize calls to this function through a serial
+    // dispatch queue.
+    if (lseek(tags->fd, 10 + tags->size, SEEK_SET) < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+
+    // Open a temporary file to write the modified file content to.
+    // First write the ID3 tag, then copy the remainder of the original
+    // file.
+    //
+    // TODO(sfiera): if there's enough space in the original file to
+    // write out the new ID3 tags, then reuse that space without
+    // creating a new file.
+    int fd;
+    char tmp_path[PATH_MAX + 5] = {'\0'};
+    strcat(tmp_path, tags->path);
+    strcat(tmp_path, ".tmp");
+    if (!rsvc_open(tmp_path, O_RDWR | O_CREAT | O_TRUNC, 0644, &fd, fail)) {
+        return false;
+    }
+    write(fd, header, 10);
+    write(fd, body, body_size);
+
+    rsvc_logf(2, "copying MP3 data from %s to %s", tags->path, tmp_path);
+    uint8_t buffer[4096];
+    while (true) {
+        uint8_t* data = buffer;
+        ssize_t size = read(tags->fd, data, 4096);
+        if (size < 0) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+            return false;
+        } else if (size == 0) {
+            break;
+        }
+        while (size > 0) {
+            ssize_t bytes_written = write(fd, data, size);
+            if (bytes_written <= 0) {
+                rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+                return false;
+            }
+            data += bytes_written;
+            size -= bytes_written;
+        }
+    }
+
+    // Move the new file over the original.  Close the original fd and
+    // move the one that pointed to the temporary file into its place.
+    // We'll use that if we try to write the file again.
+    rsvc_logf(2, "renaming %s to %s", tmp_path, tags->path);
+    if (rename(tmp_path, tags->path) < 0) {
+        close(fd);
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+    close(tags->fd);
+    tags->fd = fd;
+
+    free(body);
+    return true;
+}
+
+static void write_sync_safe_size(uint8_t* data, size_t in) {
+    for (int i = 0; i < 4; ++i) {
+        data[3 - i] = in & 0x7f;
+        in >>= 7;
+    }
+}
+
+static void write_id3_header(rsvc_id3_tags_t tags, uint8_t* data, size_t tags_size) {
+    rsvc_logf(2, "writing ID3 header");
+    memcpy(data, "ID3\4\0\0", 6);
+    write_sync_safe_size(data + 6, tags_size);
+}
+
+static void write_id3_tags(rsvc_id3_tags_t tags, uint8_t* data) {
+    for (id3_frame_node_t curr = tags->frames.head; curr; curr = curr->next) {
+        rsvc_logf(3, "writing ID3 %s frame", curr->spec->id3_name);
+        size_t size = curr->spec->id3_type->size(curr);
+        memset(data, 0, 10);
+        memcpy(data, curr->spec->id3_name, 4);
+        write_sync_safe_size(data + 4, size);
+        curr->spec->id3_type->write(curr, data + 10);
+        data += 10 + size;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+
 static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
                           uint8_t* data, size_t size, rsvc_done_t fail) {
     if (size < 2) {
@@ -408,6 +553,15 @@ static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
 static void id3_text_yield(id3_frame_node_t node,
                            void (^block)(const char* name, const char* value)) {
     block(node->spec->vorbis_name, (const char*)&node->data);
+}
+
+static size_t id3_text_size(id3_frame_node_t node) {
+    return 2 + strlen((const char*)&node->data);
+}
+
+static void id3_text_write(id3_frame_node_t node, uint8_t* data) {
+    *(data++) = 0x03;
+    strcpy((char*)data, (const char*)&node->data);
 }
 
 static void id3_sequence_yield(id3_frame_node_t node,
