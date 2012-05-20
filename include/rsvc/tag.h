@@ -35,7 +35,8 @@ struct rsvc_tags_methods {
     void (*destroy)(rsvc_tags_t tags);
 };
 struct rsvc_tags {
-    struct rsvc_tags_methods* vptr;
+    struct rsvc_tags_methods*   vptr;
+    int                         flags;
 };
 
 enum {
@@ -126,6 +127,8 @@ bool                    rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
 ///     description of the iterator interface.
 bool                    rsvc_tags_each(rsvc_tags_t tags,
                                        void (^block)(const char*, const char*, rsvc_stop_t));
+
+bool                    rsvc_tags_check_writable(rsvc_tags_t tags, rsvc_done_t fail);
 
 /// ..  _tag_constants:
 ///

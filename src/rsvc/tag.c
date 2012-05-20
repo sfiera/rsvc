@@ -75,3 +75,11 @@ bool rsvc_tags_each(rsvc_tags_t tags,
                     void (^block)(const char*, const char*, rsvc_stop_t)) {
     return tags->vptr->each(tags, block);
 }
+
+bool rsvc_tags_check_writable(rsvc_tags_t tags, rsvc_done_t fail) {
+    if (!(tags->flags & RSVC_TAG_RDWR)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "tags opened in read-only mode");
+        return false;
+    }
+    return true;
+}

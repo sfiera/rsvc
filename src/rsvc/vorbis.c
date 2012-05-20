@@ -217,6 +217,9 @@ static void rsvc_ogg_page_copy(ogg_page* dst, const ogg_page* src) {
 }
 
 static bool rsvc_vorbis_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail) {
+    if (!rsvc_tags_check_writable(tags, fail)) {
+        return false;
+    }
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
     // I bet this is not the most efficient thing to do.
     vorbis_comment vc;
@@ -235,6 +238,9 @@ static bool rsvc_vorbis_tags_remove(rsvc_tags_t tags, const char* name, rsvc_don
 
 static bool rsvc_vorbis_tags_add(rsvc_tags_t tags, const char* name, const char* value,
                                  rsvc_done_t fail) {
+    if (!rsvc_tags_check_writable(tags, fail)) {
+        return false;
+    }
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
     vorbis_comment_add_tag(&self->vc, name, value);
     return true;
@@ -264,6 +270,9 @@ static bool rsvc_vorbis_tags_each(
 }
 
 static void rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
+    if (!rsvc_tags_check_writable(tags, done)) {
+        return;
+    }
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
     rsvc_done_t done_copy = done;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -366,7 +375,8 @@ void rsvc_vorbis_open_tags(const char* path, int flags,
                            void (^done)(rsvc_tags_t, rsvc_error_t)) {
     __block struct rsvc_vorbis_tags tags = {
         .super = {
-            .vptr = &vorbis_vptr,
+            .vptr   = &vorbis_vptr,
+            .flags  = flags,
         },
         .path = strdup(path),
     };

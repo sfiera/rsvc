@@ -178,6 +178,9 @@ typedef struct rsvc_flac_tags* rsvc_flac_tags_t;
 
 static bool rsvc_flac_tags_remove(rsvc_tags_t tags, const char* name,
                                   rsvc_done_t fail) {
+    if (!rsvc_tags_check_writable(tags, fail)) {
+        return false;
+    }
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     if (name) {
         FLAC__metadata_object_vorbiscomment_remove_entries_matching(self->block, name);
@@ -189,6 +192,9 @@ static bool rsvc_flac_tags_remove(rsvc_tags_t tags, const char* name,
 
 static bool rsvc_flac_tags_add(rsvc_tags_t tags, const char* name, const char* value,
                                rsvc_done_t fail) {
+    if (!rsvc_tags_check_writable(tags, fail)) {
+        return false;
+    }
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     FLAC__StreamMetadata_VorbisComment_Entry entry;
     if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(&entry, name, value) ||
@@ -221,6 +227,9 @@ static bool rsvc_flac_tags_each(rsvc_tags_t tags,
 }
 
 static void rsvc_flac_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
+    if (!rsvc_tags_check_writable(tags, done)) {
+        return;
+    }
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         if (!FLAC__metadata_chain_write(self->chain, true, false)) {
@@ -256,6 +265,7 @@ void rsvc_flac_open_tags(const char* path, int flags,
         struct rsvc_flac_tags tags = {
             .super = {
                 .vptr   = &flac_vptr,
+                .flags  = flags,
             },
             .chain      = FLAC__metadata_chain_new(),
             .it         = FLAC__metadata_iterator_new(),

@@ -230,6 +230,9 @@ static id3_frame_node_t find_by_spec(id3_frame_list_t frames, id3_frame_spec_t s
 bool            id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail);
 
 static bool rsvc_id3_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail) {
+    if (!rsvc_tags_check_writable(tags, fail)) {
+        return false;
+    }
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
     id3_frame_spec_t spec;
     if (!get_vorbis_frame_spec(name, &spec, fail)) {
@@ -240,6 +243,9 @@ static bool rsvc_id3_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t
 
 static bool rsvc_id3_tags_add(rsvc_tags_t tags, const char* name, const char* value,
                               rsvc_done_t fail) {
+    if (!rsvc_tags_check_writable(tags, fail)) {
+        return false;
+    }
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
     id3_frame_spec_t spec;
     if (!get_vorbis_frame_spec(name, &spec, fail)) {
@@ -264,6 +270,9 @@ static bool rsvc_id3_tags_each(
 }
 
 static void rsvc_id3_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
+    if (!rsvc_tags_check_writable(tags, done)) {
+        return;
+    }
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         if (!id3_write_tags(self, done)) {
@@ -313,7 +322,8 @@ void rsvc_id3_open_tags(const char* path, int flags,
         rsvc_logf(1, "reading ID3 file");
         __block struct rsvc_id3_tags tags = {
             .super = {
-                .vptr = &id3_vptr,
+                .vptr   = &id3_vptr,
+                .flags  = flags,
             },
             .path = path_copy,
         };
