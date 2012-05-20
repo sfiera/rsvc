@@ -449,9 +449,6 @@ typedef struct rsvc_mp4_tags* rsvc_mp4_tags_t;
 
 static bool rsvc_mp4_tags_remove(rsvc_tags_t tags, const char* name,
                                  rsvc_done_t fail) {
-    if (!rsvc_tags_check_writable(tags, fail)) {
-        return false;
-    }
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
     if (name) {
         for (mp4_tag_t tag = mp4_tags; tag->vorbis_name; ++tag) {
@@ -473,9 +470,6 @@ static bool rsvc_mp4_tags_remove(rsvc_tags_t tags, const char* name,
 
 static bool rsvc_mp4_tags_add(rsvc_tags_t tags, const char* name, const char* value,
                               rsvc_done_t fail) {
-    if (!rsvc_tags_check_writable(tags, fail)) {
-        return false;
-    }
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
     for (mp4_tag_t tag = mp4_tags; tag->vorbis_name; ++tag) {
         if (strcmp(tag->vorbis_name, name) != 0) {
@@ -581,10 +575,6 @@ static bool rsvc_mp4_tags_each(rsvc_tags_t tags,
 }
 
 static void rsvc_mp4_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
-    if (!rsvc_tags_writable(tags)) {
-        done(NULL);
-        return;
-    }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         done(NULL);
     });

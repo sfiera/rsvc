@@ -26,8 +26,36 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool tag_name_is_valid(const char* name) {
+    return name[strspn(name, "ABCDEFGHIJ" "KLMNOPQRST" "UVWXYZ" "_")] == '\0';
+}
+
+static bool check_tag_name_is_valid(const char* name, rsvc_done_t fail) {
+    if (!tag_name_is_valid(name)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid tag name: %s", name);
+        return false;
+    }
+    return true;
+}
+
+static bool tags_writable(rsvc_tags_t tags) {
+    return tags->flags & RSVC_TAG_RDWR;
+}
+
+static bool check_tags_writable(rsvc_tags_t tags, rsvc_done_t fail) {
+    if (!tags_writable(tags)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "tags opened in read-only mode");
+        return false;
+    }
+    return true;
+}
+
 void rsvc_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
-    tags->vptr->save(tags, done);
+    if (tags_writable(tags)) {
+        tags->vptr->save(tags, done);
+    } else {
+        done(NULL);
+    }
 }
 
 void rsvc_tags_destroy(rsvc_tags_t tags) {
@@ -35,21 +63,22 @@ void rsvc_tags_destroy(rsvc_tags_t tags) {
 }
 
 bool rsvc_tags_clear(rsvc_tags_t tags, rsvc_done_t fail) {
+    if (!check_tags_writable(tags, fail)) {
+        return false;
+    }
     return tags->vptr->remove(tags, NULL, fail);
 }
 
 bool rsvc_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail) {
+    if (!check_tags_writable(tags, fail) || !check_tag_name_is_valid(name, fail)) {
+        return false;
+    }
     return tags->vptr->remove(tags, name, fail);
-}
-
-static bool tag_name_is_valid(const char* name) {
-    return name[strspn(name, "ABCDEFGHIJ" "KLMNOPQRST" "UVWXYZ" "_")] == '\0';
 }
 
 bool rsvc_tags_add(rsvc_tags_t tags, rsvc_done_t fail,
                    const char* name, const char* value) {
-    if (!tag_name_is_valid(name)) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "invalid tag name: %s", name);
+    if (!check_tags_writable(tags, fail) || !check_tag_name_is_valid(name, fail)) {
         return false;
     }
     return tags->vptr->add(tags, name, value, fail);
@@ -57,8 +86,7 @@ bool rsvc_tags_add(rsvc_tags_t tags, rsvc_done_t fail,
 
 bool rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
                     const char* name, const char* format, ...) {
-    if (!tag_name_is_valid(name)) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "invalid tag name: %s", name);
+    if (!check_tags_writable(tags, fail) || !check_tag_name_is_valid(name, fail)) {
         return false;
     }
     char* value;
@@ -74,16 +102,4 @@ bool rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
 bool rsvc_tags_each(rsvc_tags_t tags,
                     void (^block)(const char*, const char*, rsvc_stop_t)) {
     return tags->vptr->each(tags, block);
-}
-
-bool rsvc_tags_writable(rsvc_tags_t tags) {
-    return tags->flags & RSVC_TAG_RDWR;
-}
-
-bool rsvc_tags_check_writable(rsvc_tags_t tags, rsvc_done_t fail) {
-    if (!rsvc_tags_writable(tags)) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "tags opened in read-only mode");
-        return false;
-    }
-    return true;
 }
