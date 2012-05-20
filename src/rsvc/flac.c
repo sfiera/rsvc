@@ -246,7 +246,8 @@ static struct rsvc_tags_methods flac_vptr = {
     .destroy = rsvc_flac_tags_destroy,
 };
 
-void rsvc_flac_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t)) {
+void rsvc_flac_open_tags(const char* path, int flags,
+                         void (^done)(rsvc_tags_t, rsvc_error_t)) {
     char* path_copy = strdup(path);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         void (^cleanup)() = ^{
@@ -323,5 +324,5 @@ static tell_status_t flac_tell(const FLAC__StreamEncoder* encoder,
 }
 
 void rsvc_flac_format_register() {
-    rsvc_container_format_register("flac", 4, "fLaC", rsvc_flac_read_tags);
+    rsvc_container_format_register("flac", 4, "fLaC", rsvc_flac_open_tags);
 }

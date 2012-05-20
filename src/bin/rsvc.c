@@ -646,20 +646,20 @@ static void encode(rip_format_t format, int read_fd, int write_fd,
     }
 }
 
-static void rsvc_read_tags(rip_format_t format, char* path,
+static void rsvc_open_tags(rip_format_t format, char* path,
                            void (^done)(rsvc_tags_t, rsvc_error_t)) {
     switch (format) {
       case FORMAT_NONE:
         abort();
       case FORMAT_FLAC:
-        rsvc_flac_read_tags(path, done);
+        rsvc_flac_open_tags(path, RSVC_TAG_RDWR, done);
         break;
       case FORMAT_AAC:
       case FORMAT_ALAC:
-        rsvc_mp4_read_tags(path, done);
+        rsvc_mp4_open_tags(path, RSVC_TAG_RDWR, done);
         break;
       case FORMAT_VORBIS:
-        rsvc_vorbis_read_tags(path, done);
+        rsvc_vorbis_open_tags(path, RSVC_TAG_RDWR, done);
         break;
     }
 }
@@ -673,7 +673,7 @@ static void set_tags(rip_format_t format, char* path,
     const char* mcn = rsvc_cd_mcn(cd);
     const char* isrc = rsvc_cd_track_isrc(track);
 
-    rsvc_read_tags(format, path, ^(rsvc_tags_t tags, rsvc_error_t error){
+    rsvc_open_tags(format, path, ^(rsvc_tags_t tags, rsvc_error_t error){
         if (error) {
             done(error);
             return;

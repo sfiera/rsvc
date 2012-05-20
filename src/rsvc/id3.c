@@ -295,7 +295,7 @@ static struct rsvc_tags_methods id3_vptr = {
 };
 
 void rsvc_id3_format_register() {
-    rsvc_container_format_register("id3", 4, "ID3\004", rsvc_id3_read_tags);
+    rsvc_container_format_register("id3", 4, "ID3\004", rsvc_id3_open_tags);
 }
 
 ////////////////////////////////////////////////////////////////////////
@@ -304,7 +304,8 @@ static bool read_id3_header(rsvc_id3_tags_t tags, rsvc_done_t fail);
 static bool read_id3_frames(rsvc_id3_tags_t tags, rsvc_done_t fail);
 static bool read_id3_frame(rsvc_id3_tags_t tags, uint8_t** data, size_t* size, rsvc_done_t fail);
 
-void rsvc_id3_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t)) {
+void rsvc_id3_open_tags(const char* path, int flags,
+                        void (^done)(rsvc_tags_t, rsvc_error_t)) {
     char* path_copy = strdup(path);
     void (^done_copy)(rsvc_tags_t, rsvc_error_t) = done;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{

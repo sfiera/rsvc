@@ -38,6 +38,11 @@ struct rsvc_tags {
     struct rsvc_tags_methods* vptr;
 };
 
+enum {
+    RSVC_TAG_RDONLY = 0,
+    RSVC_TAG_RDWR = 1,
+};
+
 /// Tags
 /// ====
 ///

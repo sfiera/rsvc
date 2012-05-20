@@ -594,7 +594,8 @@ static struct rsvc_tags_methods mp4_vptr = {
     .destroy = rsvc_mp4_tags_destroy,
 };
 
-void rsvc_mp4_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t)) {
+void rsvc_mp4_open_tags(const char* path, int flags,
+                        void (^done)(rsvc_tags_t, rsvc_error_t)) {
     char* path_copy = strdup(path);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         void (^cleanup)() = ^{
@@ -620,5 +621,5 @@ void rsvc_mp4_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t
 }
 
 void rsvc_mp4_format_register() {
-    rsvc_container_format_register("mp4", 12, "????ftypM4A ", rsvc_mp4_read_tags);
+    rsvc_container_format_register("mp4", 12, "????ftypM4A ", rsvc_mp4_open_tags);
 }

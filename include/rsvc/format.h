@@ -23,7 +23,8 @@
 
 #include <rsvc/tag.h>
 
-typedef void (*rsvc_read_tags_f)(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t));
+typedef void (*rsvc_open_tags_f)(const char* path, int flags,
+                                 void (^done)(rsvc_tags_t, rsvc_error_t));
 
 typedef struct rsvc_container_format* rsvc_container_format_t;
 struct rsvc_container_format {
@@ -32,12 +33,12 @@ struct rsvc_container_format {
     size_t                  magic_size;
     const char*             magic;
 
-    rsvc_read_tags_f        read_tags;
+    rsvc_open_tags_f        open_tags;
 };
 
 void                        rsvc_container_format_register(const char* name,
                                                            size_t magic_size, const char* magic,
-                                                           rsvc_read_tags_f read_tags);
+                                                           rsvc_open_tags_f open_tags);
 
 rsvc_container_format_t     rsvc_container_format_named(const char* name);
 bool                        rsvc_container_format_detect(int fd, rsvc_container_format_t* format,

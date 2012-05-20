@@ -362,7 +362,8 @@ static int read_ogg_page(int fd, ogg_sync_state* oy, ogg_page* og, rsvc_done_t f
         done(NULL, error); \
     }
 
-void rsvc_vorbis_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t)) {
+void rsvc_vorbis_open_tags(const char* path, int flags,
+                           void (^done)(rsvc_tags_t, rsvc_error_t)) {
     __block struct rsvc_vorbis_tags tags = {
         .super = {
             .vptr = &vorbis_vptr,
@@ -497,5 +498,5 @@ void rsvc_vorbis_read_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_erro
 #undef FAIL
 
 void rsvc_vorbis_format_register() {
-    rsvc_container_format_register("vorbis", 4, "OggS", rsvc_vorbis_read_tags);
+    rsvc_container_format_register("vorbis", 4, "OggS", rsvc_vorbis_open_tags);
 }

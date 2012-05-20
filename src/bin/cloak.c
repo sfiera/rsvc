@@ -369,7 +369,7 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
         return;
     }
 
-    format->read_tags(path, ^(rsvc_tags_t tags, rsvc_error_t error){
+    format->open_tags(path, RSVC_TAG_RDWR, ^(rsvc_tags_t tags, rsvc_error_t error){
         if (error) {
             done(error);
             return;

@@ -37,13 +37,13 @@ struct {
 } formats;
 
 void rsvc_container_format_register(const char* name, size_t magic_size, const char* magic,
-                                    rsvc_read_tags_f read_tags) {
+                                    rsvc_open_tags_f open_tags) {
     struct rsvc_container_format_node node = {
         .format = {
             .name = strdup(name),
             .magic_size = magic_size,
             .magic = strdup(magic),
-            .read_tags = read_tags,
+            .open_tags = open_tags,
         },
     };
     RSVC_LIST_PUSH(&formats, memdup(&node, sizeof(node)));
