@@ -128,6 +128,7 @@ bool                    rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
 bool                    rsvc_tags_each(rsvc_tags_t tags,
                                        void (^block)(const char*, const char*, rsvc_stop_t));
 
+bool                    rsvc_tags_writable(rsvc_tags_t tags);
 bool                    rsvc_tags_check_writable(rsvc_tags_t tags, rsvc_done_t fail);
 
 /// ..  _tag_constants:

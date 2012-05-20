@@ -177,6 +177,7 @@ typedef struct ops* ops_t;
 
 static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done);
 static void tag_file(const char* path, ops_t ops, rsvc_done_t done);
+static int ops_mode(ops_t ops);
 static void apply_ops(rsvc_tags_t tags, ops_t ops, rsvc_done_t done);
 
 static void validate_name(const char* progname, char* name);
@@ -369,7 +370,7 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
         return;
     }
 
-    format->open_tags(path, RSVC_TAG_RDWR, ^(rsvc_tags_t tags, rsvc_error_t error){
+    format->open_tags(path, ops_mode(ops), ^(rsvc_tags_t tags, rsvc_error_t error){
         if (error) {
             done(error);
             return;
@@ -400,6 +401,17 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
             });
         });
     });
+}
+
+static int ops_mode(ops_t ops) {
+    if (ops->delete_all_tags
+            || ops->delete_tags.nstrings
+            || ops->add_tag_names.nstrings
+            || ops->auto_mode) {
+        return RSVC_TAG_RDWR;
+    } else {
+        return RSVC_TAG_RDONLY;
+    }
 }
 
 static void apply_ops(rsvc_tags_t tags, ops_t ops, rsvc_done_t done) {

@@ -270,7 +270,8 @@ static bool rsvc_id3_tags_each(
 }
 
 static void rsvc_id3_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
-    if (!rsvc_tags_check_writable(tags, done)) {
+    if (!rsvc_tags_writable(tags)) {
+        done(NULL);
         return;
     }
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
@@ -336,7 +337,8 @@ void rsvc_id3_open_tags(const char* path, int flags,
         rsvc_done_t fail = ^(rsvc_error_t error){
             done(NULL, error);
         };
-        if (!rsvc_open(tags.path, O_RDWR, 0644, &tags.fd, fail)
+        bool rdwr = flags & RSVC_TAG_RDWR;
+        if (!rsvc_open(tags.path, rdwr ? O_RDWR : O_RDONLY, 0644, &tags.fd, fail)
                 || !read_id3_header(&tags, fail)
                 || !read_id3_frames(&tags, fail)) {
             return;

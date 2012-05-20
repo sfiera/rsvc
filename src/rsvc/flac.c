@@ -227,7 +227,8 @@ static bool rsvc_flac_tags_each(rsvc_tags_t tags,
 }
 
 static void rsvc_flac_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
-    if (!rsvc_tags_check_writable(tags, done)) {
+    if (!rsvc_tags_writable(tags)) {
+        done(NULL);
         return;
     }
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);

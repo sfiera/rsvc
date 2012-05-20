@@ -581,7 +581,8 @@ static bool rsvc_mp4_tags_each(rsvc_tags_t tags,
 }
 
 static void rsvc_mp4_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
-    if (!rsvc_tags_check_writable(tags, done)) {
+    if (!rsvc_tags_writable(tags)) {
+        done(NULL);
         return;
     }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -610,12 +611,13 @@ void rsvc_mp4_open_tags(const char* path, int flags,
         void (^cleanup)() = ^{
             free(path_copy);
         };
+        bool rdwr = flags & RSVC_TAG_RDWR;
         struct rsvc_mp4_tags tags = {
             .super = {
                 .vptr   = &mp4_vptr,
                 .flags  = flags,
             },
-            .file = MP4Modify(path_copy, 0),
+            .file = rdwr ? MP4Modify(path_copy, 0) : MP4Read(path_copy),
         };
         if (tags.file == MP4_INVALID_FILE_HANDLE) {
             cleanup();
