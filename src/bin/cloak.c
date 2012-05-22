@@ -41,56 +41,58 @@
 #include "../rsvc/options.h"
 
 enum short_flag {
-    HELP        = 'h',
-    DRY_RUN     = -1,
-    VERBOSE     = 'v',
-    VERSION     = 'V',
+    HELP            = 'h',
+    DRY_RUN         = -1,
+    VERBOSE         = 'v',
+    VERSION         = 'V',
 
-    LIST        = 'l',
-    REMOVE      = 'r',
-    REMOVE_ALL  = 'R',
-    ADD         = -2,
-    SET         = 's',
+    LIST            = 'l',
+    REMOVE          = 'r',
+    REMOVE_ALL      = 'R',
+    ADD             = -2,
+    SET             = 's',
 
-    ARTIST      = 'a',
-    ALBUM       = 'A',
-    TITLE       = 't',
-    GENRE       = 'g',
-    DATE        = 'y',
-    TRACK       = 'n',
-    TRACK_TOTAL = 'N',
-    DISC        = 'd',
-    DISC_TOTAL  = 'D',
+    ARTIST          = 'a',
+    ALBUM           = 'A',
+    ALBUM_ARTIST    = 'b',
+    TITLE           = 't',
+    GENRE           = 'g',
+    DATE            = 'y',
+    TRACK           = 'n',
+    TRACK_TOTAL     = 'N',
+    DISC            = 'd',
+    DISC_TOTAL      = 'D',
 
-    AUTO        = -5,
+    AUTO            = -5,
 };
 
 struct long_flag {
     const char* name;
     enum short_flag value;
 } kLongFlags[] = {
-    {"help",        HELP},
-    {"dry-run",     DRY_RUN},
-    {"verbose",     VERBOSE},
-    {"version",     VERSION},
+    {"help",            HELP},
+    {"dry-run",         DRY_RUN},
+    {"verbose",         VERBOSE},
+    {"version",         VERSION},
 
-    {"list",        LIST},
-    {"remove",      REMOVE},
-    {"remove-all",  REMOVE_ALL},
-    {"add",         ADD},
-    {"set",         SET},
+    {"list",            LIST},
+    {"remove",          REMOVE},
+    {"remove-all",      REMOVE_ALL},
+    {"add",             ADD},
+    {"set",             SET},
 
-    {"artist",      ARTIST},
-    {"album",       ALBUM},
-    {"title",       TITLE},
-    {"genre",       GENRE},
-    {"date",        DATE},
-    {"track",       TRACK},
-    {"track-total", TRACK_TOTAL},
-    {"disc",        DISC},
-    {"disc-total",  DISC_TOTAL},
+    {"artist",          ARTIST},
+    {"album",           ALBUM},
+    {"album-artist",    ALBUM},
+    {"title",           TITLE},
+    {"genre",           GENRE},
+    {"date",            DATE},
+    {"track",           TRACK},
+    {"track-total",     TRACK_TOTAL},
+    {"disc",            DISC},
+    {"disc-total",      DISC_TOTAL},
 
-    {"auto",        AUTO},
+    {"auto",            AUTO},
 
     {NULL},
 };
@@ -121,6 +123,7 @@ static void cloak_usage(const char* progname) {
             "  Shorthand:\n"
             "    -a, --artist ARTIST     set the artist name\n"
             "    -A, --album ALBUM       set the album name\n"
+            "    -b, --album-artist AA   set the album artist name\n"
             "    -t, --title TITLE       set the track title\n"
             "    -g, --genre GENRE       set the genre\n"
             "    -y, --date DATE         set the release date\n"
@@ -139,6 +142,7 @@ static const char* get_tag_name(int opt) {
     switch (opt) {
       case ARTIST:          return RSVC_ARTIST;
       case ALBUM:           return RSVC_ALBUM;
+      case ALBUM_ARTIST:    return RSVC_ALBUMARTIST;
       case TITLE:           return RSVC_TITLE;
       case GENRE:           return RSVC_GENRE;
       case DATE:            return RSVC_DATE;
@@ -262,6 +266,7 @@ static void cloak_main(int argc, char* const* argv) {
 
           case ARTIST:
           case ALBUM:
+          case ALBUM_ARTIST:
           case TITLE:
           case GENRE:
           case DATE:
