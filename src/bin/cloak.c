@@ -47,8 +47,8 @@ enum short_flag {
     VERSION     = 'V',
 
     LIST        = 'l',
-    DELETE      = 'd',
-    DELETE_ALL  = 'D',
+    REMOVE      = 'r',
+    REMOVE_ALL  = 'R',
     ADD         = -2,
     SET         = 's',
 
@@ -59,8 +59,9 @@ enum short_flag {
     DATE        = 'y',
     TRACK       = 'n',
     TRACK_TOTAL = 'N',
-    DISC        = -3,
-    DISC_TOTAL  = -4,
+    DISC        = 'd',
+    DISC_TOTAL  = 'D',
+
     AUTO        = -5,
 };
 
@@ -74,8 +75,8 @@ struct long_flag {
     {"version",     VERSION},
 
     {"list",        LIST},
-    {"delete",      DELETE},
-    {"delete-all",  DELETE_ALL},
+    {"remove",      REMOVE},
+    {"remove-all",  REMOVE_ALL},
     {"add",         ADD},
     {"set",         SET},
 
@@ -112,8 +113,8 @@ static void cloak_usage(const char* progname) {
             "\n"
             "  Basic:\n"
             "    -l, --list              list all tags\n"
-            "    -d, --delete NAME       delete all tags with name NAME\n"
-            "    -D, --delete-all        delete all tags\n"
+            "    -r, --remove NAME       remove all tags with name NAME\n"
+            "    -R, --remove-all        remove all tags\n"
             "        --add NAME=VALUE    add VALUE to the tag with name NAME\n"
             "    -s, --set NAME=VALUE    set the tag with name NAME to VALUE\n"
             "\n"
@@ -125,8 +126,8 @@ static void cloak_usage(const char* progname) {
             "    -y, --date DATE         set the release date\n"
             "    -n, --track NUM         set the track number\n"
             "    -N, --track-total NUM   set the track total\n"
-            "        --disc NUM          set the disc number\n"
-            "        --disc-total NUM    set the disc total\n"
+            "    -d, --disc NUM          set the disc number\n"
+            "    -D, --disc-total NUM    set the disc total\n"
             "\n"
             "  MusicBrainz:\n"
             "        --auto              fetch missing tags from MusicBrainz\n"
@@ -167,8 +168,8 @@ static void add_string(string_list_t* list, const char* string) {
 }
 
 struct ops {
-    bool            delete_all_tags;
-    string_list_t   delete_tags;
+    bool            remove_all_tags;
+    string_list_t   remove_tags;
 
     string_list_t   add_tag_names;
     string_list_t   add_tag_values;
@@ -203,7 +204,7 @@ static void cloak_main(int argc, char* const* argv) {
     __block struct ops ops = {
         .auto_mode          = false,
         .list_mode          = LIST_MODE_NONE,
-        .delete_all_tags    = false,
+        .remove_all_tags    = false,
     };
     __block string_list_t files = {};
 
@@ -230,14 +231,14 @@ static void cloak_main(int argc, char* const* argv) {
             no_actions = false;
             return true;
 
-          case DELETE:
+          case REMOVE:
             validate_name(progname, value());
-            add_string(&ops.delete_tags, value());
+            add_string(&ops.remove_tags, value());
             no_actions = false;
             return true;
 
-          case DELETE_ALL:
-            ops.delete_all_tags = true;
+          case REMOVE_ALL:
+            ops.remove_all_tags = true;
             no_actions = false;
             return true;
 
@@ -249,7 +250,7 @@ static void cloak_main(int argc, char* const* argv) {
                 split_assignment(progname, value(), &tag_name, &tag_value);
                 validate_name(progname, tag_name);
                 if (opt == SET) {
-                    add_string(&ops.delete_tags, tag_name);
+                    add_string(&ops.remove_tags, tag_name);
                 }
                 add_string(&ops.add_tag_names, tag_name);
                 add_string(&ops.add_tag_values, tag_value);
@@ -271,7 +272,7 @@ static void cloak_main(int argc, char* const* argv) {
             {
                 const char* tag_name = get_tag_name(opt);
                 char* tag_value = strdup(value());
-                add_string(&ops.delete_tags, tag_name);
+                add_string(&ops.remove_tags, tag_name);
                 add_string(&ops.add_tag_names, tag_name);
                 add_string(&ops.add_tag_values, tag_value);
                 free(tag_value);
@@ -406,8 +407,8 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
 }
 
 static int ops_mode(ops_t ops) {
-    if (ops->delete_all_tags
-            || ops->delete_tags.nstrings
+    if (ops->remove_all_tags
+            || ops->remove_tags.nstrings
             || ops->add_tag_names.nstrings
             || ops->auto_mode) {
         return RSVC_TAG_RDWR;
@@ -417,13 +418,13 @@ static int ops_mode(ops_t ops) {
 }
 
 static void apply_ops(rsvc_tags_t tags, ops_t ops, rsvc_done_t done) {
-    if (ops->delete_all_tags) {
+    if (ops->remove_all_tags) {
         if (!rsvc_tags_clear(tags, done)) {
             return;
         }
     } else {
-        for (size_t i = 0; i < ops->delete_tags.nstrings; ++i) {
-            if (!rsvc_tags_remove(tags, ops->delete_tags.strings[i], done)) {
+        for (size_t i = 0; i < ops->remove_tags.nstrings; ++i) {
+            if (!rsvc_tags_remove(tags, ops->remove_tags.strings[i], done)) {
                 return;
             }
         }
