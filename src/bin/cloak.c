@@ -42,13 +42,14 @@
 
 enum short_flag {
     HELP        = 'h',
+    DRY_RUN     = -1,
     VERBOSE     = 'v',
     VERSION     = 'V',
 
     LIST        = 'l',
     DELETE      = 'd',
     DELETE_ALL  = 'D',
-    ADD         = -1,
+    ADD         = -2,
     SET         = 's',
 
     ARTIST      = 'a',
@@ -58,9 +59,9 @@ enum short_flag {
     DATE        = 'y',
     TRACK       = 'n',
     TRACK_TOTAL = 'N',
-    DISC        = -2,
-    DISC_TOTAL  = -3,
-    AUTO        = -4,
+    DISC        = -3,
+    DISC_TOTAL  = -4,
+    AUTO        = -5,
 };
 
 struct long_flag {
@@ -68,6 +69,7 @@ struct long_flag {
     enum short_flag value;
 } kLongFlags[] = {
     {"help",        HELP},
+    {"dry-run",     DRY_RUN},
     {"verbose",     VERBOSE},
     {"version",     VERSION},
 
@@ -104,6 +106,7 @@ static void cloak_usage(const char* progname) {
             "\n"
             "Options:\n"
             "  -h, --help                display this help and exit\n"
+            "      --dry-run             validate inputs but don't save changes\n"
             "  -v, --verbose             more verbose logging\n"
             "  -V, --version             show version and exit\n"
             "\n"
@@ -171,6 +174,8 @@ struct ops {
     string_list_t   add_tag_values;
 
     bool            auto_mode;
+
+    bool            dry_run;
     list_mode_t     list_mode;
 };
 typedef struct ops* ops_t;
@@ -207,6 +212,10 @@ static void cloak_main(int argc, char* const* argv) {
           case HELP:
             cloak_usage(progname);
             exit(0);
+
+          case DRY_RUN:
+            ops.dry_run = true;
+            return true;
 
           case VERBOSE:
             ++rsvc_verbosity;
@@ -381,24 +390,17 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
                 done(error);
                 return;
             }
-            rsvc_tags_save(tags, ^(rsvc_error_t error){
-                if (error) {
-                    rsvc_tags_destroy(tags);
-                    done(error);
-                    return;
-                }
-                if (ops->list_mode == LIST_MODE_LONG) {
-                    printf("%s:\n", path);
-                }
-                if (ops->list_mode) {
-                    rsvc_tags_each(tags, ^(const char* name, const char* value,
-                                           rsvc_stop_t stop){
-                        printf("%s=%s\n", name, value);
-                    });
-                }
-                rsvc_tags_destroy(tags);
-                done(NULL);
-            });
+            if (ops->list_mode == LIST_MODE_LONG) {
+                printf("%s:\n", path);
+            }
+            if (ops->list_mode) {
+                rsvc_tags_each(tags, ^(const char* name, const char* value,
+                                       rsvc_stop_t stop){
+                    printf("%s=%s\n", name, value);
+                });
+            }
+            rsvc_tags_destroy(tags);
+            done(NULL);
         });
     });
 }
@@ -435,11 +437,25 @@ static void apply_ops(rsvc_tags_t tags, ops_t ops, rsvc_done_t done) {
         }
     }
 
-    if (ops->auto_mode) {
-        rsvc_apply_musicbrainz_tags(tags, done);
-    } else {
-        done(NULL);
+    if (!ops->dry_run) {
+        done = ^(rsvc_error_t error){
+            if (error) {
+                done(error);
+            } else {
+                rsvc_tags_save(tags, done);
+            }
+        };
     }
+    if (ops->auto_mode) {
+        done = ^(rsvc_error_t error){
+            if (error) {
+                done(error);
+            } else {
+                rsvc_apply_musicbrainz_tags(tags, done);
+            }
+        };
+    }
+    done(NULL);
 }
 
 static void validate_name(const char* progname, char* name) {
