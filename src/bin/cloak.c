@@ -18,8 +18,10 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
+#include <copyfile.h>
 #include <ctype.h>
 #include <dispatch/dispatch.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
 #include <stdarg.h>
@@ -39,6 +41,8 @@
 #include <rsvc/vorbis.h>
 
 #include "../rsvc/options.h"
+
+#define DEFAULT_FORMAT "./%b/%A/%d%n%t"
 
 enum short_flag {
     HELP            = 'h',
@@ -64,6 +68,9 @@ enum short_flag {
     DISC_TOTAL      = 'D',
 
     AUTO            = -5,
+
+    MOVE            = 'm',
+    FORMAT_PATH     = 'f',
 };
 
 struct long_flag {
@@ -93,6 +100,9 @@ struct long_flag {
     {"disc-total",      DISC_TOTAL},
 
     {"auto",            AUTO},
+
+    {"move",            MOVE},
+    {"format-path",     FORMAT_PATH},
 
     {NULL},
 };
@@ -134,8 +144,12 @@ static void cloak_usage(const char* progname) {
             "\n"
             "  MusicBrainz:\n"
             "        --auto              fetch missing tags from MusicBrainz\n"
-            "                            (requires that MUSICBRAINZ_DISCID be set)\n",
-            progname);
+            "                            (requires that MUSICBRAINZ_DISCID be set)\n"
+            "\n"
+            "  Organization:\n"
+            "    -m, --move              move file according to new tags\n"
+            "    -f, --format-path PATH  format string for --move (default %s)\n",
+            progname, DEFAULT_FORMAT);
 }
 
 static const char* get_tag_name(int opt) {
@@ -151,7 +165,7 @@ static const char* get_tag_name(int opt) {
       case DISC:            return RSVC_DISCNUMBER;
       case DISC_TOTAL:      return RSVC_DISCTOTAL;
     }
-    abort();
+    return NULL;
 }
 
 struct string_list {
@@ -182,13 +196,18 @@ struct ops {
 
     bool            dry_run;
     list_mode_t     list_mode;
+
+    bool            move_mode;
+    char*           move_format;
 };
 typedef struct ops* ops_t;
 
 static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done);
 static void tag_file(const char* path, ops_t ops, rsvc_done_t done);
 static int ops_mode(ops_t ops);
-static void apply_ops(rsvc_tags_t tags, ops_t ops, rsvc_done_t done);
+static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done);
+static void format_path(rsvc_tags_t tags, const char* path, ops_t ops,
+                        void (^done)(rsvc_error_t error, char* path));
 
 static void validate_name(const char* progname, char* name);
 static void split_assignment(const char* progname, const char* assignment,
@@ -288,6 +307,18 @@ static void cloak_main(int argc, char* const* argv) {
           case AUTO:
             ops.auto_mode = true;
             no_actions = false;
+            return true;
+
+          case MOVE:
+            ops.move_mode = true;
+            no_actions = false;
+            return true;
+
+          case FORMAT_PATH:
+            if (ops.move_format) {
+                free(ops.move_format);
+            }
+            ops.move_format = strdup(value());
             return true;
         }
         return false;
@@ -390,7 +421,7 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
             done(error);
             return;
         }
-        apply_ops(tags, ops, ^(rsvc_error_t error){
+        apply_ops(tags, path, ops, ^(rsvc_error_t error){
             if (error) {
                 rsvc_tags_destroy(tags);
                 done(error);
@@ -411,6 +442,246 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
     });
 }
 
+typedef struct format_node* format_node_t;
+typedef struct format_list* format_list_t;
+
+struct format_node {
+    int     type;
+    size_t  size;
+    char    data[0];
+};
+
+struct format_list {
+    format_node_t   head;
+    format_node_t   tail;
+};
+
+static bool parse_format(const char* format,
+                         rsvc_done_t fail,
+                         void (^block)(int type, const char* data, size_t size)) {
+    while (*format) {
+        size_t literal_size = strcspn(format, "%/");
+        if (literal_size) {
+            block(0, format, literal_size);
+        }
+        format += literal_size;
+
+        switch (*format) {
+          case '\0':
+            break;
+          case '/':
+            literal_size = strspn(format, "/");
+            block(0, format, literal_size);
+            format += literal_size;
+            break;
+          case '%':
+            ++format;
+            if (*format == '%') {
+                block(0, format, 1);
+                ++format;
+            } else if (get_tag_name(*format)) {
+                // Check that it's a valid option, then add it.
+                block(*format, NULL, 0);
+                ++format;
+            } else if ((' ' <= *format) && (*format < '\200')) {
+                rsvc_errorf(fail, __FILE__, __LINE__, "invalid format code %%%c", *format);
+                return false;
+            } else {
+                rsvc_errorf(fail, __FILE__, __LINE__, "invalid format code %%\\%o", *format);
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+// Append `src` to `*dst`, ensuring we do not overrun `*dst`.
+//
+// Advance `*dst` and `*dst_size` to point to the remainder of the
+// string.
+static void clipped_cat(char** dst, size_t* dst_size, const char* src, size_t src_size,
+                        size_t* size_needed) {
+    rsvc_logf(4, "src=%s, size=%zu", src, src_size);
+    if (size_needed) {
+        *size_needed += src_size;
+    }
+    if (*dst_size < src_size) {
+        src_size = *dst_size;
+    }
+    memcpy(*dst, src, src_size);
+    *dst += src_size;
+    *dst_size -= src_size;
+}
+
+static void escape_for_path(char* string) {
+    for (char* ch = string; *ch; ++ch) {
+        // Allow non-ASCII characters and whitelisted ASCII.
+        if (*ch >= '\177') {
+            continue;
+        } else if (strchr("ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                          "abcdefghijklmnopqrstuvwxyz"
+                          "0123456789"
+                          " !#$%&'()*+,-@[\\]^_{|}~", *ch)) {
+            continue;
+        }
+        *ch = '_';
+    }
+}
+
+static bool any_tags(rsvc_tags_t tags, const char* tag_name) {
+    return !rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+        if (strcmp(name, tag_name) == 0) {
+            stop();
+        }
+    });
+}
+
+static size_t max_precision(rsvc_tags_t tags, const char* tag_name, size_t minimum) {
+    __block size_t result = minimum;
+    rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+        if ((strcmp(name, tag_name) == 0) && (strlen(value) > result)) {
+            result = strlen(value);
+        }
+    });
+    return result;
+}
+
+// Return true if `str` matches "0|[1-9][0-9]*".
+static bool is_canonical_int(const char* str) {
+    if (strcmp(str, "0") == 0) {
+        return true;
+    } else if (('1' <= *str) && (*str <= '9')) {
+        for (++str; *str; ++str) {
+            if ((*str < '0') || ('9' < *str)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    return false;
+}
+
+enum snpath_state {
+    SNPATH_INITIAL = 0,
+    SNPATH_CONTENT,
+    SNPATH_NO_CONTENT,
+};
+
+struct snpath_context {
+    enum snpath_state   state;
+    int                 type;
+};
+
+static bool snpathf(char* data, size_t size, size_t* size_needed,
+                    const char* format, rsvc_tags_t tags, const char* path,
+                    rsvc_done_t fail) {
+    bool add_trailing_nul = size;
+    __block char* dst = data;
+    __block size_t dst_size = size;
+    if (add_trailing_nul) {
+        --dst_size;
+    }
+    if (size_needed) {
+        *size_needed = 0;
+    }
+
+    __block struct snpath_context ctx = { };
+    if (!parse_format(format, fail, ^(int type, const char* src, size_t src_size){
+        if (type == 0) {
+            if (!src_size) {
+                return;
+            } else if (*src == '/') {
+                if (ctx.state != SNPATH_NO_CONTENT) {
+                    clipped_cat(&dst, &dst_size, src, src_size, size_needed);
+                }
+                ctx.state = SNPATH_NO_CONTENT;
+            } else {
+                clipped_cat(&dst, &dst_size, src, src_size, size_needed);
+                ctx.state = SNPATH_CONTENT;
+            }
+            ctx.type = type;
+        } else {
+            const char* separator = ", ";
+            const char* prefix = "";
+            if ((type == TRACK) && (ctx.type == DISC)) {
+                prefix = "-";
+            } else if (ctx.type) {
+                prefix = " ";
+            }
+
+            size_t precision = 0;
+            if (type == TRACK) {
+                precision = max_precision(tags, RSVC_TRACKTOTAL, 2);
+            } else if (type == DISC) {
+                precision = max_precision(tags, RSVC_DISCTOTAL, 1);
+            } else if ((type == ALBUM_ARTIST) && !any_tags(tags, RSVC_ALBUMARTIST)) {
+                type = ARTIST;
+            }
+
+            __block size_t count = 0;
+            rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+                if (strcmp(name, get_tag_name(type)) == 0) {
+                    if (!*value) {
+                        return;
+                    }
+                    if (count++ == 0) {
+                        clipped_cat(&dst, &dst_size, prefix, strlen(prefix), size_needed);
+                    } else {
+                        clipped_cat(&dst, &dst_size, separator, strlen(separator), size_needed);
+                    }
+                    if (precision && is_canonical_int(value)) {
+                        for (size_t i = strlen(value); i < precision; ++i) {
+                            clipped_cat(&dst, &dst_size, "0", 1, size_needed);
+                        }
+                    }
+                    char* escaped = strdup(value);
+                    escape_for_path(escaped);
+                    clipped_cat(&dst, &dst_size, escaped, strlen(escaped), size_needed);
+                    free(escaped);
+                }
+            });
+            if (count) {
+                ctx.state = SNPATH_CONTENT;
+                ctx.type = type;
+            } else if (ctx.state == SNPATH_INITIAL) {
+                ctx.state = SNPATH_NO_CONTENT;
+            }
+        }
+    })) {
+        return false;
+    };
+
+    // TODO(sfiera): more robust extension-finding.
+    const char* extension = strrchr(path, '.');
+    if (extension && !strchr(extension, '/')) {
+        clipped_cat(&dst, &dst_size, extension, strlen(extension), size_needed);
+    }
+
+    if (add_trailing_nul) {
+        *dst = '\0';
+    }
+    return true;
+}
+
+static void format_path(rsvc_tags_t tags, const char* path, ops_t ops,
+                        void (^done)(rsvc_error_t error, char* path)) {
+    rsvc_done_t fail = ^(rsvc_error_t error){
+        done(error, NULL);
+    };
+
+    size_t size;
+    const char* format = ops->move_format ? ops->move_format : DEFAULT_FORMAT;
+    if (!snpathf(NULL, 0, &size, format, tags, path, fail)) {
+        return;
+    }
+    char* new_path = malloc(size + 1);
+    if (!snpathf(new_path, size + 1, NULL, format, tags, path, fail)) {
+        return;
+    }
+    done(NULL, new_path);
+    free(new_path);
+}
+
 static int ops_mode(ops_t ops) {
     if (ops->remove_all_tags
             || ops->remove_tags.nstrings
@@ -422,7 +693,93 @@ static int ops_mode(ops_t ops) {
     }
 }
 
-static void apply_ops(rsvc_tags_t tags, ops_t ops, rsvc_done_t done) {
+// Modifies `path` to be its dirname.
+//
+// `path` must be a non-NULL, non-empty string.
+static void to_dirname(char* path) {
+    if (path && *path) {
+        char* slash = strrchr(path, '/');
+        if (slash == NULL) {
+            strcpy(path, ".");
+        } else if (slash == path) {
+            strcpy(path, "/");
+        } else {
+            *slash = '\0';
+            if (slash[1] == '\0') {
+                to_dirname(path);
+            }
+        }
+    }
+}
+
+static bool makedirs(const char* path, mode_t mode, rsvc_done_t fail) {
+    char* parent = strdup(path);
+    to_dirname(parent);
+    if (strcmp(path, parent) != 0) {
+        if (!makedirs(parent, mode, fail)) {
+            free(parent);
+            return false;
+        }
+    }
+    free(parent);
+    rsvc_logf(2, "mkdir %s", path);
+    if ((mkdir(path, mode) < 0) && (errno != EEXIST) && (errno != EISDIR)) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
+        return false;
+    }
+    return true;
+}
+
+// Recursively deletes empty directories until an error is encountered.
+static void trimdirs(const char* path) {
+    rsvc_logf(2, "rmdir %s", path);
+    if (rmdir(path) >= 0) {
+        char* parent = strdup(path);
+        to_dirname(parent);
+        trimdirs(parent);
+        free(parent);
+    }
+}
+
+static bool rsvc_unlink(const char* path, rsvc_done_t fail) {
+    if (unlink(path) < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
+        return false;
+    }
+    return true;
+}
+
+static bool rsvc_copyfile(const char* src, const char* dst, rsvc_done_t fail) {
+    int src_fd, dst_fd;
+    if (!(rsvc_open(src, O_RDONLY, 0644, &src_fd, fail)
+                && rsvc_open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0600, &dst_fd, fail))) {
+        return false;
+    }
+    copyfile_state_t s = copyfile_state_alloc();
+    if (fcopyfile(src_fd, dst_fd, s, COPYFILE_ALL | COPYFILE_XATTR) < 0) {
+        copyfile_state_free(s);
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "copy %s to %s", src, dst);
+        return false;
+    }
+    copyfile_state_free(s);
+    return true;
+}
+
+static bool rsvc_rename(const char* src, const char* dst, rsvc_done_t fail) {
+    rsvc_logf(2, "rename %s %s", src, dst);
+    if (rename(src, dst) < 0) {
+        if (errno == EXDEV) {
+            return rsvc_copyfile(src, dst, fail)
+                && rsvc_unlink(src, fail);
+        } else {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, "rename %s to %s", src, dst);
+            return false;
+        }
+    }
+    return true;
+}
+
+static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done) {
     if (ops->remove_all_tags) {
         if (!rsvc_tags_clear(tags, done)) {
             return;
@@ -443,6 +800,32 @@ static void apply_ops(rsvc_tags_t tags, ops_t ops, rsvc_done_t done) {
         }
     }
 
+    if (ops->move_mode) {
+        done = ^(rsvc_error_t error){
+            if (error) {
+                done(error);
+            } else {
+                format_path(tags, path, ops, ^(rsvc_error_t error, char* new_path){
+                    if (ops->dry_run) {
+                        printf("%s renamed as %s\n", path, new_path);
+                        done(NULL);
+                    } else {
+                        char* parent = strdup(path);
+                        char* new_parent = strdup(new_path);
+                        to_dirname(parent);
+                        to_dirname(new_parent);
+                        if (makedirs(new_parent, 0755, done)
+                            && rsvc_rename(path, new_path, done)) {
+                            trimdirs(parent);
+                            done(NULL);
+                        }
+                        free(parent);
+                        free(new_parent);
+                    }
+                });
+            }
+        };
+    }
     if (!ops->dry_run) {
         done = ^(rsvc_error_t error){
             if (error) {
