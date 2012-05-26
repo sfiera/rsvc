@@ -516,7 +516,7 @@ static void clipped_cat(char** dst, size_t* dst_size, const char* src, size_t sr
 static void escape_for_path(char* string) {
     for (char* ch = string; *ch; ++ch) {
         // Allow non-ASCII characters and whitelisted ASCII.
-        if (*ch >= '\177') {
+        if (*ch & 0x80) {
             continue;
         } else if (strchr("ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                           "abcdefghijklmnopqrstuvwxyz"
