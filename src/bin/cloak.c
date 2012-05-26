@@ -41,6 +41,7 @@
 #include <rsvc/vorbis.h>
 
 #include "../rsvc/options.h"
+#include "../rsvc/posix.h"
 
 #define DEFAULT_FORMAT "./%b/%A/%d%k%t"
 
@@ -693,92 +694,6 @@ static int ops_mode(ops_t ops) {
     }
 }
 
-// Modifies `path` to be its dirname.
-//
-// `path` must be a non-NULL, non-empty string.
-static void to_dirname(char* path) {
-    if (path && *path) {
-        char* slash = strrchr(path, '/');
-        if (slash == NULL) {
-            strcpy(path, ".");
-        } else if (slash == path) {
-            strcpy(path, "/");
-        } else {
-            *slash = '\0';
-            if (slash[1] == '\0') {
-                to_dirname(path);
-            }
-        }
-    }
-}
-
-static bool makedirs(const char* path, mode_t mode, rsvc_done_t fail) {
-    char* parent = strdup(path);
-    to_dirname(parent);
-    if (strcmp(path, parent) != 0) {
-        if (!makedirs(parent, mode, fail)) {
-            free(parent);
-            return false;
-        }
-    }
-    free(parent);
-    rsvc_logf(2, "mkdir %s", path);
-    if ((mkdir(path, mode) < 0) && (errno != EEXIST) && (errno != EISDIR)) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-        return false;
-    }
-    return true;
-}
-
-// Recursively deletes empty directories until an error is encountered.
-static void trimdirs(const char* path) {
-    rsvc_logf(2, "rmdir %s", path);
-    if (rmdir(path) >= 0) {
-        char* parent = strdup(path);
-        to_dirname(parent);
-        trimdirs(parent);
-        free(parent);
-    }
-}
-
-static bool rsvc_unlink(const char* path, rsvc_done_t fail) {
-    if (unlink(path) < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-        return false;
-    }
-    return true;
-}
-
-static bool rsvc_copyfile(const char* src, const char* dst, rsvc_done_t fail) {
-    int src_fd, dst_fd;
-    if (!(rsvc_open(src, O_RDONLY, 0644, &src_fd, fail)
-                && rsvc_open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0600, &dst_fd, fail))) {
-        return false;
-    }
-    copyfile_state_t s = copyfile_state_alloc();
-    if (fcopyfile(src_fd, dst_fd, s, COPYFILE_ALL | COPYFILE_XATTR) < 0) {
-        copyfile_state_free(s);
-        rsvc_strerrorf(fail, __FILE__, __LINE__, "copy %s to %s", src, dst);
-        return false;
-    }
-    copyfile_state_free(s);
-    return true;
-}
-
-static bool rsvc_rename(const char* src, const char* dst, rsvc_done_t fail) {
-    rsvc_logf(2, "rename %s %s", src, dst);
-    if (rename(src, dst) < 0) {
-        if (errno == EXDEV) {
-            return rsvc_copyfile(src, dst, fail)
-                && rsvc_unlink(src, fail);
-        } else {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, "rename %s to %s", src, dst);
-            return false;
-        }
-    }
-    return true;
-}
-
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done) {
     if (ops->remove_all_tags) {
         if (!rsvc_tags_clear(tags, done)) {
@@ -814,17 +729,15 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
                         }
                         done(NULL);
                     } else {
-                        char* parent = strdup(path);
-                        char* new_parent = strdup(new_path);
-                        to_dirname(parent);
-                        to_dirname(new_parent);
-                        if (makedirs(new_parent, 0755, done)
-                            && rsvc_rename(path, new_path, done)) {
-                            trimdirs(parent);
-                            done(NULL);
-                        }
-                        free(parent);
-                        free(new_parent);
+                        rsvc_dirname(path, ^(const char* parent){
+                            rsvc_dirname(new_path, ^(const char* new_parent){
+                                if (rsvc_makedirs(new_parent, 0755, done)
+                                    && rsvc_mv(path, new_path, done)) {
+                                    rsvc_trimdirs(parent);
+                                    done(NULL);
+                                }
+                            });
+                        });
                     }
                 });
             }

@@ -32,6 +32,7 @@
 #include <vorbis/vorbisenc.h>
 #include <sys/param.h>
 
+#include "posix.h"
 #include "common.h"
 #include "list.h"
 

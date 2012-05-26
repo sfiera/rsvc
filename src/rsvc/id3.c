@@ -36,6 +36,7 @@
 #include "common.h"
 #include "encoding.h"
 #include "list.h"
+#include "posix.h"
 
 typedef struct id3_frame_type* id3_frame_type_t;
 typedef struct id3_frame_spec* id3_frame_spec_t;

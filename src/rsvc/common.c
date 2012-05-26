@@ -97,15 +97,6 @@ void rsvc_error_async(dispatch_queue_t queue, rsvc_error_t error, rsvc_done_t do
     }
 }
 
-bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail) {
-    *fd = open(path, oflag, mode);
-    if (*fd < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-        return false;
-    }
-    return true;
-}
-
 int rsvc_verbosity = 0;
 void rsvc_logf(int level, const char* format, ...) {
     static dispatch_queue_t log_queue;

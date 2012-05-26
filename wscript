@@ -59,6 +59,7 @@ def build(bld):
             "src/rsvc/mp4.c",
             "src/rsvc/musicbrainz.c",
             "src/rsvc/options.c",
+            "src/rsvc/posix.c",
             "src/rsvc/progress.c",
             "src/rsvc/tag.c",
             "src/rsvc/vorbis.c",

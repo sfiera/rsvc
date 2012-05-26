@@ -41,6 +41,7 @@
 #include <rsvc/vorbis.h>
 
 #include "../rsvc/options.h"
+#include "../rsvc/posix.h"
 #include "../rsvc/progress.h"
 
 typedef enum command {
