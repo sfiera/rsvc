@@ -42,18 +42,18 @@
 
 #include "../rsvc/options.h"
 
-#define DEFAULT_FORMAT "./%b/%A/%d%n%t"
+#define DEFAULT_FORMAT "./%b/%A/%d%k%t"
 
 enum short_flag {
     HELP            = 'h',
-    DRY_RUN         = -1,
+    DRY_RUN         = 'n',
     VERBOSE         = 'v',
     VERSION         = 'V',
 
     LIST            = 'l',
     REMOVE          = 'r',
     REMOVE_ALL      = 'R',
-    ADD             = -2,
+    ADD             = 'x',
     SET             = 's',
 
     ARTIST          = 'a',
@@ -62,12 +62,12 @@ enum short_flag {
     TITLE           = 't',
     GENRE           = 'g',
     DATE            = 'y',
-    TRACK           = 'n',
-    TRACK_TOTAL     = 'N',
+    TRACK           = 'k',
+    TRACK_TOTAL     = 'K',
     DISC            = 'd',
     DISC_TOTAL      = 'D',
 
-    AUTO            = -5,
+    AUTO            = -1,
 
     MOVE            = 'm',
     FORMAT_PATH     = 'f',
@@ -119,7 +119,7 @@ static void cloak_usage(const char* progname) {
             "\n"
             "Options:\n"
             "  -h, --help                display this help and exit\n"
-            "      --dry-run             validate inputs but don't save changes\n"
+            "  -n, --dry-run             validate inputs but don't save changes\n"
             "  -v, --verbose             more verbose logging\n"
             "  -V, --version             show version and exit\n"
             "\n"
@@ -127,7 +127,7 @@ static void cloak_usage(const char* progname) {
             "    -l, --list              list all tags\n"
             "    -r, --remove NAME       remove all tags with name NAME\n"
             "    -R, --remove-all        remove all tags\n"
-            "        --add NAME=VALUE    add VALUE to the tag with name NAME\n"
+            "    -x, --add NAME=VALUE    add VALUE to the tag with name NAME\n"
             "    -s, --set NAME=VALUE    set the tag with name NAME to VALUE\n"
             "\n"
             "  Shorthand:\n"
@@ -137,8 +137,8 @@ static void cloak_usage(const char* progname) {
             "    -t, --title TITLE       set the track title\n"
             "    -g, --genre GENRE       set the genre\n"
             "    -y, --date DATE         set the release date\n"
-            "    -n, --track NUM         set the track number\n"
-            "    -N, --track-total NUM   set the track total\n"
+            "    -k, --track NUM         set the track number\n"
+            "    -K, --track-total NUM   set the track total\n"
             "    -d, --disc NUM          set the disc number\n"
             "    -D, --disc-total NUM    set the disc total\n"
             "\n"
@@ -483,7 +483,7 @@ static bool parse_format(const char* format,
                 // Check that it's a valid option, then add it.
                 block(*format, NULL, 0);
                 ++format;
-            } else if ((' ' <= *format) && (*format < '\200')) {
+            } else if ((' ' <= *format) && (*format < 0x80)) {
                 rsvc_errorf(fail, __FILE__, __LINE__, "invalid format code %%%c", *format);
                 return false;
             } else {
@@ -806,7 +806,9 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
                 done(error);
             } else {
                 format_path(tags, path, ops, ^(rsvc_error_t error, char* new_path){
-                    if (ops->dry_run) {
+                    if (error) {
+                        done(error);
+                    } else if (ops->dry_run) {
                         printf("%s renamed as %s\n", path, new_path);
                         done(NULL);
                     } else {
