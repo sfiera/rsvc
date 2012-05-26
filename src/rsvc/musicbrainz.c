@@ -53,7 +53,7 @@ static bool set_mb_tag(rsvc_tags_t tags, const char* tag_name,
     return rsvc_tags_add(tags, fail, tag_name, tag_value);
 }
 
-static void mb4_query_cached(const char* discid, void (^done)(rsvc_error_t, Mb4Metadata)) {
+static void mb5_query_cached(const char* discid, void (^done)(rsvc_error_t, Mb5Metadata)) {
     // MusicBrainz requires that requests be throttled to 1 per second.
     // In order to do so, we serialize all of our requests through a
     // single dispatch queue.
@@ -69,7 +69,7 @@ static void mb4_query_cached(const char* discid, void (^done)(rsvc_error_t, Mb4M
 
     struct cache_entry {
         char*               discid;
-        Mb4Metadata         meta;
+        Mb5Metadata         meta;
         struct cache_entry* next;
     };
     static struct cache_entry* cache = NULL;
@@ -96,10 +96,10 @@ static void mb4_query_cached(const char* discid, void (^done)(rsvc_error_t, Mb4M
             // a second, we'll be free to start another.
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
                 rsvc_logf(2, "sending mb request for %s", discid);
-                Mb4Query q = mb4_query_new("ripservice " RSVC_VERSION, NULL, 0);
+                Mb5Query q = mb5_query_new("ripservice " RSVC_VERSION, NULL, 0);
                 char* param_names[] = {"inc"};
                 char* param_values[] = {"artists+recordings"};
-                Mb4Metadata meta = mb4_query_query(q, "discid", discid, NULL,
+                Mb5Metadata meta = mb5_query_query(q, "discid", discid, NULL,
                                                    1, param_names, param_values);
                 rsvc_logf(1, "received mb response for %s", discid);
                 done(NULL, meta);
@@ -111,7 +111,7 @@ static void mb4_query_cached(const char* discid, void (^done)(rsvc_error_t, Mb4M
                     };
                     cache = memdup(&new_cache, sizeof new_cache);
                 });
-                mb4_query_delete(q);
+                mb5_query_delete(q);
             });
 
             // usleep() returns early if there is a signal.  Make sure that
@@ -155,28 +155,28 @@ void rsvc_apply_musicbrainz_tags(rsvc_tags_t tags, rsvc_done_t done) {
         return;
     }
 
-    mb4_query_cached(discid, ^(rsvc_error_t error, Mb4Metadata meta) {
+    mb5_query_cached(discid, ^(rsvc_error_t error, Mb5Metadata meta) {
         if (error) {
             done(error);
             goto cleanup;
         }
 
-        Mb4Disc disc = mb4_metadata_get_disc(meta);
-        Mb4ReleaseList rel_list = mb4_disc_get_releaselist(disc);
-        for (int i = 0; i < mb4_release_list_size(rel_list); ++i) {
-            Mb4Release release = mb4_release_list_item(rel_list, i);
-            Mb4MediumList med_list = mb4_release_get_mediumlist(release);
-            for (int j = 0; j < mb4_medium_list_size(med_list); ++j) {
-                Mb4Medium medium = mb4_medium_list_item(med_list, j);
-                if (!mb4_medium_contains_discid(medium, discid)) {
+        Mb5Disc disc = mb5_metadata_get_disc(meta);
+        Mb5ReleaseList rel_list = mb5_disc_get_releaselist(disc);
+        for (int i = 0; i < mb5_release_list_size(rel_list); ++i) {
+            Mb5Release release = mb5_release_list_item(rel_list, i);
+            Mb5MediumList med_list = mb5_release_get_mediumlist(release);
+            for (int j = 0; j < mb5_medium_list_size(med_list); ++j) {
+                Mb5Medium medium = mb5_medium_list_item(med_list, j);
+                if (!mb5_medium_contains_discid(medium, discid)) {
                     continue;
                 }
 
-                Mb4Track track = NULL;
-                Mb4TrackList trk_list = mb4_medium_get_tracklist(medium);
-                for (int k = 0; k < mb4_track_list_size(trk_list); ++k) {
-                    Mb4Track tk = mb4_track_list_item(trk_list, k);
-                    if (mb4_track_get_position(tk) == tracknumber) {
+                Mb5Track track = NULL;
+                Mb5TrackList trk_list = mb5_medium_get_tracklist(medium);
+                for (int k = 0; k < mb5_track_list_size(trk_list); ++k) {
+                    Mb5Track tk = mb5_track_list_item(trk_list, k);
+                    if (mb5_track_get_position(tk) == tracknumber) {
                         track = tk;
                         break;
                     }
@@ -184,21 +184,21 @@ void rsvc_apply_musicbrainz_tags(rsvc_tags_t tags, rsvc_done_t done) {
                 if (track == NULL) {
                     continue;
                 }
-                Mb4Recording recording = mb4_track_get_recording(track);
+                Mb5Recording recording = mb5_track_get_recording(track);
 
-                Mb4ArtistCredit artist_credit = mb4_release_get_artistcredit(release);
-                Mb4NameCreditList crd_list = mb4_artistcredit_get_namecreditlist(
+                Mb5ArtistCredit artist_credit = mb5_release_get_artistcredit(release);
+                Mb5NameCreditList crd_list = mb5_artistcredit_get_namecreditlist(
                         artist_credit);
-                Mb4Artist artist = NULL;
-                if (mb4_namecredit_list_size(crd_list) > 0) {
-                    Mb4NameCredit credit = mb4_namecredit_list_item(crd_list, 0);
-                    artist = mb4_namecredit_get_artist(credit);
+                Mb5Artist artist = NULL;
+                if (mb5_namecredit_list_size(crd_list) > 0) {
+                    Mb5NameCredit credit = mb5_namecredit_list_item(crd_list, 0);
+                    artist = mb5_namecredit_get_artist(credit);
                 }
 
-                if (set_mb_tag(tags, RSVC_TITLE, mb4_recording_get_title, recording, done)
-                        && set_mb_tag(tags, RSVC_ARTIST, mb4_artist_get_name, artist, done)
-                        && set_mb_tag(tags, RSVC_ALBUM, mb4_release_get_title, release, done)
-                        && set_mb_tag(tags, RSVC_DATE, mb4_release_get_date, release, done)) {
+                if (set_mb_tag(tags, RSVC_TITLE, mb5_recording_get_title, recording, done)
+                        && set_mb_tag(tags, RSVC_ARTIST, mb5_artist_get_name, artist, done)
+                        && set_mb_tag(tags, RSVC_ALBUM, mb5_release_get_title, release, done)
+                        && set_mb_tag(tags, RSVC_DATE, mb5_release_get_date, release, done)) {
                     done(NULL);
                 }
                 goto cleanup;

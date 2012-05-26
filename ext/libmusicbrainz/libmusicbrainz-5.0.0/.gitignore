@@ -1,0 +1,9 @@
+CMakeCache.txt
+CMakeFiles/
+Doxyfile
+Makefile
+cmake_install.cmake
+config.h
+libmusicbrainz5.pc
+docs/
+install_manifest.txt
