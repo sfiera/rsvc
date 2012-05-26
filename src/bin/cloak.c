@@ -809,7 +809,9 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
                     if (error) {
                         done(error);
                     } else if (ops->dry_run) {
-                        printf("%s renamed as %s\n", path, new_path);
+                        if (strcmp(path, new_path) != 0) {
+                            printf("%s renamed as %s\n", path, new_path);
+                        }
                         done(NULL);
                     } else {
                         char* parent = strdup(path);
