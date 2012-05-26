@@ -521,7 +521,7 @@ static void escape_for_path(char* string) {
         } else if (strchr("ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                           "abcdefghijklmnopqrstuvwxyz"
                           "0123456789"
-                          " !#$%&'()*+,-@[\\]^_{|}~", *ch)) {
+                          " #%&'()*+,-@[]^_{|}~", *ch)) {
             continue;
         }
         *ch = '_';
