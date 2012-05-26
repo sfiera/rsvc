@@ -295,7 +295,7 @@ static struct rsvc_tags_methods id3_vptr = {
 };
 
 void rsvc_id3_format_register() {
-    rsvc_tag_format_register("id3", 4, "ID3\004", rsvc_id3_open_tags);
+    rsvc_tag_format_register("id3", 3, "ID3", rsvc_id3_open_tags);
 }
 
 ////////////////////////////////////////////////////////////////////////
