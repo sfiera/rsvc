@@ -54,7 +54,6 @@ def build(bld):
             "src/rsvc/common.c",
             "src/rsvc/encoding.c",
             "src/rsvc/flac.c",
-            "src/rsvc/format.c",
             "src/rsvc/id3.c",
             "src/rsvc/mp4.c",
             "src/rsvc/musicbrainz.c",

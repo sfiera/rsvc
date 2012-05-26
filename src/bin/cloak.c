@@ -34,7 +34,6 @@
 
 #include <rsvc/tag.h>
 #include <rsvc/flac.h>
-#include <rsvc/format.h>
 #include <rsvc/id3.h>
 #include <rsvc/mp4.h>
 #include <rsvc/musicbrainz.h>
@@ -412,8 +411,8 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
         }
     };
 
-    rsvc_container_format_t format;
-    if (!rsvc_container_format_detect(fd, &format, done)) {
+    rsvc_tag_format_t format;
+    if (!rsvc_tag_format_detect(fd, &format, done)) {
         return;
     }
 
