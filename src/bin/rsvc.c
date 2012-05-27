@@ -629,20 +629,25 @@ static void format_path(char* path, rip_format_t format, size_t track_number) {
 static void encode(rip_format_t format, int read_fd, int write_fd,
                    size_t samples_per_channel, int bitrate,
                    rsvc_encode_progress_t progress, rsvc_done_t done) {
+    struct rsvc_encode_options options = {
+        .bitrate                = bitrate,
+        .samples_per_channel    = samples_per_channel,
+        .progress               = progress,
+    };
     switch (format) {
       case FORMAT_NONE:
         abort();
       case FORMAT_FLAC:
-        rsvc_flac_encode(read_fd, write_fd, samples_per_channel, progress, done);
+        rsvc_flac_encode(read_fd, write_fd, &options, done);
         return;
       case FORMAT_AAC:
-        rsvc_aac_encode(read_fd, write_fd, samples_per_channel, bitrate, progress, done);
+        rsvc_aac_encode(read_fd, write_fd, &options, done);
         return;
       case FORMAT_ALAC:
-        rsvc_alac_encode(read_fd, write_fd, samples_per_channel, progress, done);
+        rsvc_alac_encode(read_fd, write_fd, &options, done);
         return;
       case FORMAT_VORBIS:
-        rsvc_vorbis_encode(read_fd, write_fd, samples_per_channel, bitrate, progress, done);
+        rsvc_vorbis_encode(read_fd, write_fd, &options, done);
         return;
     }
 }

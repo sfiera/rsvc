@@ -33,4 +33,33 @@
 /// ..  type:: void (^rsvc_encode_progress_t)(double progress)
 typedef void (^rsvc_encode_progress_t)(double progress);
 
+typedef struct rsvc_encode_options* rsvc_encode_options_t;
+struct rsvc_encode_options {
+    int32_t                 bitrate;
+    size_t                  samples_per_channel;
+    rsvc_encode_progress_t  progress;
+};
+
+typedef void (*rsvc_encode_f)(
+        int src_fd,
+        int dst_fd,
+        rsvc_encode_options_t options,
+        rsvc_done_t done);
+
+/// Encode Formats
+/// --------------
+
+typedef struct rsvc_encode_format* rsvc_encode_format_t;
+struct rsvc_encode_format {
+    const char*     name;
+    rsvc_encode_f   encode;
+};
+
+void rsvc_encode_format_register(
+        const char* name,
+        rsvc_encode_f encode);
+
+rsvc_encode_format_t rsvc_encode_format_named(
+        const char* name);
+
 #endif  // RSVC_ENCODE_H_

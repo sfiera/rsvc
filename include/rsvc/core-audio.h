@@ -25,13 +25,15 @@
 #include <stdlib.h>
 #include <rsvc/encode.h>
 
-void                    rsvc_aac_encode(int read_fd, int write_fd,
-                                        size_t samples_per_channel, int bitrate,
-                                        rsvc_encode_progress_t progress,
-                                        rsvc_done_t done);
-void                    rsvc_alac_encode(int read_fd, int write_fd,
-                                         size_t samples_per_channel,
-                                         rsvc_encode_progress_t progress,
-                                         rsvc_done_t done);
+void rsvc_aac_encode(
+        int src_fd,
+        int dst_fd,
+        rsvc_encode_options_t options,
+        rsvc_done_t done);
+void rsvc_alac_encode(
+        int src_fd,
+        int dst_fd,
+        rsvc_encode_options_t options,
+        rsvc_done_t done);
 
 #endif  // RSVC_CORE_AUDIO_H_

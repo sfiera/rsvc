@@ -30,10 +30,12 @@
 /// ====
 /// Encoder for :abbr:`FLAC (Free Lossless Audio Codec)`.
 ///
-/// ..  function:: void rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel, rsvc_encode_progress_t progress, rsvc_done_t done)
-void                    rsvc_flac_encode(int read_fd, int write_fd, size_t samples_per_channel,
-                                         rsvc_encode_progress_t progress,
-                                         rsvc_done_t done);
+/// ..  function:: void rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done)
+void rsvc_flac_encode(
+        int src_fd,
+        int dst_fd,
+        rsvc_encode_options_t options,
+        rsvc_done_t done);
 
 /// ..  function:: void rsvc_flac_open_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t));
 void                    rsvc_flac_open_tags(const char* path, int flags,

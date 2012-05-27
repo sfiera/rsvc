@@ -35,9 +35,14 @@
 #include "common.h"
 #include "list.h"
 
-void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
-                        int bitrate,
-                        rsvc_encode_progress_t progress, rsvc_done_t done) {
+void rsvc_vorbis_encode(
+        int src_fd,
+        int dst_fd,
+        rsvc_encode_options_t options,
+        rsvc_done_t done) {
+    int32_t bitrate                     = options->bitrate;
+    size_t samples_per_channel          = options->samples_per_channel;
+    rsvc_encode_progress_t progress     = options->progress;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // Largely cribbed from libvorbis's examples/encoder_example.c.
         // Some comments there imply that it is doing things a certain
@@ -91,8 +96,8 @@ void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
                 if (result == 0) {
                     break;
                 }
-                write(write_fd, og.header, og.header_len);
-                write(write_fd, og.body, og.body_len);
+                write(dst_fd, og.header, og.header_len);
+                write(dst_fd, og.body, og.body_len);
             }
         }
 
@@ -100,7 +105,7 @@ void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
         size_t start = 0;
         uint8_t in[1024];
         while (!eos) {
-            ssize_t size = read(read_fd, in, sizeof(in));
+            ssize_t size = read(src_fd, in, sizeof(in));
             if (size < 0) {
                 rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
                 return;
@@ -137,8 +142,8 @@ void rsvc_vorbis_encode(int read_fd, int write_fd, size_t samples_per_channel,
                         if (result == 0) {
                             break;
                         }
-                        write(write_fd, og.header, og.header_len);
-                        write(write_fd, og.body, og.body_len);
+                        write(dst_fd, og.header, og.header_len);
+                        write(dst_fd, og.body, og.body_len);
                         if (ogg_page_eos(&og)) {
                             eos = true;
                         }

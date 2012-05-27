@@ -87,9 +87,11 @@ static four_char_t fourcc(uint32_t value) {
 }
 
 static void core_audio_encode(
-        int read_fd, int write_fd, size_t samples_per_channel,
-        int container_id, int codec_id, int bitrate,
-        rsvc_encode_progress_t progress, rsvc_done_t done) {
+        int src_fd, int dst_fd, rsvc_encode_options_t options,
+        int container_id, int codec_id, rsvc_done_t done) {
+    int32_t bitrate                     = options->bitrate;
+    size_t samples_per_channel          = options->samples_per_channel;
+    rsvc_encode_progress_t progress     = options->progress;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         OSStatus err;
         AudioStreamBasicDescription asbd_out = {
@@ -101,7 +103,7 @@ static void core_audio_encode(
             asbd_out.mFormatFlags       = kAppleLosslessFormatFlag_16BitSourceData;
         }
 
-        int fd = write_fd;
+        int fd = dst_fd;
         AudioFileID file_id = NULL;
         err = AudioFileInitializeWithCallbacks(
             &fd, core_audio_read, core_audio_write, core_audio_get_size, core_audio_set_size,
@@ -193,7 +195,7 @@ static void core_audio_encode(
         static const int kSamples = 4096;
         uint8_t buffer[kSamples];
         while (true) {
-            ssize_t result = read(read_fd, buffer + start, sizeof(buffer) - start);
+            ssize_t result = read(src_fd, buffer + start, sizeof(buffer) - start);
             if (result < 0) {
                 cleanup();
                 rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
@@ -234,21 +236,10 @@ static void core_audio_encode(
     });
 }
 
-void rsvc_aac_encode(
-        int read_fd, int write_fd, size_t samples_per_channel,
-        int bitrate,
-        rsvc_encode_progress_t progress, rsvc_done_t done) {
-    core_audio_encode(
-            read_fd, write_fd, samples_per_channel,
-            kAudioFileM4AType, kAudioFormatMPEG4AAC, bitrate,
-            progress, done);
+void rsvc_aac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done) {
+    core_audio_encode(src_fd, dst_fd, options, kAudioFileM4AType, kAudioFormatMPEG4AAC, done);
 }
 
-void rsvc_alac_encode(
-        int read_fd, int write_fd, size_t samples_per_channel,
-        rsvc_encode_progress_t progress, rsvc_done_t done) {
-    core_audio_encode(
-            read_fd, write_fd, samples_per_channel,
-            kAudioFileM4AType, kAudioFormatAppleLossless, -1,
-            progress, done);
+void rsvc_alac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done) {
+    core_audio_encode(src_fd, dst_fd, options, kAudioFileM4AType, kAudioFormatAppleLossless, done);
 }
