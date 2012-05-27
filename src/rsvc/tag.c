@@ -114,7 +114,7 @@ struct rsvc_tag_format_node {
     rsvc_tag_format_node_t prev, next;
 };
 
-struct {
+static struct {
     rsvc_tag_format_node_t head, tail;
 } formats;
 

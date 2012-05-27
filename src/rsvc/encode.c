@@ -36,26 +36,40 @@ struct rsvc_encode_format_node {
     rsvc_encode_format_node_t prev, next;
 };
 
-struct {
+static struct {
     rsvc_encode_format_node_t head, tail;
 } formats;
 
-void rsvc_encode_format_register(const char* name, rsvc_encode_f encode) {
+void rsvc_encode_format_register(const char* name, const char* extension, bool lossless,
+                                 rsvc_encode_f encode) {
     struct rsvc_encode_format_node node = {
         .format = {
-            .name = strdup(name),
-            .encode = encode,
+            .name       = strdup(name),
+            .extension  = strdup(extension),
+            .lossless   = lossless,
+            .encode     = encode,
         },
     };
     RSVC_LIST_PUSH(&formats, memdup(&node, sizeof(node)));
 }
 
 rsvc_encode_format_t rsvc_encode_format_named(const char* name) {
-    for (rsvc_encode_format_node_t curr = formats.head; curr; curr = curr->next) {
-        rsvc_encode_format_t format = &curr->format;
+    __block rsvc_encode_format_t result = NULL;
+    rsvc_encode_formats_each(^(rsvc_encode_format_t format, rsvc_stop_t stop){
         if (strcmp(format->name, name) == 0) {
-            return format;
+            result = format;
+            stop();
         }
+    });
+    return result;
+}
+
+bool rsvc_encode_formats_each(void (^block)(rsvc_encode_format_t format, rsvc_stop_t stop)) {
+    __block bool loop = true;
+    for (rsvc_encode_format_node_t curr = formats.head; curr && loop; curr = curr->next) {
+        block(&curr->format, ^{
+            loop = false;
+        });
     }
-    return NULL;
+    return loop;
 }

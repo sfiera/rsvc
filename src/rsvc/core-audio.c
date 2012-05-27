@@ -243,3 +243,8 @@ void rsvc_aac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc
 void rsvc_alac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done) {
     core_audio_encode(src_fd, dst_fd, options, kAudioFileM4AType, kAudioFormatAppleLossless, done);
 }
+
+void rsvc_core_audio_format_register() {
+    rsvc_encode_format_register("aac", "m4a", false, rsvc_aac_encode);
+    rsvc_encode_format_register("alac", "m4a", true, rsvc_alac_encode);
+}

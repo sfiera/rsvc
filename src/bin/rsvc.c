@@ -81,19 +81,12 @@ static void rsvc_command_watch(watch_options_t options,
                                void (^usage)(const char* message, ...),
                                rsvc_done_t done);
 
-typedef enum rip_format {
-    FORMAT_NONE = 0,
-    FORMAT_FLAC,
-    FORMAT_AAC,
-    FORMAT_ALAC,
-    FORMAT_VORBIS,
-} rip_format_t;
 struct rip_options {
-    char* disk;
+    char*                   disk;
 
-    rip_format_t format;
-    bool has_bitrate;
-    int64_t bitrate;
+    rsvc_encode_format_t    format;
+    bool                    has_bitrate;
+    int64_t                 bitrate;
 };
 typedef struct rip_options* rip_options_t;
 static void rsvc_command_rip(rip_options_t options,
@@ -101,14 +94,9 @@ static void rsvc_command_rip(rip_options_t options,
                              rsvc_done_t done);
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
-static void format_path(char* path, rip_format_t format, size_t track_number);
-static void encode(rip_format_t format, int read_fd, int write_fd,
-                   size_t samples_per_channel, int bitrate,
-                   rsvc_encode_progress_t progress, rsvc_done_t done);
-static void set_tags(rip_format_t format, char* path,
+static void set_tags(int fd, char* path,
                      rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
                      rsvc_done_t done);
-static bool read_format(const char* in, rip_format_t* out);
 static bool read_si_number(const char* in, int64_t* out);
 
 static void rsvc_usage(const char* progname, command_t command) {
@@ -141,22 +129,31 @@ static void rsvc_usage(const char* progname, command_t command) {
         break;
 
       case COMMAND_RIP:
-        fprintf(stderr,
-                "usage: %s rip -f FORMAT [OPTIONS] DEVICE\n"
-                "\n"
-                "Options:\n"
-                "  -f, --format FORMAT   choose format\n"
-                "  -b, --bitrate KBPS    set bitrate for lossy codecs\n"
-                "\n"
-                "Formats:\n"
-                "  flac, vorbis\n",
-                progname);
+        {
+            fprintf(stderr,
+                    "usage: %s rip -f FORMAT [OPTIONS] DEVICE\n"
+                    "\n"
+                    "Options:\n"
+                    "  -f, --format FORMAT   choose format\n"
+                    "  -b, --bitrate KBPS    set bitrate for lossy codecs\n"
+                    "\n"
+                    "Formats:\n",
+                    progname);
+            rsvc_encode_formats_each(^(rsvc_encode_format_t format, rsvc_stop_t stop){
+                fprintf(stderr, "  %s\n", format->name);
+            });
+        }
         break;
     }
     exit(EX_USAGE);
 }
 
 static void rsvc_main(int argc, char* const* argv) {
+    rsvc_core_audio_format_register();
+    rsvc_flac_format_register();
+    rsvc_mp4_format_register();
+    rsvc_vorbis_format_register();
+
     char* const progname = strdup(basename(argv[0]));
 
     __block rsvc_option_callbacks_t callbacks;
@@ -182,7 +179,8 @@ static void rsvc_main(int argc, char* const* argv) {
                 rip_options.has_bitrate = true;
                 return true;
               case 'f':
-                if (!read_format(value(), &rip_options.format)) {
+                rip_options.format = rsvc_encode_format_named(value());
+                if (!rip_options.format) {
                     callbacks.usage("invalid format: %s", value());
                 }
                 return true;
@@ -406,29 +404,10 @@ static void rsvc_command_rip(rip_options_t options,
         usage(NULL);
     } else if (!options->format) {
         usage("must choose format");
-    }
-    switch (options->format) {
-      case FORMAT_NONE:
-        abort();
-      case FORMAT_FLAC:
-      case FORMAT_ALAC:
-        if (options->has_bitrate) {
-            usage("bitrate provided for lossless format");
-        }
-        break;
-      case FORMAT_AAC:
-        if (!options->has_bitrate) {
-            usage("must choose bitrate");
-        }
-      case FORMAT_VORBIS:
-        if (!options->has_bitrate) {
-            usage("must choose bitrate");
-        } else if (options->bitrate < 48000) {
-            usage("bitrate too low: %lld", options->bitrate);
-        } else if (options->bitrate > 480000) {
-            usage("bitrate too high: %lld", options->bitrate);
-        }
-        break;
+    } else if (options->has_bitrate && options->format->lossless) {
+        usage("bitrate provided for lossless format %s", options->format->name);
+    } else if (!options->has_bitrate && !options->format->lossless) {
+        usage("bitrate not provided for lossy format %s", options->format->name);
     }
     rsvc_cd_create(options->disk, ^(rsvc_cd_t cd, rsvc_error_t error){
         if (error) {
@@ -558,7 +537,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
 
         int file;
         char* path = malloc(256);
-        format_path(path, options->format, track_number);
+        sprintf(path, "%02ld.%s", track_number, options->format->extension);
         if (!rsvc_open(path, O_RDWR | O_CREAT | O_TRUNC, 0644, &file, decrement_pending)) {
             decrement_pending(NULL);
             return;
@@ -588,15 +567,20 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
         };
 
         increment_pending();
-        encode(options->format, read_pipe, file, nsamples, options->bitrate, progress,
-               ^(rsvc_error_t error){
+        struct rsvc_encode_options encode_options = {
+            .bitrate                = options->bitrate,
+            .samples_per_channel    = nsamples,
+            .progress               = progress,
+        };
+        options->format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
             close(read_pipe);
             if (error) {
                 decrement_pending(error);
                 free(path);
                 return;
             }
-            set_tags(options->format, path, cd, session, track, ^(rsvc_error_t error){
+            set_tags(file, path, cd, session, track, ^(rsvc_error_t error){
+                close(file);
                 free(path);
                 rsvc_progress_done(node);
                 decrement_pending(error);
@@ -607,79 +591,20 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
     rip_track(0);
 }
 
-static void format_path(char* path, rip_format_t format, size_t track_number) {
-    switch (format) {
-      case FORMAT_NONE:
-        abort();
-      case FORMAT_FLAC:
-        sprintf(path, "%02ld.flac", track_number);
-        break;
-      case FORMAT_AAC:
-        sprintf(path, "%02ld.m4a", track_number);
-        break;
-      case FORMAT_ALAC:
-        sprintf(path, "%02ld.m4a", track_number);
-        break;
-      case FORMAT_VORBIS:
-        sprintf(path, "%02ld.ogv", track_number);
-        break;
-    }
-}
-
-static void encode(rip_format_t format, int read_fd, int write_fd,
-                   size_t samples_per_channel, int bitrate,
-                   rsvc_encode_progress_t progress, rsvc_done_t done) {
-    struct rsvc_encode_options options = {
-        .bitrate                = bitrate,
-        .samples_per_channel    = samples_per_channel,
-        .progress               = progress,
-    };
-    switch (format) {
-      case FORMAT_NONE:
-        abort();
-      case FORMAT_FLAC:
-        rsvc_flac_encode(read_fd, write_fd, &options, done);
-        return;
-      case FORMAT_AAC:
-        rsvc_aac_encode(read_fd, write_fd, &options, done);
-        return;
-      case FORMAT_ALAC:
-        rsvc_alac_encode(read_fd, write_fd, &options, done);
-        return;
-      case FORMAT_VORBIS:
-        rsvc_vorbis_encode(read_fd, write_fd, &options, done);
-        return;
-    }
-}
-
-static void rsvc_open_tags(rip_format_t format, char* path,
-                           void (^done)(rsvc_tags_t, rsvc_error_t)) {
-    switch (format) {
-      case FORMAT_NONE:
-        abort();
-      case FORMAT_FLAC:
-        rsvc_flac_open_tags(path, RSVC_TAG_RDWR, done);
-        break;
-      case FORMAT_AAC:
-      case FORMAT_ALAC:
-        rsvc_mp4_open_tags(path, RSVC_TAG_RDWR, done);
-        break;
-      case FORMAT_VORBIS:
-        rsvc_vorbis_open_tags(path, RSVC_TAG_RDWR, done);
-        break;
-    }
-}
-
-static void set_tags(rip_format_t format, char* path,
+static void set_tags(int fd, char* path,
                      rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
                      rsvc_done_t done) {
-    const char* discid = rsvc_cd_session_discid(session);
-    size_t track_number = rsvc_cd_track_number(track);
-    const size_t ntracks = rsvc_cd_session_ntracks(session);
-    const char* mcn = rsvc_cd_mcn(cd);
-    const char* isrc = rsvc_cd_track_isrc(track);
+    const char* discid      = rsvc_cd_session_discid(session);
+    size_t track_number     = rsvc_cd_track_number(track);
+    const size_t ntracks    = rsvc_cd_session_ntracks(session);
+    const char* mcn         = rsvc_cd_mcn(cd);
+    const char* isrc        = rsvc_cd_track_isrc(track);
 
-    rsvc_open_tags(format, path, ^(rsvc_tags_t tags, rsvc_error_t error){
+    rsvc_tag_format_t format;
+    if (!rsvc_tag_format_detect(fd, &format, done)) {
+        return;
+    }
+    format->open_tags(path, RSVC_TAG_RDWR, ^(rsvc_tags_t tags, rsvc_error_t error){
         if (error) {
             done(error);
             return;
@@ -698,23 +623,6 @@ static void set_tags(rip_format_t format, char* path,
             done(error);
         });
     });
-}
-
-static bool read_format(const char* in, rip_format_t* out) {
-    if (strcmp(in, "flac") == 0) {
-        *out = FORMAT_FLAC;
-        return true;
-    } else if (strcmp(in, "aac") == 0) {
-        *out = FORMAT_AAC;
-        return true;
-    } else if (strcmp(in, "alac") == 0) {
-        *out = FORMAT_ALAC;
-        return true;
-    } else if (strcmp(in, "vorbis") == 0) {
-        *out = FORMAT_VORBIS;
-        return true;
-    }
-    return false;
 }
 
 static bool multiply_safe(int64_t* value, int64_t by) {

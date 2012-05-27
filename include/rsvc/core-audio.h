@@ -36,4 +36,6 @@ void rsvc_alac_encode(
         rsvc_encode_options_t options,
         rsvc_done_t done);
 
+void rsvc_core_audio_format_register();
+
 #endif  // RSVC_CORE_AUDIO_H_
