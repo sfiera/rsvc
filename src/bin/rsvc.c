@@ -51,6 +51,7 @@ struct command {
     bool (^short_option)(char opt, char* (^value)());
     bool (^long_option)(char* opt, char* (^value)());
     bool (^argument)(char* arg);
+    void (^usage)();
 
     void (^run)(rsvc_done_t done);
 };
@@ -95,43 +96,6 @@ static void set_tags(int fd, char* path,
                      rsvc_done_t done);
 static bool read_si_number(const char* in, int64_t* out);
 
-static void rsvc_usage(const char* progname, command_t command) {
-    if (!command) {
-        fprintf(stderr,
-                "usage: %s COMMAND [OPTIONS]\n"
-                "\n"
-                "Commands:\n"
-                "  print DEVICE          print CD contents\n"
-                "  ls                    list CDs\n"
-                "  watch                 watch for CDs\n"
-                "  rip DEVICE            rip tracks to files\n"
-                "\n"
-                "Options:\n"
-                "  -V, --version         show version and exit\n",
-                progname);
-    } else if (strcmp(command->name, "print") == 0) {
-        fprintf(stderr, "usage: %s print DEVICE\n", progname);
-    } else if (strcmp(command->name, "ls") == 0) {
-        fprintf(stderr, "usage: %s ls\n", progname);
-    } else if (strcmp(command->name, "watch") == 0) {
-        fprintf(stderr, "usage: %s watch\n", progname);
-    } else if (strcmp(command->name, "rip") == 0) {
-        fprintf(stderr,
-                "usage: %s rip -f FORMAT [OPTIONS] DEVICE\n"
-                "\n"
-                "Options:\n"
-                "  -f, --format FORMAT   choose format\n"
-                "  -b, --bitrate KBPS    set bitrate for lossy codecs\n"
-                "\n"
-                "Formats:\n",
-                progname);
-        rsvc_encode_formats_each(^(rsvc_encode_format_t format, rsvc_stop_t stop){
-            fprintf(stderr, "  %s\n", format->name);
-        });
-    }
-    exit(EX_USAGE);
-}
-
 static void rsvc_main(int argc, char* const* argv) {
     rsvc_core_audio_format_register();
     rsvc_flac_format_register();
@@ -156,6 +120,9 @@ static void rsvc_main(int argc, char* const* argv) {
             }
             return false;
         },
+        .usage = ^{
+            fprintf(stderr, "usage: %s print DEVICE\n", progname);
+        },
         .run = ^(rsvc_done_t done){
             rsvc_command_print(&print_options, callbacks.usage, done);
         },
@@ -163,6 +130,9 @@ static void rsvc_main(int argc, char* const* argv) {
 
     __block struct command ls = {
         .name = "ls",
+        .usage = ^{
+            fprintf(stderr, "usage: %s ls\n", progname);
+        },
         .run = ^(rsvc_done_t done){
             rsvc_command_ls(&ls_options, callbacks.usage, done);
         },
@@ -170,6 +140,9 @@ static void rsvc_main(int argc, char* const* argv) {
 
     __block struct command watch = {
         .name = "watch",
+        .usage = ^{
+            fprintf(stderr, "usage: %s watch\n", progname);
+        },
         .run = ^(rsvc_done_t done){
             rsvc_command_watch(&watch_options, callbacks.usage, done);
         },
@@ -209,6 +182,20 @@ static void rsvc_main(int argc, char* const* argv) {
                 return true;
             }
             return false;
+        },
+        .usage = ^{
+            fprintf(stderr,
+                    "usage: %s rip -f FORMAT [OPTIONS] DEVICE\n"
+                    "\n"
+                    "Options:\n"
+                    "  -f, --format FORMAT   choose format\n"
+                    "  -b, --bitrate KBPS    set bitrate for lossy codecs\n"
+                    "\n"
+                    "Formats:\n",
+                    progname);
+            rsvc_encode_formats_each(^(rsvc_encode_format_t format, rsvc_stop_t stop){
+                fprintf(stderr, "  %s\n", format->name);
+            });
         },
         .run = ^(rsvc_done_t done){
             rsvc_command_rip(&rip_options, callbacks.usage, done);
@@ -271,7 +258,22 @@ static void rsvc_main(int argc, char* const* argv) {
             va_end(vl);
             fprintf(stderr, "\n");
         }
-        rsvc_usage(progname, command);
+        if (command) {
+            command->usage();
+        } else {
+            fprintf(stderr,
+                    "usage: %s COMMAND [OPTIONS]\n"
+                    "\n"
+                    "Commands:\n"
+                    "  print DEVICE          print CD contents\n"
+                    "  ls                    list CDs\n"
+                    "  watch                 watch for CDs\n"
+                    "  rip DEVICE            rip tracks to files\n"
+                    "\n"
+                    "Options:\n"
+                    "  -V, --version         show version and exit\n",
+                    progname);
+        }
     };
 
     rsvc_options(argc, argv, &callbacks);
