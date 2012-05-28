@@ -56,41 +56,22 @@ struct command {
     void (^run)(rsvc_done_t done);
 };
 
-struct print_options {
-    char* disk;
-};
-typedef struct print_options* print_options_t;
-static void rsvc_command_print(print_options_t options,
+static void rsvc_command_print(char* disk,
                                void (^usage)(const char* message, ...),
                                rsvc_done_t done);
 
-struct ls_options {
-};
-typedef struct ls_options* ls_options_t;
-static void rsvc_command_ls(ls_options_t options,
-                            void (^usage)(const char* message, ...),
+static void rsvc_command_ls(void (^usage)(const char* message, ...),
                             rsvc_done_t done);
 
-struct watch_options {
-};
-typedef struct watch_options* watch_options_t;
-static void rsvc_command_watch(watch_options_t options,
-                               void (^usage)(const char* message, ...),
+static void rsvc_command_watch(void (^usage)(const char* message, ...),
                                rsvc_done_t done);
 
-struct rip_options {
-    char*                   disk;
-
-    rsvc_encode_format_t    format;
-    bool                    has_bitrate;
-    int64_t                 bitrate;
-};
-typedef struct rip_options* rip_options_t;
-static void rsvc_command_rip(rip_options_t options,
+static void rsvc_command_rip(char* disk, rsvc_encode_format_t format,
+                             bool has_bitrate, int64_t bitrate,
                              void (^usage)(const char* message, ...),
                              rsvc_done_t done);
 
-static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
+static void rip_all(rsvc_cd_t cd, rsvc_encode_format_t format, int64_t bitrate, rsvc_done_t done);
 static void set_tags(int fd, char* path,
                      rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
                      rsvc_done_t done);
@@ -106,16 +87,13 @@ static void rsvc_main(int argc, char* const* argv) {
 
     __block rsvc_option_callbacks_t callbacks;
     __block command_t command = NULL;
-    __block struct print_options print_options = {};
-    __block struct ls_options ls_options = {};
-    __block struct watch_options watch_options = {};
-    __block struct rip_options rip_options = {};
 
+    __block char* print_disk = NULL;
     __block struct command print = {
         .name = "print",
         .argument = ^bool (char* arg) {
-            if (!print_options.disk) {
-                print_options.disk = arg;
+            if (!print_disk) {
+                print_disk = arg;
                 return true;
             }
             return false;
@@ -124,7 +102,7 @@ static void rsvc_main(int argc, char* const* argv) {
             fprintf(stderr, "usage: %s print DEVICE\n", progname);
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_print(&print_options, callbacks.usage, done);
+            rsvc_command_print(print_disk, callbacks.usage, done);
         },
     };
 
@@ -134,7 +112,7 @@ static void rsvc_main(int argc, char* const* argv) {
             fprintf(stderr, "usage: %s ls\n", progname);
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_ls(&ls_options, callbacks.usage, done);
+            rsvc_command_ls(callbacks.usage, done);
         },
     };
 
@@ -144,23 +122,27 @@ static void rsvc_main(int argc, char* const* argv) {
             fprintf(stderr, "usage: %s watch\n", progname);
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_watch(&watch_options, callbacks.usage, done);
+            rsvc_command_watch(callbacks.usage, done);
         },
     };
 
+    __block char* rip_disk                  = NULL;
+    __block rsvc_encode_format_t format     = NULL;
+    __block bool has_bitrate                = false;
+    __block int64_t bitrate;
     __block struct command rip = {
         .name = "rip",
         .short_option = ^bool (char opt, char* (^value)()){
             switch (opt) {
               case 'b':
-                if (!read_si_number(value(), &rip_options.bitrate)) {
+                if (!read_si_number(value(), &bitrate)) {
                     callbacks.usage("invalid bitrate: %s", value());
                 }
-                rip_options.has_bitrate = true;
+                has_bitrate = true;
                 return true;
               case 'f':
-                rip_options.format = rsvc_encode_format_named(value());
-                if (!rip_options.format) {
+                format = rsvc_encode_format_named(value());
+                if (!format) {
                     callbacks.usage("invalid format: %s", value());
                 }
                 return true;
@@ -177,8 +159,8 @@ static void rsvc_main(int argc, char* const* argv) {
             return false;
         },
         .argument = ^bool (char* arg) {
-            if (!rip_options.disk) {
-                rip_options.disk = arg;
+            if (!rip_disk) {
+                rip_disk = arg;
                 return true;
             }
             return false;
@@ -198,7 +180,7 @@ static void rsvc_main(int argc, char* const* argv) {
             });
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_rip(&rip_options, callbacks.usage, done);
+            rsvc_command_rip(rip_disk, format, has_bitrate, bitrate, callbacks.usage, done);
         },
     };
 
@@ -274,6 +256,7 @@ static void rsvc_main(int argc, char* const* argv) {
                     "  -V, --version         show version and exit\n",
                     progname);
         }
+        exit(EX_USAGE);
     };
 
     rsvc_options(argc, argv, &callbacks);
@@ -302,13 +285,13 @@ static void rsvc_main(int argc, char* const* argv) {
     dispatch_main();
 }
 
-static void rsvc_command_print(print_options_t options,
+static void rsvc_command_print(char* disk,
                                void (^usage)(const char* message, ...),
                                rsvc_done_t done) {
-    if (options->disk == NULL) {
+    if (disk == NULL) {
         usage(NULL);
     }
-    rsvc_cd_create(options->disk, ^(rsvc_cd_t cd, rsvc_error_t error){
+    rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
         if (error) {
             done(error);
             return;
@@ -350,8 +333,7 @@ static void rsvc_command_print(print_options_t options,
     });
 }
 
-static void rsvc_command_ls(ls_options_t options,
-                            void (^usage)(const char* message, ...),
+static void rsvc_command_ls(void (^usage)(const char* message, ...),
                             rsvc_done_t done) {
     __block rsvc_stop_t stop;
 
@@ -368,8 +350,7 @@ static void rsvc_command_ls(ls_options_t options,
     stop = rsvc_disc_watch(callbacks);
 }
 
-static void rsvc_command_watch(watch_options_t options,
-                               void (^usage)(const char* message, ...),
+static void rsvc_command_watch(void (^usage)(const char* message, ...),
                                rsvc_done_t done) {
     __block bool show = false;
 
@@ -389,24 +370,25 @@ static void rsvc_command_watch(watch_options_t options,
     rsvc_disc_watch(callbacks);
 }
 
-static void rsvc_command_rip(rip_options_t options,
+static void rsvc_command_rip(char* disk, rsvc_encode_format_t format,
+                             bool has_bitrate, int64_t bitrate,
                              void (^usage)(const char* message, ...),
                              rsvc_done_t done) {
-    if (!options->disk) {
+    if (!disk) {
         usage(NULL);
-    } else if (!options->format) {
+    } else if (!format) {
         usage("must choose format");
-    } else if (options->has_bitrate && options->format->lossless) {
-        usage("bitrate provided for lossless format %s", options->format->name);
-    } else if (!options->has_bitrate && !options->format->lossless) {
-        usage("bitrate not provided for lossy format %s", options->format->name);
+    } else if (has_bitrate && format->lossless) {
+        usage("bitrate provided for lossless format %s", format->name);
+    } else if (!has_bitrate && !format->lossless) {
+        usage("bitrate not provided for lossy format %s", format->name);
     }
-    rsvc_cd_create(options->disk, ^(rsvc_cd_t cd, rsvc_error_t error){
+    rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
         if (error) {
             done(error);
             return;
         }
-        rip_all(cd, options, ^(rsvc_error_t error){
+        rip_all(cd, format, bitrate, ^(rsvc_error_t error){
             rsvc_cd_destroy(cd);
             done(error);
         });
@@ -452,7 +434,7 @@ static void set_sigint_callback(rsvc_stop_t stop) {
     });
 }
 
-static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
+static void rip_all(rsvc_cd_t cd, rsvc_encode_format_t format, int64_t bitrate, rsvc_done_t done) {
     printf("Ripping…\n");
     rsvc_cd_session_t session = rsvc_cd_session(cd, 0);
     const size_t ntracks = rsvc_cd_session_ntracks(session);
@@ -529,7 +511,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
 
         int file;
         char* path = malloc(256);
-        sprintf(path, "%02ld.%s", track_number, options->format->extension);
+        sprintf(path, "%02ld.%s", track_number, format->extension);
         if (!rsvc_open(path, O_RDWR | O_CREAT | O_TRUNC, 0644, &file, decrement_pending)) {
             decrement_pending(NULL);
             return;
@@ -560,11 +542,11 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
 
         increment_pending();
         struct rsvc_encode_options encode_options = {
-            .bitrate                = options->bitrate,
+            .bitrate                = bitrate,
             .samples_per_channel    = nsamples,
             .progress               = progress,
         };
-        options->format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
+        format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
             close(read_pipe);
             if (error) {
                 decrement_pending(error);
