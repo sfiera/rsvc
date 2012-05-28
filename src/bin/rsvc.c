@@ -44,19 +44,9 @@
 #include "../rsvc/posix.h"
 #include "../rsvc/progress.h"
 
-typedef enum command {
-    COMMAND_NONE = 0,
-    COMMAND_PRINT,
-    COMMAND_LS,
-    COMMAND_WATCH,
-    COMMAND_RIP,
-} command_t;
-const char* progname_suffix[] = {
-    "",
-    " print",
-    " ls",
-    " watch",
-    " rip",
+typedef struct command* command_t;
+struct command {
+    const char* name;
 };
 
 struct print_options {
@@ -100,10 +90,9 @@ static void set_tags(int fd, char* path,
 static bool read_si_number(const char* in, int64_t* out);
 
 static void rsvc_usage(const char* progname, command_t command) {
-    switch (command) {
-      case COMMAND_NONE:
+    if (!command) {
         fprintf(stderr,
-                "usage: %s%s COMMAND [OPTIONS]\n"
+                "usage: %s COMMAND [OPTIONS]\n"
                 "\n"
                 "Commands:\n"
                 "  print DEVICE          print CD contents\n"
@@ -113,37 +102,26 @@ static void rsvc_usage(const char* progname, command_t command) {
                 "\n"
                 "Options:\n"
                 "  -V, --version         show version and exit\n",
-                progname, progname_suffix[command]);
-        break;
-
-      case COMMAND_PRINT:
+                progname);
+    } else if (strcmp(command->name, "print") == 0) {
         fprintf(stderr, "usage: %s print DEVICE\n", progname);
-        break;
-
-      case COMMAND_LS:
+    } else if (strcmp(command->name, "ls") == 0) {
         fprintf(stderr, "usage: %s ls\n", progname);
-        break;
-
-      case COMMAND_WATCH:
+    } else if (strcmp(command->name, "watch") == 0) {
         fprintf(stderr, "usage: %s watch\n", progname);
-        break;
-
-      case COMMAND_RIP:
-        {
-            fprintf(stderr,
-                    "usage: %s rip -f FORMAT [OPTIONS] DEVICE\n"
-                    "\n"
-                    "Options:\n"
-                    "  -f, --format FORMAT   choose format\n"
-                    "  -b, --bitrate KBPS    set bitrate for lossy codecs\n"
-                    "\n"
-                    "Formats:\n",
-                    progname);
-            rsvc_encode_formats_each(^(rsvc_encode_format_t format, rsvc_stop_t stop){
-                fprintf(stderr, "  %s\n", format->name);
-            });
-        }
-        break;
+    } else if (strcmp(command->name, "rip") == 0) {
+        fprintf(stderr,
+                "usage: %s rip -f FORMAT [OPTIONS] DEVICE\n"
+                "\n"
+                "Options:\n"
+                "  -f, --format FORMAT   choose format\n"
+                "  -b, --bitrate KBPS    set bitrate for lossy codecs\n"
+                "\n"
+                "Formats:\n",
+                progname);
+        rsvc_encode_formats_each(^(rsvc_encode_format_t format, rsvc_stop_t stop){
+            fprintf(stderr, "  %s\n", format->name);
+        });
     }
     exit(EX_USAGE);
 }
@@ -157,20 +135,27 @@ static void rsvc_main(int argc, char* const* argv) {
     char* const progname = strdup(basename(argv[0]));
 
     __block rsvc_option_callbacks_t callbacks;
-    __block command_t command = COMMAND_NONE;
+    __block command_t command = NULL;
     __block struct print_options print_options = {};
     __block struct ls_options ls_options = {};
     __block struct watch_options watch_options = {};
     __block struct rip_options rip_options = {};
 
-    callbacks.short_option = ^bool (char opt, char* (^value)()){
-        switch (command) {
-          case COMMAND_PRINT:
-          case COMMAND_LS:
-          case COMMAND_WATCH:
-            break;
+    __block struct command print = {
+        .name = "print",
+    };
+    __block struct command ls = {
+        .name = "ls",
+    };
+    __block struct command watch = {
+        .name = "watch",
+    };
+    __block struct command rip = {
+        .name = "rip",
+    };
 
-          case COMMAND_RIP:
+    callbacks.short_option = ^bool (char opt, char* (^value)()){
+        if (command == &rip) {
             switch (opt) {
               case 'b':
                 if (!read_si_number(value(), &rip_options.bitrate)) {
@@ -187,10 +172,6 @@ static void rsvc_main(int argc, char* const* argv) {
               default:
                 break;
             }
-            break;
-
-          case COMMAND_NONE:
-            break;
         }
         switch (opt) {
           case 'V':
@@ -201,20 +182,12 @@ static void rsvc_main(int argc, char* const* argv) {
     };
 
     callbacks.long_option = ^bool (char* opt, char* (^value)()){
-        switch (command) {
-          case COMMAND_PRINT:
-          case COMMAND_LS:
-          case COMMAND_WATCH:
-            break;
-          case COMMAND_RIP:
+        if (command == &rip) {
             if (strcmp(opt, "bitrate") == 0) {
                 return callbacks.short_option('b', value);
             } else if (strcmp(opt, "format") == 0) {
                 return callbacks.short_option('f', value);
             }
-            break;
-          case COMMAND_NONE:
-            break;
         }
         if (strcmp(opt, "version") == 0) {
             return callbacks.short_option('V', value);
@@ -223,38 +196,27 @@ static void rsvc_main(int argc, char* const* argv) {
     };
 
     callbacks.argument = ^bool (char* arg){
-        switch (command) {
-          case COMMAND_PRINT:
+        if (command == &print) {
             if (!print_options.disk) {
                 print_options.disk = arg;
                 return true;
             }
-            break;
-
-          case COMMAND_LS:
-          case COMMAND_WATCH:
-            break;
-
-          case COMMAND_RIP:
+        } else if (command == &rip) {
             if (!rip_options.disk) {
                 rip_options.disk = arg;
                 return true;
             }
-            break;
-
-          case COMMAND_NONE:
-            {
-                if (strcmp(arg, "print") == 0) {
-                    command = COMMAND_PRINT;
-                } else if (strcmp(arg, "ls") == 0) {
-                    command = COMMAND_LS;
-                } else if (strcmp(arg, "watch") == 0) {
-                    command = COMMAND_WATCH;
-                } else if (strcmp(arg, "rip") == 0) {
-                    command = COMMAND_RIP;
-                } else {
-                    callbacks.usage("illegal command: %s", arg);
-                }
+        } else if (command == NULL) {
+            if (strcmp(arg, "print") == 0) {
+                command = &print;
+            } else if (strcmp(arg, "ls") == 0) {
+                command = &ls;
+            } else if (strcmp(arg, "watch") == 0) {
+                command = &watch;
+            } else if (strcmp(arg, "rip") == 0) {
+                command = &rip;
+            } else {
+                callbacks.usage("illegal command: %s", arg);
             }
             return true;
         }
@@ -263,7 +225,11 @@ static void rsvc_main(int argc, char* const* argv) {
 
     callbacks.usage = ^(const char* message, ...){
         if (message) {
-            fprintf(stderr, "%s%s: ", progname, progname_suffix[command]);
+            if (command) {
+                fprintf(stderr, "%s %s: ", progname, command->name);
+            } else {
+                fprintf(stderr, "%s: ", progname);
+            }
             va_list vl;
             va_start(vl, message);
             vfprintf(stderr, message, vl);
@@ -277,34 +243,29 @@ static void rsvc_main(int argc, char* const* argv) {
 
     rsvc_done_t done = ^(rsvc_error_t error){
         if (error) {
-            fprintf(stderr, "%s%s: %s (%s:%d)\n",
-                    progname, progname_suffix[command], error->message,
-                    error->file, error->lineno);
+            if (command) {
+                fprintf(stderr, "%s %s: %s (%s:%d)\n",
+                        progname, command->name, error->message, error->file, error->lineno);
+            } else {
+                fprintf(stderr, "%s: %s (%s:%d)\n",
+                        progname, error->message, error->file, error->lineno);
+            }
             exit(1);
         } else {
             exit(EX_OK);
         }
     };
 
-    switch (command) {
-      case COMMAND_NONE:
+    if (command == NULL) {
         callbacks.usage(NULL);
-
-      case COMMAND_PRINT:
+    } else if (command == &print) {
         rsvc_command_print(&print_options, callbacks.usage, done);
-        break;
-
-      case COMMAND_LS:
+    } else if (command == &ls) {
         rsvc_command_ls(&ls_options, callbacks.usage, done);
-        break;
-
-      case COMMAND_WATCH:
+    } else if (command == &watch) {
         rsvc_command_watch(&watch_options, callbacks.usage, done);
-        break;
-
-      case COMMAND_RIP:
+    } else if (command == &rip) {
         rsvc_command_rip(&rip_options, callbacks.usage, done);
-        break;
     }
 
     dispatch_main();
