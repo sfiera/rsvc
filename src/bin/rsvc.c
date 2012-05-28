@@ -47,6 +47,11 @@
 typedef struct command* command_t;
 struct command {
     const char* name;
+
+    bool (^short_option)(char opt, char* (^value)());
+    bool (^long_option)(char* opt, char* (^value)());
+    bool (^argument)(char* arg);
+
     void (^run)(rsvc_done_t done);
 };
 
@@ -144,31 +149,35 @@ static void rsvc_main(int argc, char* const* argv) {
 
     __block struct command print = {
         .name = "print",
+        .argument = ^bool (char* arg) {
+            if (!print_options.disk) {
+                print_options.disk = arg;
+                return true;
+            }
+            return false;
+        },
         .run = ^(rsvc_done_t done){
             rsvc_command_print(&print_options, callbacks.usage, done);
         },
     };
+
     __block struct command ls = {
         .name = "ls",
         .run = ^(rsvc_done_t done){
             rsvc_command_ls(&ls_options, callbacks.usage, done);
         },
     };
+
     __block struct command watch = {
         .name = "watch",
         .run = ^(rsvc_done_t done){
             rsvc_command_watch(&watch_options, callbacks.usage, done);
         },
     };
+
     __block struct command rip = {
         .name = "rip",
-        .run = ^(rsvc_done_t done){
-            rsvc_command_rip(&rip_options, callbacks.usage, done);
-        },
-    };
-
-    callbacks.short_option = ^bool (char opt, char* (^value)()){
-        if (command == &rip) {
+        .short_option = ^bool (char opt, char* (^value)()){
             switch (opt) {
               case 'b':
                 if (!read_si_number(value(), &rip_options.bitrate)) {
@@ -183,43 +192,53 @@ static void rsvc_main(int argc, char* const* argv) {
                 }
                 return true;
               default:
-                break;
+                return false;
             }
-        }
-        switch (opt) {
-          case 'V':
-            fprintf(stderr, "ripservice %s\n", RSVC_VERSION);
-            exit(0);
-        }
-        return false;
-    };
-
-    callbacks.long_option = ^bool (char* opt, char* (^value)()){
-        if (command == &rip) {
+        },
+        .long_option = ^bool (char* opt, char* (^value)()){
             if (strcmp(opt, "bitrate") == 0) {
                 return callbacks.short_option('b', value);
             } else if (strcmp(opt, "format") == 0) {
                 return callbacks.short_option('f', value);
             }
+            return false;
+        },
+        .argument = ^bool (char* arg) {
+            if (!rip_options.disk) {
+                rip_options.disk = arg;
+                return true;
+            }
+            return false;
+        },
+        .run = ^(rsvc_done_t done){
+            rsvc_command_rip(&rip_options, callbacks.usage, done);
+        },
+    };
+
+    callbacks.short_option = ^bool (char opt, char* (^value)()){
+        switch (opt) {
+          case 'V':
+            fprintf(stderr, "ripservice %s\n", RSVC_VERSION);
+            exit(0);
+          default:
+            if (command && command->short_option) {
+                return command->short_option(opt, value);
+            }
+            return false;
         }
+    };
+
+    callbacks.long_option = ^bool (char* opt, char* (^value)()){
         if (strcmp(opt, "version") == 0) {
             return callbacks.short_option('V', value);
+        } else if (command && command->long_option) {
+            return command->long_option(opt, value);
         }
         return false;
     };
 
     callbacks.argument = ^bool (char* arg){
-        if (command == &print) {
-            if (!print_options.disk) {
-                print_options.disk = arg;
-                return true;
-            }
-        } else if (command == &rip) {
-            if (!rip_options.disk) {
-                rip_options.disk = arg;
-                return true;
-            }
-        } else if (command == NULL) {
+        if (command == NULL) {
             if (strcmp(arg, "print") == 0) {
                 command = &print;
             } else if (strcmp(arg, "ls") == 0) {
@@ -232,8 +251,11 @@ static void rsvc_main(int argc, char* const* argv) {
                 callbacks.usage("illegal command: %s", arg);
             }
             return true;
+        } else if (command->argument) {
+            return command->argument(arg);
+        } else {
+            return false;
         }
-        return false;
     };
 
     callbacks.usage = ^(const char* message, ...){
