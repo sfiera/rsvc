@@ -47,6 +47,7 @@
 typedef struct command* command_t;
 struct command {
     const char* name;
+    void (^run)(rsvc_done_t done);
 };
 
 struct print_options {
@@ -143,15 +144,27 @@ static void rsvc_main(int argc, char* const* argv) {
 
     __block struct command print = {
         .name = "print",
+        .run = ^(rsvc_done_t done){
+            rsvc_command_print(&print_options, callbacks.usage, done);
+        },
     };
     __block struct command ls = {
         .name = "ls",
+        .run = ^(rsvc_done_t done){
+            rsvc_command_ls(&ls_options, callbacks.usage, done);
+        },
     };
     __block struct command watch = {
         .name = "watch",
+        .run = ^(rsvc_done_t done){
+            rsvc_command_watch(&watch_options, callbacks.usage, done);
+        },
     };
     __block struct command rip = {
         .name = "rip",
+        .run = ^(rsvc_done_t done){
+            rsvc_command_rip(&rip_options, callbacks.usage, done);
+        },
     };
 
     callbacks.short_option = ^bool (char opt, char* (^value)()){
@@ -256,16 +269,10 @@ static void rsvc_main(int argc, char* const* argv) {
         }
     };
 
-    if (command == NULL) {
+    if (command) {
+        command->run(done);
+    } else {
         callbacks.usage(NULL);
-    } else if (command == &print) {
-        rsvc_command_print(&print_options, callbacks.usage, done);
-    } else if (command == &ls) {
-        rsvc_command_ls(&ls_options, callbacks.usage, done);
-    } else if (command == &watch) {
-        rsvc_command_watch(&watch_options, callbacks.usage, done);
-    } else if (command == &rip) {
-        rsvc_command_rip(&rip_options, callbacks.usage, done);
     }
 
     dispatch_main();
