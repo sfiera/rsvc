@@ -24,17 +24,17 @@ static void utf8_out(uint32_t rune, char** out) {
     if (rune < 0x80) {
         *((*out)++) = rune;
     } else if (rune < 0x800) {
-        *((*out)++) = 0xc0 | (rune & 0x1f); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f);
+        *((*out)++) = 0xc0 | ((rune >> 6) & 0x1f);
+        *((*out)++) = 0x80 | ((rune >> 0) & 0x3f);
     } else if (rune < 0x10000) {
-        *((*out)++) = 0xe0 | (rune & 0x0f); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f);
+        *((*out)++) = 0xe0 | ((rune >> 12) & 0x0f);
+        *((*out)++) = 0x80 | ((rune >> 6) & 0x3f);
+        *((*out)++) = 0x80 | ((rune >> 0) & 0x3f);
     } else if (rune < 0x110000) {
-        *((*out)++) = 0xf0 | (rune & 0x07); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f); rune >>= 6;
-        *((*out)++) = 0x80 | (rune & 0x3f);
+        *((*out)++) = 0xf0 | ((rune >> 18) & 0x07);
+        *((*out)++) = 0x80 | ((rune >> 12) & 0x3f);
+        *((*out)++) = 0x80 | ((rune >> 6) & 0x3f);
+        *((*out)++) = 0x80 | ((rune >> 0) & 0x3f);
     }
 }
 
