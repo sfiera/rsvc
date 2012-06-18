@@ -78,6 +78,14 @@ static bool     id3_sequence_total_add(
                         const char* value, rsvc_done_t fail);
 static bool     id3_sequence_total_remove(
                         id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail);
+static bool     id3_passthru_read(
+                        id3_frame_list_t frames, id3_frame_spec_t spec,
+                        uint8_t* data, size_t size, rsvc_done_t fail);
+static void     id3_passthru_yield(
+                        id3_frame_node_t node,
+                        void (^block)(const char* name, const char* value));
+static size_t   id3_passthru_size(id3_frame_node_t node);
+static void     id3_passthru_write(id3_frame_node_t node, uint8_t* data);
 
 struct id3_frame_type {
     id3_read_t          read;
@@ -115,41 +123,52 @@ static struct id3_frame_type id3_sequence_total = {
     .write      = id3_text_write,
 };
 
+static struct id3_frame_type id3_passthru = {
+    .read       = id3_passthru_read,
+    .yield      = id3_passthru_yield,
+    .size       = id3_passthru_size,
+    .write      = id3_passthru_write,
+};
+
 static struct id3_frame_spec {
     const char*         vorbis_name;
     const char*         id3_name;
     id3_frame_type_t    id3_type;
 } id3_frame_specs[] = {
     // 4.2.1. Identification frames.
-    {"GROUPING",        "TIT1",    &id3_text},
-    {"TITLE",           "TIT2",    &id3_text},
-    {"SUBTITLE",        "TIT3",    &id3_text},
-    {"ALBUM",           "TALB",    &id3_text},
-    {"TRACKNUMBER",     "TRCK",    &id3_sequence_number},
-    {"TRACKTOTAL",      "TRCK",    &id3_sequence_total},
-    {"DISCNUMBER",      "TPOS",    &id3_sequence_number},
-    {"DISCTOTAL",       "TPOS",    &id3_sequence_total},
-    {"ISRC",            "TSRC",    &id3_text},
+    {"GROUPING",        "TIT1",     &id3_text},
+    {"TITLE",           "TIT2",     &id3_text},
+    {"SUBTITLE",        "TIT3",     &id3_text},
+    {"ALBUM",           "TALB",     &id3_text},
+    {"TRACKNUMBER",     "TRCK",     &id3_sequence_number},
+    {"TRACKTOTAL",      "TRCK",     &id3_sequence_total},
+    {"DISCNUMBER",      "TPOS",     &id3_sequence_number},
+    {"DISCTOTAL",       "TPOS",     &id3_sequence_total},
+    {"ISRC",            "TSRC",     &id3_text},
 
     // 4.2.2. Involved person frames.
-    {"ARTIST",          "TPE1",    &id3_text},
-    {"ALBUMARTIST",     "TPE2",    &id3_text},
-    {"COMPOSER",        "TCOM",    &id3_text},
-    {"ENCODER",         "TENC",    &id3_text},
+    {"ARTIST",          "TPE1",     &id3_text},
+    {"ALBUMARTIST",     "TPE2",     &id3_text},
+    {"COMPOSER",        "TCOM",     &id3_text},
+    {"ENCODER",         "TENC",     &id3_text},
 
     // 4.2.3. Derived and subjective properties frames.
-    {"BPM",             "TBPM",    &id3_text},
-    {"GENRE",           "TCON",    &id3_text},
+    {"BPM",             "TBPM",     &id3_text},
+    {"GENRE",           "TCON",     &id3_text},
 
     // 4.2.4. Rights and license frames.
-    {"COPYRIGHT",       "TCOP",    &id3_text},
+    {"COPYRIGHT",       "TCOP",     &id3_text},
 
     // 4.2.5. Other text frames.
-    {"DATE",            "TDRC",    &id3_text},
-    {"ENCODER",         "TSSE",    &id3_text},
-    {"ALBUMSORT",       "TSOA",    &id3_text},
-    {"ARTISTSORT",      "TSOP",    &id3_text},
-    {"TITLESORT",       "TSOT",    &id3_text},
+    {"DATE",            "TDRC",     &id3_text},
+    {"ENCODER",         "TSSE",     &id3_text},
+    {"ALBUMSORT",       "TSOA",     &id3_text},
+    {"ARTISTSORT",      "TSOP",     &id3_text},
+    {"TITLESORT",       "TSOT",     &id3_text},
+
+    {NULL,              "TFLT",     &id3_passthru},
+    {NULL,              "APIC",     &id3_passthru},
+    {NULL,              "USER",     &id3_passthru},
 };
 
 #define ID3_FRAME_SPECS_SIZE (sizeof(id3_frame_specs) / sizeof(id3_frame_specs[0]))
@@ -591,6 +610,14 @@ static void id3_frame_addf(
         id3_frame_list_t frames, id3_frame_spec_t spec, const char* format, ...)
         __attribute__((format(printf, 3, 4)));
 
+static id3_frame_node_t id3_frame_create(
+        id3_frame_list_t frames, id3_frame_spec_t spec, size_t size) {
+    id3_frame_node_t node = malloc(sizeof(struct id3_frame_node) + size);
+    node->spec = spec;
+    RSVC_LIST_PUSH(frames, node);
+    return node;
+}
+
 static void id3_frame_addf(
         id3_frame_list_t frames, id3_frame_spec_t spec, const char* format, ...) {
     // Get the size of the formatted string.
@@ -600,13 +627,11 @@ static void id3_frame_addf(
     va_end(vl1);
 
     // Allocate a node with space for the string and format it.
-    id3_frame_node_t node = malloc(sizeof(struct id3_frame_node) + size);
-    node->spec = spec;
+    id3_frame_node_t node = id3_frame_create(frames, spec, size);
     va_list vl2;
     va_start(vl2, format);
     vsnprintf((char*)node->data, size, format, vl2);
     va_end(vl2);
-    RSVC_LIST_PUSH(frames, node);
 }
 
 static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
@@ -808,4 +833,27 @@ static bool id3_sequence_total_add(
 static bool id3_sequence_total_remove(
         id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail) {
     return id3_sequence_both_remove(frames, NULL, false, spec, true, fail);
+}
+
+static bool id3_passthru_read(id3_frame_list_t frames, id3_frame_spec_t spec,
+                         uint8_t* data, size_t size, rsvc_done_t fail) {
+    id3_frame_node_t node = id3_frame_create(frames, spec, sizeof(size_t) + size);
+    memcpy(node->data, &size, sizeof(size_t));
+    memcpy(node->data + sizeof(size_t), data, size);
+    return true;
+}
+
+static void id3_passthru_yield(id3_frame_node_t node,
+                          void (^block)(const char* name, const char* value)) {
+}
+
+static size_t id3_passthru_size(id3_frame_node_t node) {
+    size_t size;
+    memcpy(&size, node->data, sizeof(size_t));
+    return size;
+}
+
+static void id3_passthru_write(id3_frame_node_t node, uint8_t* data) {
+    size_t size = id3_passthru_size(node);
+    memcpy(data, node->data + sizeof(size_t), size);
 }
