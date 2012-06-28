@@ -168,7 +168,9 @@ static struct id3_frame_spec {
 
     {NULL,              "TFLT",     &id3_passthru},
     {NULL,              "APIC",     &id3_passthru},
+    {NULL,              "COMM",     &id3_passthru},
     {NULL,              "USER",     &id3_passthru},
+    {NULL,              "USLT",     &id3_passthru},
 };
 
 #define ID3_FRAME_SPECS_SIZE (sizeof(id3_frame_specs) / sizeof(id3_frame_specs[0]))
