@@ -21,8 +21,6 @@
 #ifndef RSVC_MUSICBRAINZ_H_
 #define RSVC_MUSICBRAINZ_H_
 
-#include <musicbrainz5/mb5_c.h>
-
 #include <rsvc/common.h>
 #include <rsvc/tag.h>
 

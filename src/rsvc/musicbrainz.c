@@ -22,6 +22,7 @@
 
 #include <Block.h>
 #include <dispatch/dispatch.h>
+#include <musicbrainz5/mb5_c.h>
 #include <string.h>
 #include <sys/time.h>
 
