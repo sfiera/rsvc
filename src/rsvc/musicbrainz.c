@@ -30,6 +30,8 @@
 #ifdef MB_VERSION
 #   if MB_VERSION == 5
 #       include "mb5.h"
+#   elif MB_VERSION == 4
+#       include "mb4.h"
 #   else
 #       error "Unsupported libmusicbrainz version " MB_VERSION
 #   endif
