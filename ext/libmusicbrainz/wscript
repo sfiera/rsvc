@@ -7,88 +7,120 @@ def common(ctx):
 
 def options(opt):
     common(opt)
+    opt.add_option(
+            "--with-musicbrainz", action="store", default="auto",
+            choices=["system", "bundled", "auto"], metavar="system|bundled|auto",
+            help="select between system-provided and bundled libmusicbrainz [default: 'auto']")
 
 def configure(cnf):
     common(cnf)
+
+    def check_mb(version, mandatory):
+        cnf.check_cc(lib="musicbrainz%d" % version,
+                     uselib_store="libmusicbrainz/libmusicbrainz",
+                     mandatory=mandatory)
+        return "LIB_libmusicbrainz/libmusicbrainz" in cnf.env
+
+    if cnf.options.with_musicbrainz == "system":
+        cnf.env.bundled_musicbrainz = False
+        if check_mb(4, mandatory=False):
+            cnf.env.mb_version = 4
+        elif check_mb(5, mandatory=True):
+            cnf.env.mb_version = 5
+    elif cnf.options.with_musicbrainz == "bundled":
+        cnf.env.mb_version = 5
+        cnf.env.bundled_musicbrainz = True
+    else:
+        if check_mb(4, mandatory=False):
+            cnf.env.mb_version = 4
+            cnf.env.bundled_musicbrainz = False
+        elif check_mb(5, mandatory=False):
+            cnf.env.mb_version = 5
+            cnf.env.bundled_musicbrainz = False
+        else:
+            cnf.env.mb_version = 5
+            cnf.env.bundled_musicbrainz = True
+
     cnf.env.append_value("LIB_libmusicbrainz/system/stdcxx", "stdc++")
 
 def build(bld):
     common(bld)
 
-    bld.stlib(
-        target="libmusicbrainz/libmusicbrainz",
-        features="universal",
-        source=[
-            "c/mb5_c.cc",
-            "libmusicbrainz-5.0.0/src/Alias.cc",
-            "libmusicbrainz-5.0.0/src/Annotation.cc",
-            "libmusicbrainz-5.0.0/src/Artist.cc",
-            "libmusicbrainz-5.0.0/src/ArtistCredit.cc",
-            "libmusicbrainz-5.0.0/src/Attribute.cc",
-            "libmusicbrainz-5.0.0/src/CDStub.cc",
-            "libmusicbrainz-5.0.0/src/Collection.cc",
-            "libmusicbrainz-5.0.0/src/Disc.cc",
-            "libmusicbrainz-5.0.0/src/Entity.cc",
-            "libmusicbrainz-5.0.0/src/FreeDBDisc.cc",
-            "libmusicbrainz-5.0.0/src/HTTPFetch.cc",
-            "libmusicbrainz-5.0.0/src/ISRC.cc",
-            "libmusicbrainz-5.0.0/src/IPI.cc",
-            "libmusicbrainz-5.0.0/src/ISWC.cc",
-            "libmusicbrainz-5.0.0/src/ISWCList.cc",
-            "libmusicbrainz-5.0.0/src/Label.cc",
-            "libmusicbrainz-5.0.0/src/LabelInfo.cc",
-            "libmusicbrainz-5.0.0/src/Lifespan.cc",
-            "libmusicbrainz-5.0.0/src/List.cc",
-            "libmusicbrainz-5.0.0/src/Medium.cc",
-            "libmusicbrainz-5.0.0/src/MediumList.cc",
-            "libmusicbrainz-5.0.0/src/Message.cc",
-            "libmusicbrainz-5.0.0/src/Metadata.cc",
-            "libmusicbrainz-5.0.0/src/NameCredit.cc",
-            "libmusicbrainz-5.0.0/src/NonMBTrack.cc",
-            "libmusicbrainz-5.0.0/src/PUID.cc",
-            "libmusicbrainz-5.0.0/src/Query.cc",
-            "libmusicbrainz-5.0.0/src/Rating.cc",
-            "libmusicbrainz-5.0.0/src/Recording.cc",
-            "libmusicbrainz-5.0.0/src/Relation.cc",
-            "libmusicbrainz-5.0.0/src/RelationList.cc",
-            "libmusicbrainz-5.0.0/src/RelationListList.cc",
-            "libmusicbrainz-5.0.0/src/Release.cc",
-            "libmusicbrainz-5.0.0/src/ReleaseGroup.cc",
-            "libmusicbrainz-5.0.0/src/SecondaryType.cc",
-            "libmusicbrainz-5.0.0/src/SecondaryTypeList.cc",
-            "libmusicbrainz-5.0.0/src/Tag.cc",
-            "libmusicbrainz-5.0.0/src/TextRepresentation.cc",
-            "libmusicbrainz-5.0.0/src/Track.cc",
-            "libmusicbrainz-5.0.0/src/UserRating.cc",
-            "libmusicbrainz-5.0.0/src/UserTag.cc",
-            "libmusicbrainz-5.0.0/src/Work.cc",
-            "libmusicbrainz-5.0.0/src/xmlParser.cpp",
-        ],
-        includes=[
-            "include",
-            "libmusicbrainz-5.0.0/include",
-        ],
-        export_includes=[
-            "include",
-            "libmusicbrainz-5.0.0/include",
-        ],
-        use=[
-            "neon/libneon",
-            "libmusicbrainz/system/stdcxx",
-        ],
-    )
+    if bld.env.bundled_musicbrainz:
+        bld.stlib(
+            target="libmusicbrainz/libmusicbrainz",
+            features="universal",
+            source=[
+                "c/mb5_c.cc",
+                "libmusicbrainz-5.0.0/src/Alias.cc",
+                "libmusicbrainz-5.0.0/src/Annotation.cc",
+                "libmusicbrainz-5.0.0/src/Artist.cc",
+                "libmusicbrainz-5.0.0/src/ArtistCredit.cc",
+                "libmusicbrainz-5.0.0/src/Attribute.cc",
+                "libmusicbrainz-5.0.0/src/CDStub.cc",
+                "libmusicbrainz-5.0.0/src/Collection.cc",
+                "libmusicbrainz-5.0.0/src/Disc.cc",
+                "libmusicbrainz-5.0.0/src/Entity.cc",
+                "libmusicbrainz-5.0.0/src/FreeDBDisc.cc",
+                "libmusicbrainz-5.0.0/src/HTTPFetch.cc",
+                "libmusicbrainz-5.0.0/src/ISRC.cc",
+                "libmusicbrainz-5.0.0/src/IPI.cc",
+                "libmusicbrainz-5.0.0/src/ISWC.cc",
+                "libmusicbrainz-5.0.0/src/ISWCList.cc",
+                "libmusicbrainz-5.0.0/src/Label.cc",
+                "libmusicbrainz-5.0.0/src/LabelInfo.cc",
+                "libmusicbrainz-5.0.0/src/Lifespan.cc",
+                "libmusicbrainz-5.0.0/src/List.cc",
+                "libmusicbrainz-5.0.0/src/Medium.cc",
+                "libmusicbrainz-5.0.0/src/MediumList.cc",
+                "libmusicbrainz-5.0.0/src/Message.cc",
+                "libmusicbrainz-5.0.0/src/Metadata.cc",
+                "libmusicbrainz-5.0.0/src/NameCredit.cc",
+                "libmusicbrainz-5.0.0/src/NonMBTrack.cc",
+                "libmusicbrainz-5.0.0/src/PUID.cc",
+                "libmusicbrainz-5.0.0/src/Query.cc",
+                "libmusicbrainz-5.0.0/src/Rating.cc",
+                "libmusicbrainz-5.0.0/src/Recording.cc",
+                "libmusicbrainz-5.0.0/src/Relation.cc",
+                "libmusicbrainz-5.0.0/src/RelationList.cc",
+                "libmusicbrainz-5.0.0/src/RelationListList.cc",
+                "libmusicbrainz-5.0.0/src/Release.cc",
+                "libmusicbrainz-5.0.0/src/ReleaseGroup.cc",
+                "libmusicbrainz-5.0.0/src/SecondaryType.cc",
+                "libmusicbrainz-5.0.0/src/SecondaryTypeList.cc",
+                "libmusicbrainz-5.0.0/src/Tag.cc",
+                "libmusicbrainz-5.0.0/src/TextRepresentation.cc",
+                "libmusicbrainz-5.0.0/src/Track.cc",
+                "libmusicbrainz-5.0.0/src/UserRating.cc",
+                "libmusicbrainz-5.0.0/src/UserTag.cc",
+                "libmusicbrainz-5.0.0/src/Work.cc",
+                "libmusicbrainz-5.0.0/src/xmlParser.cpp",
+            ],
+            includes=[
+                "include",
+                "libmusicbrainz-5.0.0/include",
+            ],
+            export_includes=[
+                "include",
+                "libmusicbrainz-5.0.0/include",
+            ],
+            use=[
+                "neon/libneon",
+                "libmusicbrainz/system/stdcxx",
+            ],
+        )
 
-    bld.program(
-        target="libmusicbrainz/make-c-interface",
-        source=[
-            "libmusicbrainz-5.0.0/src/make-c-interface.cc",
-            "libmusicbrainz-5.0.0/src/xmlParser.cpp",
-        ],
-        includes=[
-            "include",
-            "libmusicbrainz-5.0.0/include",
-        ],
-    )
+        bld.program(
+            target="libmusicbrainz/make-c-interface",
+            source=[
+                "libmusicbrainz-5.0.0/src/make-c-interface.cc",
+                "libmusicbrainz-5.0.0/src/xmlParser.cpp",
+            ],
+            includes=[
+                "include",
+                "libmusicbrainz-5.0.0/include",
+            ],
+        )
 
 from waflib.Task import Task
 class make_c_interface(Task):

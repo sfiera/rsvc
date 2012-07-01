@@ -12,9 +12,24 @@ def common(ctx):
 
 def options(opt):
     common(opt)
+    opt.add_option(
+            "--with-neon", action="store", default="auto", choices=["system", "bundled", "auto"],
+            metavar="system|bundled|auto",
+            help="select between system-provided and bundled libneon [default: 'auto']")
 
 def configure(cnf):
     common(cnf)
+
+    if cnf.options.with_neon == "system":
+        cnf.check_cc(lib="neon", header_name="ne_session.h", uselib_store="neon/libneon")
+        cnf.env.bundled_neon = False
+    elif cnf.options.with_neon == "bundled":
+        cnf.env.bundled_neon = True
+    else:
+        cnf.check_cc(header_name="ne_session.h", lib="neon", uselib_store="neon/libneon",
+                     mandatory=False)
+        cnf.env.bundled_neon = "LIB_neon/libneon" not in cnf.env
+
     cnf.env.append_value("LIB_neon/system/openssl", "ssl")
     cnf.env.append_value("LIB_neon/system/openssl", "crypto")
     cnf.env.append_value("LIB_neon/system/openssl", "z")
@@ -23,46 +38,47 @@ def configure(cnf):
 def build(bld):
     common(bld)
 
-    bld.stlib(
-        target="neon/libneon",
-        features="universal",
-        source=[
-            "neon-0.29.6/src/ne_request.c",
-            "neon-0.29.6/src/ne_session.c",
-            "neon-0.29.6/src/ne_basic.c",
-            "neon-0.29.6/src/ne_string.c",
-            "neon-0.29.6/src/ne_uri.c",
-            "neon-0.29.6/src/ne_dates.c",
-            "neon-0.29.6/src/ne_alloc.c",
-            "neon-0.29.6/src/ne_md5.c",
-            "neon-0.29.6/src/ne_utils.c",
-            "neon-0.29.6/src/ne_socket.c",
-            "neon-0.29.6/src/ne_auth.c",
-            "neon-0.29.6/src/ne_redirect.c",
-            "neon-0.29.6/src/ne_compress.c",
-            "neon-0.29.6/src/ne_i18n.c",
-            "neon-0.29.6/src/ne_pkcs11.c",
-            "neon-0.29.6/src/ne_socks.c",
-            "neon-0.29.6/src/ne_ntlm.c",
-            "neon-0.29.6/src/ne_207.c",
-            "neon-0.29.6/src/ne_xml.c",
-            "neon-0.29.6/src/ne_props.c",
-            "neon-0.29.6/src/ne_locks.c",
-            "neon-0.29.6/src/ne_xmlreq.c",
-            "neon-0.29.6/src/ne_openssl.c",
-        ],
-        cflags=WARNINGS,
-        includes="libneon-0.29.6/src",
-        export_includes="include",
-        use=[
-            "neon/system/openssl",
-            "neon/system/gssapi",
-        ]
-    )
+    if bld.env.bundled_neon:
+        bld.stlib(
+            target="neon/libneon",
+            features="universal",
+            source=[
+                "neon-0.29.6/src/ne_request.c",
+                "neon-0.29.6/src/ne_session.c",
+                "neon-0.29.6/src/ne_basic.c",
+                "neon-0.29.6/src/ne_string.c",
+                "neon-0.29.6/src/ne_uri.c",
+                "neon-0.29.6/src/ne_dates.c",
+                "neon-0.29.6/src/ne_alloc.c",
+                "neon-0.29.6/src/ne_md5.c",
+                "neon-0.29.6/src/ne_utils.c",
+                "neon-0.29.6/src/ne_socket.c",
+                "neon-0.29.6/src/ne_auth.c",
+                "neon-0.29.6/src/ne_redirect.c",
+                "neon-0.29.6/src/ne_compress.c",
+                "neon-0.29.6/src/ne_i18n.c",
+                "neon-0.29.6/src/ne_pkcs11.c",
+                "neon-0.29.6/src/ne_socks.c",
+                "neon-0.29.6/src/ne_ntlm.c",
+                "neon-0.29.6/src/ne_207.c",
+                "neon-0.29.6/src/ne_xml.c",
+                "neon-0.29.6/src/ne_props.c",
+                "neon-0.29.6/src/ne_locks.c",
+                "neon-0.29.6/src/ne_xmlreq.c",
+                "neon-0.29.6/src/ne_openssl.c",
+            ],
+            cflags=WARNINGS,
+            includes="libneon-0.29.6/src",
+            export_includes="include",
+            use=[
+                "neon/system/openssl",
+                "neon/system/gssapi",
+            ]
+        )
 
-    bld.platform(
-        target="neon/libneon",
-        platform="darwin",
-        includes="darwin",
-        export_includes="darwin",
-    )
+        bld.platform(
+            target="neon/libneon",
+            platform="darwin",
+            includes="darwin",
+            export_includes="darwin",
+        )

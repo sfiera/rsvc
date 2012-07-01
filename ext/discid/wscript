@@ -6,9 +6,21 @@ def common(ctx):
 
 def options(opt):
     common(opt)
+    opt.add_option(
+            "--with-discid", action="store", default="auto", choices=["system", "bundled", "auto"],
+            metavar="system|bundled|auto",
+            help="select between system-provided and bundled libdiscid [default: 'auto']")
 
 def configure(cnf):
     common(cnf)
+    if cnf.options.with_discid == "system":
+        cnf.check_cc(lib="discid", uselib_store="discid/libdiscid")
+        cnf.env.bundled_discid = False
+    elif cnf.options.with_discid == "bundled":
+        cnf.env.bundled_discid = True
+    else:
+        cnf.check_cc(lib="discid", uselib_store="discid/libdiscid", mandatory=False)
+        cnf.env.bundled_discid = "LIB_discid/libdiscid" not in cnf.env
 
     cnf.env.append_value("FRAMEWORK_discid/system/core-foundation", "CoreFoundation")
     cnf.env.append_value("FRAMEWORK_discid/system/io-kit", "IOKit")
@@ -16,26 +28,27 @@ def configure(cnf):
 def build(bld):
     common(bld)
 
-    bld.stlib(
-        target="discid/libdiscid",
-        features="universal",
-        source=[
-            "libdiscid-0.2.2/src/base64.c",
-            "libdiscid-0.2.2/src/disc.c",
-            "libdiscid-0.2.2/src/sha1.c",
-        ],
-        includes="libdiscid-0.2.2/include",
-        export_includes="libdiscid-0.2.2/include",
-    )
+    if bld.env.bundled_discid:
+        bld.stlib(
+            target="discid/libdiscid",
+            features="universal",
+            source=[
+                "libdiscid-0.2.2/src/base64.c",
+                "libdiscid-0.2.2/src/disc.c",
+                "libdiscid-0.2.2/src/sha1.c",
+            ],
+            includes="libdiscid-0.2.2/include",
+            export_includes="libdiscid-0.2.2/include",
+        )
 
-    bld.platform(
-        target="discid/libdiscid",
-        platform="darwin",
-        source="libdiscid-0.2.2/src/disc_darwin.c",
-        includes="darwin",
-        export_includes="darwin",
-        use=[
-            "discid/system/core-foundation",
-            "discid/system/io-kit",
-        ],
-    )
+        bld.platform(
+            target="discid/libdiscid",
+            platform="darwin",
+            source="libdiscid-0.2.2/src/disc_darwin.c",
+            includes="darwin",
+            export_includes="darwin",
+            use=[
+                "discid/system/core-foundation",
+                "discid/system/io-kit",
+            ],
+        )
