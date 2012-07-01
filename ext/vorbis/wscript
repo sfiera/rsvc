@@ -18,11 +18,13 @@ def configure(cnf):
     common(cnf)
     if cnf.options.with_vorbis == "system":
         cnf.check_cc(lib="vorbis", uselib_store="vorbis/libvorbis")
+        cnf.check_cc(lib="vorbisenc", uselib_store="vorbis/libvorbis")
         cnf.env.bundled_vorbis = False
     elif cnf.options.with_vorbis == "bundled":
         cnf.env.bundled_vorbis = True
     else:
         cnf.check_cc(lib="vorbis", uselib_store="vorbis/libvorbis", mandatory=False)
+        cnf.check_cc(lib="vorbisenc", uselib_store="vorbis/libvorbis", mandatory=False)
         cnf.env.bundled_vorbis = "LIB_vorbis/libvorbis" not in cnf.env
 
 def build(bld):
