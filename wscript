@@ -67,6 +67,7 @@ def build(bld):
         includes="include",
         export_includes="include",
         cflags=WARNINGS,
+        defines="MB_VERSION=5",
         use=[
             "discid/libdiscid",
             "flac/libflac",
