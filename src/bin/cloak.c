@@ -30,6 +30,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sysexits.h>
+#include <unistd.h>
 
 #include <rsvc/tag.h>
 #include <rsvc/flac.h>

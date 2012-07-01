@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail) {
     rsvc_logf(3, "open %s", path);

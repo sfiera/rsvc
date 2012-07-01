@@ -24,6 +24,7 @@
 #include <dispatch/dispatch.h>
 #include <string.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #include "common.h"
 
