@@ -4,6 +4,7 @@ APPNAME = "ripservice"
 VERSION = "0.0.0"
 
 WARNINGS = ["-Wall", "-Werror", "-Wno-sign-compare"]
+CFLAGS = WARNINGS + ["-fblocks"]
 
 def common(ctx):
     ctx.default_sdk = "10.7"
@@ -32,7 +33,7 @@ def build(bld):
         features="universal",
         source="src/bin/rsvc.c",
         includes="include",
-        cflags=WARNINGS,
+        cflags=CFLAGS,
         use="ripservice/librsvc",
     )
 
@@ -41,7 +42,7 @@ def build(bld):
         features="universal",
         source="src/bin/cloak.c",
         includes="include",
-        cflags=WARNINGS,
+        cflags=CFLAGS,
         use="ripservice/librsvc",
     )
 
@@ -66,7 +67,7 @@ def build(bld):
         ],
         includes="include",
         export_includes="include",
-        cflags=WARNINGS,
+        cflags=CFLAGS,
         defines="MB_VERSION=5",
         use=[
             "discid/libdiscid",
