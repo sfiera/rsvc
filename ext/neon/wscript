@@ -21,13 +21,13 @@ def configure(cnf):
     common(cnf)
 
     if cnf.options.with_neon == "system":
-        cnf.check_cc(lib="neon", header_name="ne_session.h", uselib_store="neon/libneon")
+        cnf.check_cfg(package="neon", args=["--cflags", "--libs"], uselib_store="neon/libneon")
         cnf.env.bundled_neon = False
     elif cnf.options.with_neon == "bundled":
         cnf.env.bundled_neon = True
     else:
-        cnf.check_cc(header_name="ne_session.h", lib="neon", uselib_store="neon/libneon",
-                     mandatory=False)
+        cnf.check_cfg(package="neon", args=["--cflags", "--libs"], uselib_store="neon/libneon",
+                      mandatory=False)
         cnf.env.bundled_neon = "LIB_neon/libneon" not in cnf.env
 
     cnf.env.append_value("LIB_neon/system/openssl", "ssl")
