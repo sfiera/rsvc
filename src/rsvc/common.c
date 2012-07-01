@@ -29,6 +29,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <sysexits.h>
+#include <time.h>
 
 void rsvc_errorf(rsvc_done_t callback,
                  const char* file, int lineno, const char* format, ...) {
