@@ -40,7 +40,7 @@
 #include <rsvc/vorbis.h>
 
 #include "../rsvc/options.h"
-#include "../rsvc/posix.h"
+#include "../rsvc/unix.h"
 
 #define DEFAULT_FORMAT "./%b/%A/%d%k%t"
 

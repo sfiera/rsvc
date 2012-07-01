@@ -31,9 +31,9 @@
 #include <vorbis/vorbisenc.h>
 #include <sys/param.h>
 
-#include "posix.h"
 #include "common.h"
 #include "list.h"
+#include "unix.h"
 
 void rsvc_vorbis_encode(
         int src_fd,
