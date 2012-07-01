@@ -34,14 +34,15 @@ def configure(cnf):
 def build(bld):
     common(bld)
 
-    bld.program(
-        target="ripservice/rsvc",
-        features="universal",
-        source="src/bin/rsvc.c",
-        includes="include",
-        cflags=CFLAGS,
-        use="ripservice/librsvc",
-    )
+    if unversioned_sys_platform() == "darwin":
+        bld.program(
+            target="ripservice/rsvc",
+            features="universal",
+            source="src/bin/rsvc.c",
+            includes="include",
+            cflags=CFLAGS,
+            use="ripservice/librsvc",
+        )
 
     bld.program(
         target="ripservice/cloak",
