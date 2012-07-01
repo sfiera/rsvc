@@ -31,12 +31,24 @@
 #include <sysexits.h>
 #include <time.h>
 
+int rsvc_vasprintf(char** value, const char* format, va_list ap) {
+    int size = vsnprintf(NULL, 0, format, ap);
+    if (size < 0) {
+        return size;
+    }
+    *value = malloc(size + 1);
+    if (!*value) {
+        return -1;
+    }
+    return vsnprintf(*value, size + 1, format, ap);
+}
+
 void rsvc_errorf(rsvc_done_t callback,
                  const char* file, int lineno, const char* format, ...) {
     char* message;
     va_list vl;
     va_start(vl, format);
-    vasprintf(&message, format, vl);
+    rsvc_vasprintf(&message, format, vl);
     va_end(vl);
     struct rsvc_error error = {message, file, lineno};
     callback(&error);
@@ -52,7 +64,7 @@ void rsvc_strerrorf(rsvc_done_t callback,
         char* message;
         va_list vl;
         va_start(vl, format);
-        vasprintf(&message, format, vl);
+        rsvc_vasprintf(&message, format, vl);
         va_end(vl);
         rsvc_errorf(callback, file, lineno, "%s: %s", message, strerror);
         free(message);
@@ -117,7 +129,7 @@ void rsvc_logf(int level, const char* format, ...) {
         char* message;
         va_list vl;
         va_start(vl, format);
-        vasprintf(&message, format, vl);
+        rsvc_vasprintf(&message, format, vl);
         va_end(vl);
 
         fprintf(stderr, "%s log: %s\n", time, message);

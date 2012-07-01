@@ -23,6 +23,8 @@
 
 #include <rsvc/common.h>
 
+int                     rsvc_vasprintf(char** value, const char* format, va_list ap);
+
 #define memdup rsvc_memdup
 void* memdup(const void* data, size_t size);
 

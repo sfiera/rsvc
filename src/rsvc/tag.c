@@ -97,7 +97,7 @@ bool rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
     char* value;
     va_list vl;
     va_start(vl, format);
-    vasprintf(&value, format, vl);
+    rsvc_vasprintf(&value, format, vl);
     va_end(vl);
     bool result = tags->vptr->add(tags, name, value, fail);
     free(value);
