@@ -837,6 +837,20 @@ static void print_rename(const char* src, const char* dst) {
     free(dstseg_save);
 }
 
+bool same_file(const char* x, const char* y) {
+    void (^ignore)(rsvc_error_t) = ^(rsvc_error_t error){};
+    int a_fd, b_fd;
+    if (rsvc_open(x, O_RDONLY, 0644, &a_fd, ignore)
+            && rsvc_open(y, O_RDONLY, 0644, &b_fd, ignore)) {
+        struct stat a_st, b_st;
+        if ((fstat(a_fd, &a_st) >= 0) && (fstat(b_fd, &b_st) >= 0)) {
+            return (a_st.st_dev == b_st.st_dev)
+                && (a_st.st_ino == b_st.st_ino);
+        }
+    }
+    return false;
+}
+
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done) {
     if (ops->remove_all_tags) {
         if (!rsvc_tags_clear(tags, done)) {
@@ -867,7 +881,7 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
                     if (error) {
                         done(error);
                     } else if (ops->dry_run) {
-                        if (strcmp(path, new_path) != 0) {
+                        if (!same_file(path, new_path)) {
                             print_rename(path, new_path);
                         }
                         done(NULL);
