@@ -57,8 +57,9 @@ void rsvc_errorf(rsvc_done_t callback,
 
 void rsvc_strerrorf(rsvc_done_t callback,
                     const char* file, int lineno, const char* format, ...) {
-    size_t buflen = strerror_r(errno, NULL, 0);
-    char* strerror = malloc(buflen);
+    char* strerror = NULL;
+    size_t buflen = strerror_r(errno, strerror, 0);
+    strerror = malloc(buflen);
     strerror_r(errno, strerror, buflen);
     if (format) {
         char* message;
