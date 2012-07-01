@@ -19,6 +19,7 @@ def build(bld):
         target="libmusicbrainz/libmusicbrainz",
         features="universal",
         source=[
+            "c/mb5_c.cc",
             "libmusicbrainz-5.0.0/src/Alias.cc",
             "libmusicbrainz-5.0.0/src/Annotation.cc",
             "libmusicbrainz-5.0.0/src/Artist.cc",
@@ -63,13 +64,18 @@ def build(bld):
             "libmusicbrainz-5.0.0/src/Work.cc",
             "libmusicbrainz-5.0.0/src/xmlParser.cpp",
         ],
-        defines=[
-            "PACKAGE=\"libmusicbrainz\"",
-            "VERSION=\"5.0.0\"",
+        includes=[
+            "include",
+            "libmusicbrainz-5.0.0/include",
         ],
-        includes="libmusicbrainz-5.0.0/include",
-        export_includes="libmusicbrainz-5.0.0/include",
-        use="neon/libneon",
+        export_includes=[
+            "include",
+            "libmusicbrainz-5.0.0/include",
+        ],
+        use=[
+            "neon/libneon",
+            "libmusicbrainz/system/stdcxx",
+        ],
     )
 
     bld.program(
@@ -83,19 +89,6 @@ def build(bld):
             "libmusicbrainz-5.0.0/include",
         ],
     )
-
-    bld.stlib(
-        target="libmusicbrainz/libmusicbrainz-c",
-        features="universal",
-        source="c/mb5_c.cc",
-        includes="include",
-        export_includes="include",
-        use=[
-            "include",
-            "libmusicbrainz/libmusicbrainz",
-            "libmusicbrainz/system/stdcxx",
-        ],
-     )
 
 from waflib.Task import Task
 class make_c_interface(Task):

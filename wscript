@@ -73,7 +73,7 @@ def build(bld):
             "discid/libdiscid",
             "flac/libflac",
             "mp4v2/libmp4v2",
-            "libmusicbrainz/libmusicbrainz-c",
+            "libmusicbrainz/libmusicbrainz",
             "vorbis/libvorbis",
         ],
     )
