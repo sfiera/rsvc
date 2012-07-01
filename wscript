@@ -1,5 +1,7 @@
 # -*- mode: python -*-
 
+from waflib.Utils import unversioned_sys_platform
+
 APPNAME = "ripservice"
 VERSION = "0.0.0"
 
@@ -24,6 +26,10 @@ def configure(cnf):
     common(cnf)
     cnf.env.append_value("FRAMEWORK_ripservice/system/diskarbitration", "DiskArbitration")
     cnf.env.append_value("FRAMEWORK_ripservice/system/audiotoolbox", "AudioToolbox")
+
+    if unversioned_sys_platform() != "darwin":
+        cnf.check_cc(lib="BlocksRuntime", uselib_store="ripservice/system/blocks")
+        cnf.check_cc(lib="dispatch", uselib_store="ripservice/system/dispatch")
 
 def build(bld):
     common(bld)
@@ -88,6 +94,16 @@ def build(bld):
         use=[
             "ripservice/system/audiotoolbox",
             "ripservice/system/diskarbitration",
+        ],
+    )
+
+    bld.platform(
+        target="ripservice/librsvc",
+        platform="linux",
+        source="src/rsvc/unix_linux.c",
+        use=[
+            "ripservice/system/blocks",
+            "ripservice/system/dispatch",
         ],
     )
 
