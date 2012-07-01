@@ -20,7 +20,6 @@
 
 #include "unix.h"
 
-#include <copyfile.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <rsvc/common.h>
