@@ -301,20 +301,20 @@ static void rsvc_command_print(char* disk,
             printf("MCN: %s\n", mcn);
         }
         rsvc_cd_each_session(cd, ^(rsvc_cd_session_t session, rsvc_stop_t stop){
-            printf("- Session: %ld\n", rsvc_cd_session_number(session));
+            printf("- Session: %zu\n", rsvc_cd_session_number(session));
             rsvc_cd_session_each_track(session, ^(rsvc_cd_track_t track, rsvc_stop_t stop){
-                printf("  - Track: %ld\n", rsvc_cd_track_number(track));
+                printf("  - Track: %zu\n", rsvc_cd_track_number(track));
                 size_t sectors = rsvc_cd_track_nsectors(track);
                 switch (rsvc_cd_track_type(track)) {
                     case RSVC_CD_TRACK_DATA: {
                         printf("    Type: data\n");
-                        printf("    Sectors: %lu\n", sectors);
+                        printf("    Sectors: %zu\n", sectors);
                     }
                     break;
                     case RSVC_CD_TRACK_AUDIO: {
                         printf("    Type: audio\n");
-                        printf("    Channels: %ld\n", rsvc_cd_track_nchannels(track));
-                        printf("    Duration: %lu:%02lu.%03lu\n",
+                        printf("    Channels: %zu\n", rsvc_cd_track_nchannels(track));
+                        printf("    Duration: %zu:%02zu.%03zu\n",
                                sectors / (75 * 60),
                                (sectors / 75) % 60,
                                ((sectors % 75) * 1000) / 75);
@@ -491,7 +491,7 @@ static void rip_all(rsvc_cd_t cd, rsvc_encode_format_t format, int64_t bitrate, 
 
         // Skip data tracks.
         if (rsvc_cd_track_type(track) == RSVC_CD_TRACK_DATA) {
-            printf("skipping track %ld/%ld\n", track_number, ntracks);
+            printf("skipping track %zu/%zu\n", track_number, ntracks);
             rip_track(n + 1);
             return;
         }
@@ -511,7 +511,7 @@ static void rip_all(rsvc_cd_t cd, rsvc_encode_format_t format, int64_t bitrate, 
 
         int file;
         char* path = malloc(256);
-        sprintf(path, "%02ld.%s", track_number, format->extension);
+        sprintf(path, "%02zu.%s", track_number, format->extension);
         if (!rsvc_open(path, O_RDWR | O_CREAT | O_TRUNC, 0644, &file, decrement_pending)) {
             decrement_pending(NULL);
             return;
@@ -585,8 +585,8 @@ static void set_tags(int fd, char* path,
         }
         if (!rsvc_tags_addf(tags, done, RSVC_ENCODER, "ripservice %s", RSVC_VERSION)
                 || !rsvc_tags_add(tags, done, RSVC_MUSICBRAINZ_DISCID, discid)
-                || !rsvc_tags_addf(tags, done, RSVC_TRACKNUMBER, "%ld", track_number)
-                || !rsvc_tags_addf(tags, done, RSVC_TRACKTOTAL, "%ld", ntracks)
+                || !rsvc_tags_addf(tags, done, RSVC_TRACKNUMBER, "%zu", track_number)
+                || !rsvc_tags_addf(tags, done, RSVC_TRACKTOTAL, "%zu", ntracks)
                 || (*mcn && !rsvc_tags_add(tags, done, RSVC_MCN, mcn))
                 || (*isrc && !rsvc_tags_add(tags, done, RSVC_ISRC, isrc))) {
             rsvc_tags_destroy(tags);

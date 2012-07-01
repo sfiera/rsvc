@@ -427,14 +427,14 @@ static bool read_id3_frames(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     }
 
     size_t unsigned_size = size;
-    rsvc_logf(4, "%lu bytes to read", unsigned_size);
+    rsvc_logf(4, "%zu bytes to read", unsigned_size);
     while (unsigned_size > 0) {
         if ((unsigned_size < 10) || (*data == '\0')) {
             break;
         } else if (!read_id3_frame(tags, &data, &unsigned_size, fail)) {
             return false;
         }
-        rsvc_logf(4, "%lu bytes remain", unsigned_size);
+        rsvc_logf(4, "%zu bytes remain", unsigned_size);
     }
     while (unsigned_size > 0) {
         if (*data != '\0') {
@@ -470,7 +470,7 @@ static bool read_id3_frame(rsvc_id3_tags_t tags, uint8_t** data, size_t* size, r
     *data += 10;
     *size -= 10;
     if (frame_size > *size) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "%lu: invalid ID3 frame size", frame_size);
+        rsvc_errorf(fail, __FILE__, __LINE__, "%zu: invalid ID3 frame size", frame_size);
         return false;
     }
 
