@@ -76,25 +76,6 @@ bool rsvc_rmdir(const char* path, rsvc_done_t fail) {
     return true;
 }
 
-bool rsvc_cp(const char* src, const char* dst, rsvc_done_t fail) {
-    rsvc_logf(3, "cp %s %s", src, dst);
-    int src_fd, dst_fd;
-    if (!rsvc_open(src, O_RDONLY, 0644, &src_fd, fail)) {
-        return false;
-    } else if (!rsvc_open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0600, &dst_fd, fail)) {
-        close(src_fd);
-        return false;
-    } else if (fcopyfile(src_fd, dst_fd, NULL, COPYFILE_ALL) < 0) {
-        close(src_fd);
-        close(dst_fd);
-        rsvc_strerrorf(fail, __FILE__, __LINE__, "copy %s to %s", src, dst);
-        return false;
-    }
-    close(src_fd);
-    close(dst_fd);
-    return true;
-}
-
 bool rsvc_mv(const char* src, const char* dst, rsvc_done_t fail) {
     if (rsvc_rename(src, dst, ^(rsvc_error_t error){})) {
         return true;

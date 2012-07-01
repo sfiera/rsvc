@@ -81,7 +81,10 @@ def build(bld):
     bld.platform(
         target="ripservice/librsvc",
         platform="darwin",
-        source="src/rsvc/core-audio.c",
+        source=[
+            "src/rsvc/core-audio.c",
+            "src/rsvc/unix_darwin.c",
+        ],
         use=[
             "ripservice/system/audiotoolbox",
             "ripservice/system/diskarbitration",
