@@ -50,8 +50,6 @@ def build(bld):
         target="ripservice/librsvc",
         features="universal",
         source=[
-            "src/rsvc/cd.c",
-            "src/rsvc/disc.c",
             "src/rsvc/common.c",
             "src/rsvc/encode.c",
             "src/rsvc/encoding.c",
@@ -82,7 +80,9 @@ def build(bld):
         target="ripservice/librsvc",
         platform="darwin",
         source=[
+            "src/rsvc/cd.c",
             "src/rsvc/core-audio.c",
+            "src/rsvc/disc.c",
             "src/rsvc/unix_darwin.c",
         ],
         use=[
