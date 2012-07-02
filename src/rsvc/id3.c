@@ -190,7 +190,8 @@ static bool get_id3_frame_spec(const uint8_t data[4], id3_frame_spec_t* spec, rs
 // Gets the id3_frame_spec_t with `vorbis_name` equal to `name`.
 static bool get_vorbis_frame_spec(const char* name, id3_frame_spec_t* spec, rsvc_done_t fail) {
     for (size_t i = 0; i < ID3_FRAME_SPECS_SIZE; ++i) {
-        if (strcmp(id3_frame_specs[i].vorbis_name, name) == 0) {
+        const char* spec_name = id3_frame_specs[i].vorbis_name;
+        if (spec_name && (strcmp(spec_name, name) == 0)) {
             *spec = &id3_frame_specs[i];
             return true;
         }
