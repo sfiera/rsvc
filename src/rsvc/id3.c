@@ -215,6 +215,7 @@ static id3_frame_spec_t get_paired_frame_spec(id3_frame_spec_t spec) {
 struct id3_frame_node {
     id3_frame_node_t        prev, next;
     id3_frame_spec_t        spec;
+    size_t                  size;
     uint8_t                 data[0];
 };
 
@@ -616,6 +617,7 @@ static id3_frame_node_t id3_frame_create(
         id3_frame_list_t frames, id3_frame_spec_t spec, size_t size) {
     id3_frame_node_t node = malloc(sizeof(struct id3_frame_node) + size);
     node->spec = spec;
+    node->size = size;
     RSVC_LIST_PUSH(frames, node);
     return node;
 }
@@ -702,12 +704,12 @@ static bool id3_text_remove(
 }
 
 static size_t id3_text_size(id3_frame_node_t node) {
-    return 2 + strlen((const char*)&node->data);
+    return 1 + node->size;
 }
 
 static void id3_text_write(id3_frame_node_t node, uint8_t* data) {
     *(data++) = 0x03;
-    strcpy((char*)data, (const char*)&node->data);
+    memcpy(data, node->data, node->size);
 }
 
 static void sequence_split(const char* text,
@@ -839,9 +841,8 @@ static bool id3_sequence_total_remove(
 
 static bool id3_passthru_read(id3_frame_list_t frames, id3_frame_spec_t spec,
                          uint8_t* data, size_t size, rsvc_done_t fail) {
-    id3_frame_node_t node = id3_frame_create(frames, spec, sizeof(size_t) + size);
-    memcpy(node->data, &size, sizeof(size_t));
-    memcpy(node->data + sizeof(size_t), data, size);
+    id3_frame_node_t node = id3_frame_create(frames, spec, size);
+    memcpy(node->data, data, size);
     return true;
 }
 
@@ -850,12 +851,9 @@ static void id3_passthru_yield(id3_frame_node_t node,
 }
 
 static size_t id3_passthru_size(id3_frame_node_t node) {
-    size_t size;
-    memcpy(&size, node->data, sizeof(size_t));
-    return size;
+    return node->size;
 }
 
 static void id3_passthru_write(id3_frame_node_t node, uint8_t* data) {
-    size_t size = id3_passthru_size(node);
-    memcpy(data, node->data + sizeof(size_t), size);
+    memcpy(data, node->data, node->size);
 }
