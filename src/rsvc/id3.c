@@ -136,41 +136,82 @@ static struct id3_frame_spec {
     id3_frame_type_t    id3_type;
 } id3_frame_specs[] = {
     // 4.2.1. Identification frames.
-    {"GROUPING",        "TIT1",     &id3_text},
-    {"TITLE",           "TIT2",     &id3_text},
-    {"SUBTITLE",        "TIT3",     &id3_text},
-    {"ALBUM",           "TALB",     &id3_text},
-    {"TRACKNUMBER",     "TRCK",     &id3_sequence_number},
-    {"TRACKTOTAL",      "TRCK",     &id3_sequence_total},
-    {"DISCNUMBER",      "TPOS",     &id3_sequence_number},
-    {"DISCTOTAL",       "TPOS",     &id3_sequence_total},
-    {"ISRC",            "TSRC",     &id3_text},
+    {"GROUPING",            "TIT1",     &id3_text},
+    {"TITLE",               "TIT2",     &id3_text},
+    {"SUBTITLE",            "TIT3",     &id3_text},
+    {"ALBUM",               "TALB",     &id3_text},
+    {"ORIGINALALBUM",       "TOAL",     &id3_text},
+    {"TRACKNUMBER",         "TRCK",     &id3_sequence_number},
+    {"TRACKTOTAL",          "TRCK",     &id3_sequence_total},
+    {"DISCNUMBER",          "TPOS",     &id3_sequence_number},
+    {"DISCTOTAL",           "TPOS",     &id3_sequence_total},
+    {"DISCSUBTITLE",        "TSST",     &id3_text},
+    {"ISRC",                "TSRC",     &id3_text},
 
     // 4.2.2. Involved person frames.
-    {"ARTIST",          "TPE1",     &id3_text},
-    {"ALBUMARTIST",     "TPE2",     &id3_text},
-    {"COMPOSER",        "TCOM",     &id3_text},
-    {"ENCODER",         "TENC",     &id3_text},
+    {"ARTIST",              "TPE1",     &id3_text},
+    {"ALBUMARTIST",         "TPE2",     &id3_text},
+    {"CONDUCTOR",           "TPE3",     &id3_text},
+    {"REMIXER",             "TPE4",     &id3_text},
+    {"ORIGINALARTIST",      "TOPE",     &id3_text},
+    {"LYRICIST",            "TEXT",     &id3_text},
+    {"ORIGINALLYRICIST",    "TOLY",     &id3_text},
+    {"COMPOSER",            "TCOM",     &id3_text},
+    {NULL,                  "TMCL",     &id3_passthru},
+    {NULL,                  "TIPL",     &id3_passthru},
+    {"ENCODEDBY",           "TENC",     &id3_text},
 
     // 4.2.3. Derived and subjective properties frames.
-    {"BPM",             "TBPM",     &id3_text},
-    {"GENRE",           "TCON",     &id3_text},
+    {"BPM",                 "TBPM",     &id3_text},
+    {NULL,                  "TLEN",     &id3_passthru},
+    {NULL,                  "TKEY",     &id3_passthru},
+    {NULL,                  "TLAN",     &id3_passthru},
+    {"GENRE",               "TCON",     &id3_text},
+    {NULL,                  "TFLT",     &id3_passthru},
+    {NULL,                  "TMED",     &id3_passthru},
+    {"MOOD",                "TMOO",     &id3_text},
 
     // 4.2.4. Rights and license frames.
-    {"COPYRIGHT",       "TCOP",     &id3_text},
+    {"COPYRIGHT",           "TCOP",     &id3_text},
+    {"PRODUCED",            "TPRO",     &id3_text},
+    {"LABEL",               "TPUB",     &id3_text},
+    {NULL,                  "TOWN",     &id3_passthru},
+    {NULL,                  "TRSN",     &id3_passthru},
+    {NULL,                  "TRSO",     &id3_passthru},
 
     // 4.2.5. Other text frames.
-    {"DATE",            "TDRC",     &id3_text},
-    {"ENCODER",         "TSSE",     &id3_text},
-    {"ALBUMSORT",       "TSOA",     &id3_text},
-    {"ARTISTSORT",      "TSOP",     &id3_text},
-    {"TITLESORT",       "TSOT",     &id3_text},
+    {NULL,                  "TOFN",     &id3_passthru},
+    {NULL,                  "TDLY",     &id3_passthru},
+    {NULL,                  "TDEN",     &id3_passthru},
+    {"ORIGINALDATE",        "TDOR",     &id3_text},
+    {"DATE",                "TDRC",     &id3_text},
+    {NULL,                  "TDRL",     &id3_passthru},
+    {NULL,                  "TDTG",     &id3_passthru},
+    {"ENCODER",             "TSSE",     &id3_text},
+    {"ALBUMSORT",           "TSOA",     &id3_text},
+    {"ARTISTSORT",          "TSOP",     &id3_text},
+    {"TITLESORT",           "TSOT",     &id3_text},
 
-    {NULL,              "TFLT",     &id3_passthru},
-    {NULL,              "APIC",     &id3_passthru},
-    {NULL,              "COMM",     &id3_passthru},
-    {NULL,              "USER",     &id3_passthru},
-    {NULL,              "USLT",     &id3_passthru},
+    // 4.3.1. URL link frames.
+    {NULL,                  "WCOM",     &id3_passthru},
+    {NULL,                  "WCOP",     &id3_passthru},
+    {NULL,                  "WOAF",     &id3_passthru},
+    {NULL,                  "WOAR",     &id3_passthru},
+    {NULL,                  "WOAS",     &id3_passthru},
+    {NULL,                  "WORS",     &id3_passthru},
+    {NULL,                  "WPAY",     &id3_passthru},
+    {NULL,                  "WPUB",     &id3_passthru},
+
+    // 4.3.2. User-defined URL link frame.
+    {NULL,                  "WXXX",     &id3_passthru},
+
+    // 4.14. Attached picture.
+    {NULL,                  "APIC",     &id3_passthru},
+
+    // Various ignored frames.
+    {NULL,                  "USLT",     &id3_passthru},
+    {NULL,                  "COMM",     &id3_passthru},
+    {NULL,                  "USER",     &id3_passthru},
 };
 
 #define ID3_FRAME_SPECS_SIZE (sizeof(id3_frame_specs) / sizeof(id3_frame_specs[0]))
