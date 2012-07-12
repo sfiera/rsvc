@@ -32,6 +32,8 @@
 #include <time.h>
 
 int rsvc_vasprintf(char** value, const char* format, va_list ap) {
+    va_list ap2;
+    va_copy(ap2, ap);
     int size = vsnprintf(NULL, 0, format, ap);
     if (size < 0) {
         return size;
@@ -40,7 +42,11 @@ int rsvc_vasprintf(char** value, const char* format, va_list ap) {
     if (!*value) {
         return -1;
     }
-    return vsnprintf(*value, size + 1, format, ap);
+    int result = vsnprintf(*value, size + 1, format, ap2);
+    if (result < 0) {
+        free(*value);
+    }
+    return result;
 }
 
 void rsvc_errorf(rsvc_done_t callback,
