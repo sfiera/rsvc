@@ -204,6 +204,7 @@ typedef struct ops* ops_t;
 
 static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done);
 static void tag_file(const char* path, ops_t ops, rsvc_done_t done);
+static bool any_actions(ops_t ops);
 static int ops_mode(ops_t ops);
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done);
 static void format_path(rsvc_tags_t tags, const char* path, ops_t ops,
@@ -231,7 +232,6 @@ static void cloak_main(int argc, char* const* argv) {
 
     __block rsvc_option_callbacks_t callbacks;
 
-    __block bool no_actions = true;
     __block struct ops ops = {
         .auto_mode          = false,
         .list_mode          = LIST_MODE_NONE,
@@ -259,18 +259,15 @@ static void cloak_main(int argc, char* const* argv) {
 
           case LIST:
             ops.list_mode = LIST_MODE_SHORT;
-            no_actions = false;
             return true;
 
           case REMOVE:
             validate_name(progname, value());
             add_string(&ops.remove_tags, value());
-            no_actions = false;
             return true;
 
           case REMOVE_ALL:
             ops.remove_all_tags = true;
-            no_actions = false;
             return true;
 
           case ADD:
@@ -289,7 +286,6 @@ static void cloak_main(int argc, char* const* argv) {
                 add_string(&ops.add_tag_values, tag_value);
                 free(tag_name);
                 free(tag_value);
-                no_actions = false;
             }
             return true;
 
@@ -310,18 +306,15 @@ static void cloak_main(int argc, char* const* argv) {
                 add_string(&ops.add_tag_names, tag_name);
                 add_string(&ops.add_tag_values, tag_value);
                 free(tag_value);
-                no_actions = false;
             }
             return true;
 
           case AUTO:
             ops.auto_mode = true;
-            no_actions = false;
             return true;
 
           case MOVE:
             ops.move_mode = true;
-            no_actions = false;
             return true;
 
           case FORMAT_PATH:
@@ -369,7 +362,7 @@ static void cloak_main(int argc, char* const* argv) {
 
     if (files.nstrings == 0) {
         callbacks.usage("no input files");
-    } else if (no_actions) {
+    } else if (!any_actions(&ops)) {
         callbacks.usage("no actions");
     }
 
@@ -683,6 +676,15 @@ static void format_path(rsvc_tags_t tags, const char* path, ops_t ops,
     }
     done(NULL, new_path);
     free(new_path);
+}
+
+static bool any_actions(ops_t ops) {
+    return ops->remove_all_tags
+        || ops->remove_tags.nstrings
+        || ops->add_tag_names.nstrings
+        || ops->auto_mode
+        || ops->list_mode
+        || ops->move_mode;
 }
 
 static int ops_mode(ops_t ops) {
