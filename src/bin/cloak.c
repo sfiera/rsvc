@@ -210,11 +210,19 @@ static void format_path(rsvc_tags_t tags, const char* path, ops_t ops,
                         void (^done)(rsvc_error_t error, char* path));
 
 static void validate_name(const char* progname, char* name);
-static void split_assignment(const char* progname, const char* assignment,
-                             char** name, char** value);
+static bool split_assignment(const char* assignment, char** name, char** value,
+                             rsvc_done_t fail);
 
 static void cloak_main(int argc, char* const* argv) {
     const char* progname = strdup(basename(argv[0]));
+    rsvc_done_t fail = ^(rsvc_error_t error){
+        if (error) {
+            fprintf(stderr, "%s: %s (%s:%d)\n",
+                    progname, error->message, error->file, error->lineno);
+            exit(1);
+        }
+        exit(0);
+    };
 
     rsvc_flac_format_register();
     rsvc_vorbis_format_register();
@@ -270,7 +278,9 @@ static void cloak_main(int argc, char* const* argv) {
             {
                 char* tag_name;
                 char* tag_value;
-                split_assignment(progname, value(), &tag_name, &tag_value);
+                if (!split_assignment(value(), &tag_name, &tag_value, fail)) {
+                    return true;
+                }
                 validate_name(progname, tag_name);
                 if (opt == SET) {
                     add_string(&ops.remove_tags, tag_name);
@@ -366,14 +376,7 @@ static void cloak_main(int argc, char* const* argv) {
     if ((files.nstrings > 1) && (ops.list_mode == LIST_MODE_SHORT)) {
         ops.list_mode = LIST_MODE_LONG;
     }
-    tag_files(files.nstrings, files.strings, &ops, ^(rsvc_error_t error){
-        if (error) {
-            fprintf(stderr, "%s: %s (%s:%d)\n",
-                    progname, error->message, error->file, error->lineno);
-            exit(1);
-        }
-        exit(0);
-    });
+    tag_files(files.nstrings, files.strings, &ops, fail);
 
     dispatch_main();
 }
@@ -924,15 +927,16 @@ static void validate_name(const char* progname, char* name) {
     }
 }
 
-static void split_assignment(const char* progname, const char* assignment,
-                             char** name, char** value) {
+static bool split_assignment(const char* assignment, char** name, char** value,
+                             rsvc_done_t fail) {
     char* eq = strchr(assignment, '=');
     if (eq == NULL) {
-        fprintf(stderr, "%s: missing tag value: %s\n", progname, *name);
-        exit(EX_USAGE);
+        rsvc_errorf(fail, __FILE__, __LINE__, "missing tag value: %s", assignment);
+        return false;
     }
     *name = strndup(assignment, eq - assignment);
     *value = strdup(eq + 1);
+    return true;
 }
 
 int main(int argc, char* const* argv) {
