@@ -207,7 +207,7 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done);
 static bool any_actions(ops_t ops);
 static int ops_mode(ops_t ops);
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done);
-static void format_path(rsvc_tags_t tags, const char* path, ops_t ops,
+static void format_path(const char* format, rsvc_tags_t tags, const char* extension,
                         void (^done)(rsvc_error_t error, char* path));
 
 static void validate_name(const char* progname, char* name);
@@ -557,6 +557,16 @@ static bool is_canonical_int(const char* str) {
     return false;
 }
 
+// TODO(sfiera): more robust extension-finding.
+static const char* get_extension(const char* path) {
+    const char* extension = strrchr(path, '.');
+    if (!extension || strchr(extension, '/')) {
+        return NULL;
+    } else {
+        return extension;
+    }
+}
+
 enum snpath_state {
     SNPATH_INITIAL = 0,
     SNPATH_CONTENT,
@@ -569,7 +579,7 @@ struct snpath_context {
 };
 
 static bool snpathf(char* data, size_t size, size_t* size_needed,
-                    const char* format, rsvc_tags_t tags, const char* path,
+                    const char* format, rsvc_tags_t tags, const char* extension,
                     rsvc_done_t fail) {
     bool add_trailing_nul = size;
     __block char* dst = data;
@@ -647,9 +657,7 @@ static bool snpathf(char* data, size_t size, size_t* size_needed,
         return false;
     };
 
-    // TODO(sfiera): more robust extension-finding.
-    const char* extension = strrchr(path, '.');
-    if (extension && !strchr(extension, '/')) {
+    if (extension) {
         clipped_cat(&dst, &dst_size, extension, strlen(extension), size_needed);
     }
 
@@ -659,19 +667,18 @@ static bool snpathf(char* data, size_t size, size_t* size_needed,
     return true;
 }
 
-static void format_path(rsvc_tags_t tags, const char* path, ops_t ops,
+static void format_path(const char* format, rsvc_tags_t tags, const char* extension,
                         void (^done)(rsvc_error_t error, char* path)) {
     rsvc_done_t fail = ^(rsvc_error_t error){
         done(error, NULL);
     };
 
     size_t size;
-    const char* format = ops->move_format ? ops->move_format : DEFAULT_FORMAT;
-    if (!snpathf(NULL, 0, &size, format, tags, path, fail)) {
+    if (!snpathf(NULL, 0, &size, format, tags, extension, fail)) {
         return;
     }
     char* new_path = malloc(size + 1);
-    if (!snpathf(new_path, size + 1, NULL, format, tags, path, fail)) {
+    if (!snpathf(new_path, size + 1, NULL, format, tags, extension, fail)) {
         return;
     }
     done(NULL, new_path);
@@ -874,7 +881,9 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
             if (error) {
                 done(error);
             } else {
-                format_path(tags, path, ops, ^(rsvc_error_t error, char* new_path){
+                const char* format = ops->move_format ? ops->move_format : DEFAULT_FORMAT;
+                const char* extension = get_extension(path);
+                format_path(format, tags, extension, ^(rsvc_error_t error, char* new_path){
                     if (error) {
                         done(error);
                     } else if (ops->dry_run) {
