@@ -69,11 +69,15 @@ static void rsvc_command_watch(void (^usage)(const char* message, ...),
 
 static void rsvc_command_rip(char* disk, rsvc_encode_format_t format,
                              bool has_bitrate, int64_t bitrate,
+                             const char* format_path,
                              void (^usage)(const char* message, ...),
                              rsvc_done_t done);
 
-static void rip_all(rsvc_cd_t cd, rsvc_encode_format_t format, int64_t bitrate, rsvc_done_t done);
+static void rip_all(rsvc_cd_t cd,
+                    rsvc_encode_format_t format, int64_t bitrate, const char* format_path,
+                    rsvc_done_t done);
 static void set_tags(int fd, char* path,
+                     const char* format_path, rsvc_encode_format_t encode_format,
                      rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
                      rsvc_done_t done);
 static bool read_si_number(const char* in, int64_t* out);
@@ -131,12 +135,24 @@ static void rsvc_main(int argc, char* const* argv) {
     __block rsvc_encode_format_t format     = NULL;
     __block bool has_bitrate                = false;
     __block int64_t bitrate;
+    __block char* format_path               = strdup("%k");
     __block struct command rip = {
         .name = "rip",
         .short_option = ^bool (char opt, char* (^value)()){
+            switch (opt) {
+              case 'f':
+                if (format_path) {
+                    free(format_path);
+                }
+                format_path = strdup(value());
+                return true;
+            }
             return false;
         },
         .long_option = ^bool (char* opt, char* (^value)()){
+            if (strcmp(opt, "format-path") == 0) {
+                return callbacks.short_option('f', value);
+            }
             return false;
         },
         .argument = ^bool (char* arg) {
@@ -162,6 +178,9 @@ static void rsvc_main(int argc, char* const* argv) {
             fprintf(stderr,
                     "usage: %s rip [OPTIONS] DEVICE FORMAT [BITRATE]\n"
                     "\n"
+                    "Options:\n"
+                    "  -f, --format-path PATH  format string for output (default %%k)\n"
+                    "\n"
                     "Formats:\n",
                     progname);
             rsvc_encode_formats_each(^(rsvc_encode_format_t format, rsvc_stop_t stop){
@@ -169,7 +188,8 @@ static void rsvc_main(int argc, char* const* argv) {
             });
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_rip(rip_disk, format, has_bitrate, bitrate, callbacks.usage, done);
+            rsvc_command_rip(rip_disk, format, has_bitrate, bitrate, format_path,
+                             callbacks.usage, done);
         },
     };
 
@@ -361,6 +381,7 @@ static void rsvc_command_watch(void (^usage)(const char* message, ...),
 
 static void rsvc_command_rip(char* disk, rsvc_encode_format_t format,
                              bool has_bitrate, int64_t bitrate,
+                             const char* format_path,
                              void (^usage)(const char* message, ...),
                              rsvc_done_t done) {
     if (!disk) {
@@ -377,7 +398,7 @@ static void rsvc_command_rip(char* disk, rsvc_encode_format_t format,
             done(error);
             return;
         }
-        rip_all(cd, format, bitrate, ^(rsvc_error_t error){
+        rip_all(cd, format, bitrate, format_path, ^(rsvc_error_t error){
             rsvc_cd_destroy(cd);
             done(error);
         });
@@ -423,7 +444,9 @@ static void set_sigint_callback(rsvc_stop_t stop) {
     });
 }
 
-static void rip_all(rsvc_cd_t cd, rsvc_encode_format_t format, int64_t bitrate, rsvc_done_t done) {
+static void rip_all(rsvc_cd_t cd,
+                    rsvc_encode_format_t format, int64_t bitrate, const char* format_path,
+                    rsvc_done_t done) {
     printf("Ripping…\n");
     rsvc_cd_session_t session = rsvc_cd_session(cd, 0);
     const size_t ntracks = rsvc_cd_session_ntracks(session);
@@ -500,8 +523,10 @@ static void rip_all(rsvc_cd_t cd, rsvc_encode_format_t format, int64_t bitrate, 
 
         int file;
         char* path = malloc(256);
-        sprintf(path, "%02zu.%s", track_number, format->extension);
-        if (!rsvc_open(path, O_RDWR | O_CREAT | O_TRUNC, 0644, &file, decrement_pending)) {
+        // TODO(sfiera): mkstemp() instead.
+        sprintf(path, ".rsvc.%s.XXXXXX", format->extension);
+        mktemp(path);
+        if (!rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, decrement_pending)) {
             decrement_pending(NULL);
             return;
         }
@@ -523,7 +548,9 @@ static void rip_all(rsvc_cd_t cd, rsvc_encode_format_t format, int64_t bitrate, 
 
         // Encode the current track.  If that fails, bail.  If it
         // succeeds, decrement the number of pending operations.
-        rsvc_progress_node_t node = rsvc_progress_start(progress, path);
+        char name[16];
+        sprintf(name, "%02zu", n);
+        rsvc_progress_node_t node = rsvc_progress_start(progress, name);
         size_t nsamples = rsvc_cd_track_nsamples(track);
         void (^progress)(double) = ^(double fraction){
             rsvc_progress_update(node, fraction);
@@ -542,7 +569,7 @@ static void rip_all(rsvc_cd_t cd, rsvc_encode_format_t format, int64_t bitrate, 
                 free(path);
                 return;
             }
-            set_tags(file, path, cd, session, track, ^(rsvc_error_t error){
+            set_tags(file, path, format_path, format, cd, session, track, ^(rsvc_error_t error){
                 close(file);
                 free(path);
                 rsvc_progress_done(node);
@@ -555,6 +582,7 @@ static void rip_all(rsvc_cd_t cd, rsvc_encode_format_t format, int64_t bitrate, 
 }
 
 static void set_tags(int fd, char* path,
+                     const char* format_path, rsvc_encode_format_t encode_format,
                      rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
                      rsvc_done_t done) {
     const char* discid      = rsvc_cd_session_discid(session);
@@ -563,22 +591,26 @@ static void set_tags(int fd, char* path,
     const char* mcn         = rsvc_cd_mcn(cd);
     const char* isrc        = rsvc_cd_track_isrc(track);
 
-    rsvc_tag_format_t format;
-    if (!rsvc_tag_format_detect(fd, &format, done)) {
+    rsvc_tag_format_t tag_format;
+    if (!rsvc_tag_format_detect(fd, &tag_format, done)) {
         return;
     }
-    format->open_tags(path, RSVC_TAG_RDWR, ^(rsvc_tags_t tags, rsvc_error_t error){
+    tag_format->open_tags(path, RSVC_TAG_RDWR, ^(rsvc_tags_t tags, rsvc_error_t error){
         if (error) {
             done(error);
             return;
         }
+        rsvc_done_t original_done = done;
+        rsvc_done_t done = ^(rsvc_error_t error){
+            rsvc_tags_destroy(tags);
+            original_done(error);
+        };
         if (!rsvc_tags_addf(tags, done, RSVC_ENCODER, "ripservice %s", RSVC_VERSION)
                 || !rsvc_tags_add(tags, done, RSVC_MUSICBRAINZ_DISCID, discid)
                 || !rsvc_tags_addf(tags, done, RSVC_TRACKNUMBER, "%zu", track_number)
                 || !rsvc_tags_addf(tags, done, RSVC_TRACKTOTAL, "%zu", ntracks)
                 || (*mcn && !rsvc_tags_add(tags, done, RSVC_MCN, mcn))
                 || (*isrc && !rsvc_tags_add(tags, done, RSVC_ISRC, isrc))) {
-            rsvc_tags_destroy(tags);
             return;
         }
         rsvc_apply_musicbrainz_tags(tags, ^(rsvc_error_t error){
@@ -588,8 +620,25 @@ static void set_tags(int fd, char* path,
             (void)error;
 
             rsvc_tags_save(tags, ^(rsvc_error_t error){
-                rsvc_tags_destroy(tags);
-                done(error);
+                if (error) {
+                    done(error);
+                    return;
+                }
+
+                rsvc_tags_strf(tags, format_path, encode_format->extension,
+                               ^(rsvc_error_t error, char* new_path){
+                    if (error) {
+                        done(error);
+                        return;
+                    }
+
+                    rsvc_dirname(new_path, ^(const char* new_parent){
+                        if (rsvc_makedirs(new_parent, 0755, done)
+                            && rsvc_mv(path, new_path, done)) {
+                            done(NULL);
+                        }
+                    });
+                });
             });
         });
     });

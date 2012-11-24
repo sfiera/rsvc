@@ -348,6 +348,7 @@ static bool snpathf(char* data, size_t size, size_t* size_needed,
     };
 
     if (extension) {
+        clipped_cat(&dst, &dst_size, ".", 1, size_needed);
         clipped_cat(&dst, &dst_size, extension, strlen(extension), size_needed);
     }
 
