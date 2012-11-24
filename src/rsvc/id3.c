@@ -243,6 +243,8 @@ static struct id3_frame_spec {
     {NULL,                  "USLT",     &id3_passthru,  &id3_passthru},
     {NULL,                  "COMM",     &id3_passthru,  &id3_passthru},
     {NULL,                  "USER",     &id3_passthru,  &id3_passthru},
+    {NULL,                  "PRIV",     &id3_passthru,  &id3_passthru},
+    {NULL,                  "TSIZ",     &id3_passthru,  &id3_passthru},
 };
 
 #define ID3_FRAME_SPECS_SIZE (sizeof(id3_frame_specs) / sizeof(id3_frame_specs[0]))
