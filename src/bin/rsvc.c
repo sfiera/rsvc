@@ -134,45 +134,33 @@ static void rsvc_main(int argc, char* const* argv) {
     __block struct command rip = {
         .name = "rip",
         .short_option = ^bool (char opt, char* (^value)()){
-            switch (opt) {
-              case 'b':
-                if (!read_si_number(value(), &bitrate)) {
-                    callbacks.usage("invalid bitrate: %s", value());
-                }
-                has_bitrate = true;
-                return true;
-              case 'f':
-                format = rsvc_encode_format_named(value());
-                if (!format) {
-                    callbacks.usage("invalid format: %s", value());
-                }
-                return true;
-              default:
-                return false;
-            }
+            return false;
         },
         .long_option = ^bool (char* opt, char* (^value)()){
-            if (strcmp(opt, "bitrate") == 0) {
-                return callbacks.short_option('b', value);
-            } else if (strcmp(opt, "format") == 0) {
-                return callbacks.short_option('f', value);
-            }
             return false;
         },
         .argument = ^bool (char* arg) {
             if (!rip_disk) {
                 rip_disk = arg;
                 return true;
+            } else if (!format) {
+                format = rsvc_encode_format_named(arg);
+                if (!format) {
+                    callbacks.usage("invalid format: %s", arg);
+                }
+                return true;
+            } else if (!has_bitrate) {
+                if (!read_si_number(arg, &bitrate)) {
+                    callbacks.usage("invalid bitrate: %s", arg);
+                }
+                has_bitrate = true;
+                return true;
             }
             return false;
         },
         .usage = ^{
             fprintf(stderr,
-                    "usage: %s rip -f FORMAT [OPTIONS] DEVICE\n"
-                    "\n"
-                    "Options:\n"
-                    "  -f, --format FORMAT   choose format\n"
-                    "  -b, --bitrate KBPS    set bitrate for lossy codecs\n"
+                    "usage: %s rip [OPTIONS] DEVICE FORMAT [BITRATE]\n"
                     "\n"
                     "Formats:\n",
                     progname);
