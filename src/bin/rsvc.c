@@ -37,6 +37,7 @@
 #include <rsvc/disc.h>
 #include <rsvc/flac.h>
 #include <rsvc/mp4.h>
+#include <rsvc/musicbrainz.h>
 #include <rsvc/tag.h>
 #include <rsvc/vorbis.h>
 
@@ -592,9 +593,16 @@ static void set_tags(int fd, char* path,
             rsvc_tags_destroy(tags);
             return;
         }
-        rsvc_tags_save(tags, ^(rsvc_error_t error){
-            rsvc_tags_destroy(tags);
-            done(error);
+        rsvc_apply_musicbrainz_tags(tags, ^(rsvc_error_t error){
+            // MusicBrainz tagging could fail for a number of reasons:
+            // wasn't reachable; couldn't find album.  None of those is
+            // reason to stop ripping, so ignore and proceed.
+            (void)error;
+
+            rsvc_tags_save(tags, ^(rsvc_error_t error){
+                rsvc_tags_destroy(tags);
+                done(error);
+            });
         });
     });
 }
