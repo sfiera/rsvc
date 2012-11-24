@@ -187,7 +187,7 @@ static void rsvc_main(int argc, char* const* argv) {
     callbacks.short_option = ^bool (char opt, char* (^value)()){
         switch (opt) {
           case 'V':
-            fprintf(stderr, "ripservice %s\n", RSVC_VERSION);
+            fprintf(stderr, "rsvc %s\n", RSVC_VERSION);
             exit(0);
           default:
             if (command && command->short_option) {
