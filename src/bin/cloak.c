@@ -207,8 +207,6 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done);
 static bool any_actions(ops_t ops);
 static int ops_mode(ops_t ops);
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done);
-static void format_path(const char* format, rsvc_tags_t tags, const char* extension,
-                        void (^done)(rsvc_error_t error, char* path));
 
 static void validate_name(const char* progname, char* name);
 static bool split_assignment(const char* assignment, char** name, char** value,
@@ -438,125 +436,6 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
     });
 }
 
-typedef struct format_node* format_node_t;
-typedef struct format_list* format_list_t;
-
-struct format_node {
-    int     type;
-    size_t  size;
-    char    data[0];
-};
-
-struct format_list {
-    format_node_t   head;
-    format_node_t   tail;
-};
-
-static bool parse_format(const char* format,
-                         rsvc_done_t fail,
-                         void (^block)(int type, const char* data, size_t size)) {
-    while (*format) {
-        size_t literal_size = strcspn(format, "%/");
-        if (literal_size) {
-            block(0, format, literal_size);
-        }
-        format += literal_size;
-
-        switch (*format) {
-          case '\0':
-            break;
-          case '/':
-            literal_size = strspn(format, "/");
-            block(0, format, literal_size);
-            format += literal_size;
-            break;
-          case '%':
-            ++format;
-            if (*format == '%') {
-                block(0, format, 1);
-                ++format;
-            } else if (get_tag_name(*format)) {
-                // Check that it's a valid option, then add it.
-                block(*format, NULL, 0);
-                ++format;
-            } else if ((' ' <= *format) && (*format < 0x80)) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "invalid format code %%%c", *format);
-                return false;
-            } else {
-                rsvc_errorf(fail, __FILE__, __LINE__, "invalid format code %%\\%o", *format);
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-// Append `src` to `*dst`, ensuring we do not overrun `*dst`.
-//
-// Advance `*dst` and `*dst_size` to point to the remainder of the
-// string.
-static void clipped_cat(char** dst, size_t* dst_size, const char* src, size_t src_size,
-                        size_t* size_needed) {
-    rsvc_logf(4, "src=%s, size=%zu", src, src_size);
-    if (size_needed) {
-        *size_needed += src_size;
-    }
-    if (*dst_size < src_size) {
-        src_size = *dst_size;
-    }
-    memcpy(*dst, src, src_size);
-    *dst += src_size;
-    *dst_size -= src_size;
-}
-
-static void escape_for_path(char* string) {
-    for (char* ch = string; *ch; ++ch) {
-        // Allow non-ASCII characters and whitelisted ASCII.
-        if (*ch & 0x80) {
-            continue;
-        } else if (strchr("ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                          "abcdefghijklmnopqrstuvwxyz"
-                          "0123456789"
-                          " #%&'()*+,-@[]^_{|}~", *ch)) {
-            continue;
-        }
-        *ch = '_';
-    }
-}
-
-static bool any_tags(rsvc_tags_t tags, const char* tag_name) {
-    return !rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        if (strcmp(name, tag_name) == 0) {
-            stop();
-        }
-    });
-}
-
-static size_t max_precision(rsvc_tags_t tags, const char* tag_name, size_t minimum) {
-    __block size_t result = minimum;
-    rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        if ((strcmp(name, tag_name) == 0) && (strlen(value) > result)) {
-            result = strlen(value);
-        }
-    });
-    return result;
-}
-
-// Return true if `str` matches "0|[1-9][0-9]*".
-static bool is_canonical_int(const char* str) {
-    if (strcmp(str, "0") == 0) {
-        return true;
-    } else if (('1' <= *str) && (*str <= '9')) {
-        for (++str; *str; ++str) {
-            if ((*str < '0') || ('9' < *str)) {
-                return false;
-            }
-        }
-        return true;
-    }
-    return false;
-}
-
 // TODO(sfiera): more robust extension-finding.
 static const char* get_extension(const char* path) {
     const char* extension = strrchr(path, '.');
@@ -565,124 +444,6 @@ static const char* get_extension(const char* path) {
     } else {
         return extension;
     }
-}
-
-enum snpath_state {
-    SNPATH_INITIAL = 0,
-    SNPATH_CONTENT,
-    SNPATH_NO_CONTENT,
-};
-
-struct snpath_context {
-    enum snpath_state   state;
-    int                 type;
-};
-
-static bool snpathf(char* data, size_t size, size_t* size_needed,
-                    const char* format, rsvc_tags_t tags, const char* extension,
-                    rsvc_done_t fail) {
-    bool add_trailing_nul = size;
-    __block char* dst = data;
-    __block size_t dst_size = size;
-    if (add_trailing_nul) {
-        --dst_size;
-    }
-    if (size_needed) {
-        *size_needed = 0;
-    }
-
-    __block struct snpath_context ctx = { };
-    if (!parse_format(format, fail, ^(int type, const char* src, size_t src_size){
-        if (type == 0) {
-            if (!src_size) {
-                return;
-            } else if (*src == '/') {
-                if (ctx.state != SNPATH_NO_CONTENT) {
-                    clipped_cat(&dst, &dst_size, src, src_size, size_needed);
-                }
-                ctx.state = SNPATH_NO_CONTENT;
-            } else {
-                clipped_cat(&dst, &dst_size, src, src_size, size_needed);
-                ctx.state = SNPATH_CONTENT;
-            }
-            ctx.type = type;
-        } else {
-            const char* separator = ", ";
-            const char* prefix = "";
-            if ((type == TRACK) && (ctx.type == DISC)) {
-                prefix = "-";
-            } else if (ctx.type) {
-                prefix = " ";
-            }
-
-            size_t precision = 0;
-            if (type == TRACK) {
-                precision = max_precision(tags, RSVC_TRACKTOTAL, 2);
-            } else if (type == DISC) {
-                precision = max_precision(tags, RSVC_DISCTOTAL, 1);
-            } else if ((type == ALBUM_ARTIST) && !any_tags(tags, RSVC_ALBUMARTIST)) {
-                type = ARTIST;
-            }
-
-            __block size_t count = 0;
-            rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-                if (strcmp(name, get_tag_name(type)) == 0) {
-                    if (!*value) {
-                        return;
-                    }
-                    if (count++ == 0) {
-                        clipped_cat(&dst, &dst_size, prefix, strlen(prefix), size_needed);
-                    } else {
-                        clipped_cat(&dst, &dst_size, separator, strlen(separator), size_needed);
-                    }
-                    if (precision && is_canonical_int(value)) {
-                        for (size_t i = strlen(value); i < precision; ++i) {
-                            clipped_cat(&dst, &dst_size, "0", 1, size_needed);
-                        }
-                    }
-                    char* escaped = strdup(value);
-                    escape_for_path(escaped);
-                    clipped_cat(&dst, &dst_size, escaped, strlen(escaped), size_needed);
-                    free(escaped);
-                }
-            });
-            if (count) {
-                ctx.state = SNPATH_CONTENT;
-                ctx.type = type;
-            } else if (ctx.state == SNPATH_INITIAL) {
-                ctx.state = SNPATH_NO_CONTENT;
-            }
-        }
-    })) {
-        return false;
-    };
-
-    if (extension) {
-        clipped_cat(&dst, &dst_size, extension, strlen(extension), size_needed);
-    }
-
-    if (add_trailing_nul) {
-        *dst = '\0';
-    }
-    return true;
-}
-
-static void format_path(const char* format, rsvc_tags_t tags, const char* extension,
-                        void (^done)(rsvc_error_t error, char* path)) {
-    rsvc_done_t fail = ^(rsvc_error_t error){
-        done(error, NULL);
-    };
-
-    size_t size;
-    if (!snpathf(NULL, 0, &size, format, tags, extension, fail)) {
-        return;
-    }
-    char* new_path = malloc(size + 1);
-    if (!snpathf(new_path, size + 1, NULL, format, tags, extension, fail)) {
-        return;
-    }
-    done(NULL, new_path);
-    free(new_path);
 }
 
 static bool any_actions(ops_t ops) {
@@ -883,7 +644,7 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
             } else {
                 const char* format = ops->move_format ? ops->move_format : DEFAULT_FORMAT;
                 const char* extension = get_extension(path);
-                format_path(format, tags, extension, ^(rsvc_error_t error, char* new_path){
+                rsvc_tags_strf(tags, format, extension, ^(rsvc_error_t error, char* new_path){
                     if (error) {
                         done(error);
                     } else if (ops->dry_run) {

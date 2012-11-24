@@ -128,6 +128,49 @@ bool                    rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
 bool                    rsvc_tags_each(rsvc_tags_t tags,
                                        void (^block)(const char*, const char*, rsvc_stop_t));
 
+/// ..  function:: void rsvc_tags_strf(const char* format, rsvc_tags_t tags, const char* extension, void (^done)(rsvc_error_t error, char* path))
+///
+///     Formatting codes:
+///
+///     *   %a: ARTIST
+///     *   %A: ALBUM
+///     *   %b: ALBUMARTIST, or ARTIST if there is no ALBUMARTIST
+///     *   %d: DISCNUMBER, padded to the width of DISCTOTAL if an
+///         integer in canonical form
+///     *   %D: DISCTOTAL
+///     *   %g: GENRE
+///     *   %k: TRACKNUMBER, padded to the width of TRACKTOTAL if an
+///         integer in canonical form
+///     *   %K: TRACKTOTAL
+///     *   %t: TITLE
+///     *   %y: DATE
+///     *   %%: literal '%'
+///
+///     An integer is considered to be in canonical form if it matches
+///     "0|[1-9][0-9]*".  For example, if TRACKTOTAL is "1000", then a
+///     TRACKNUMBER of "21" will be printed as "0021", but a TRACKNUMBER
+///     of "021" will be printed as "021".
+///
+///     If the format string contains two formatting codes next to each
+///     other (e.g. "%d%k%t"), then a separator will be put between
+///     them: usually a space, but a hyphen when TRACKNUMBER follows
+///     DISCNUMBER.  Also, if a tag has multiple values, those values
+///     will be separated by a comma and a space.
+///
+///     Also, if formatting results in an empty directory name (e.g.
+///     "%b/%A/%k" when ARTIST and ALBUMARTIST or ALBUM is not set),
+///     then the empty directories will be removed.
+///
+///     :param format:      a formatting string.
+///     :param extension:   an extension, such as "flac".  If non-NULL,
+///                         it will be appended after the result of the
+///                         formatting string.
+///     :param done:        on success, invoked with a NULL rsvc_error_t
+///                         and the formatted path; on failure, invoked
+///                         with the error.
+void rsvc_tags_strf(rsvc_tags_t tags, const char* format, const char* extension,
+                    void (^done)(rsvc_error_t error, char* path));
+
 /// Tag Formats
 /// -----------
 
@@ -151,7 +194,7 @@ void                    rsvc_tag_format_register(const char* name,
 rsvc_tag_format_t       rsvc_tag_format_named(const char* name);
 bool                    rsvc_tag_format_detect(int fd, rsvc_tag_format_t* format,
                                                rsvc_done_t fail);
-                     
+
 /// ..  _tag_constants:
 ///
 /// Constants
