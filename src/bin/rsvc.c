@@ -76,10 +76,9 @@ static void rsvc_command_rip(char* disk, rsvc_encode_format_t format,
 static void rip_all(rsvc_cd_t cd,
                     rsvc_encode_format_t format, int64_t bitrate, const char* format_path,
                     rsvc_done_t done);
-static void set_tags(int fd, char* path,
-                     const char* format_path, rsvc_encode_format_t encode_format,
-                     rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
-                     rsvc_done_t done);
+static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
+                     void (^done)(rsvc_error_t error, rsvc_tags_t tags));
+static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done);
 static bool read_si_number(const char* in, int64_t* out);
 
 static void rsvc_main(int argc, char* const* argv) {
@@ -521,59 +520,78 @@ static void rip_all(rsvc_cd_t cd,
         int write_pipe = pipe_fd[1];
         int read_pipe = pipe_fd[0];
 
-        int file;
-        char* path = malloc(256);
-        // TODO(sfiera): mkstemp() instead.
-        sprintf(path, ".rsvc.%s.XXXXXX", format->extension);
-        mktemp(path);
-        if (!rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, decrement_pending)) {
-            decrement_pending(NULL);
-            return;
-        }
-
-        // Rip the current track.  If that fails, bail.  If it succeeds,
-        // start ripping the next track.
-        increment_pending();
-        rsvc_stop_t stop_rip = rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
-            close(write_pipe);
-            decrement_pending(error);
-            if (error) {
-                decrement_pending(NULL);
-            } else {
-                rip_track(n + 1);
-            }
-        });
-        set_sigint_callback(stop_rip);
-        Block_release(stop_rip);
-
-        // Encode the current track.  If that fails, bail.  If it
-        // succeeds, decrement the number of pending operations.
-        char name[16];
-        sprintf(name, "%02zu", n);
-        rsvc_progress_node_t node = rsvc_progress_start(progress, name);
-        size_t nsamples = rsvc_cd_track_nsamples(track);
-        void (^progress)(double) = ^(double fraction){
-            rsvc_progress_update(node, fraction);
-        };
-
-        increment_pending();
-        struct rsvc_encode_options encode_options = {
-            .bitrate                = bitrate,
-            .samples_per_channel    = nsamples,
-            .progress               = progress,
-        };
-        format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
-            close(read_pipe);
+        get_tags(cd, session, track, ^(rsvc_error_t error, rsvc_tags_t tags){
             if (error) {
                 decrement_pending(error);
-                free(path);
                 return;
             }
-            set_tags(file, path, format_path, format, cd, session, track, ^(rsvc_error_t error){
-                close(file);
-                free(path);
-                rsvc_progress_done(node);
-                decrement_pending(error);
+
+            rsvc_tags_strf(tags, format_path, format->extension,
+                           ^(rsvc_error_t error, char* path){
+                if (error) {
+                    rsvc_tags_destroy(tags);
+                    decrement_pending(error);
+                    return;
+                }
+
+                __block bool makedirs_succeeded;
+                rsvc_dirname(path, ^(const char* parent){
+                    makedirs_succeeded = rsvc_makedirs(parent, 0755, decrement_pending);
+                });
+                int file;
+                if (!makedirs_succeeded
+                    || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file,
+                                  decrement_pending)) {
+                    rsvc_tags_destroy(tags);
+                    return;
+                }
+
+                // Rip the current track.  If that fails, bail.  If it succeeds,
+                // start ripping the next track.
+                increment_pending();
+                rsvc_stop_t stop_rip = rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
+                    close(write_pipe);
+                    decrement_pending(error);
+                    if (error) {
+                        decrement_pending(NULL);
+                    } else {
+                        rip_track(n + 1);
+                    }
+                });
+                set_sigint_callback(stop_rip);
+                Block_release(stop_rip);
+
+                // Encode the current track.  If that fails, bail.  If it
+                // succeeds, decrement the number of pending operations.
+                rsvc_progress_node_t node = rsvc_progress_start(progress, path);
+                size_t nsamples = rsvc_cd_track_nsamples(track);
+                void (^progress)(double) = ^(double fraction){
+                    rsvc_progress_update(node, fraction);
+                };
+
+                increment_pending();
+                struct rsvc_encode_options encode_options = {
+                    .bitrate                = bitrate,
+                    .samples_per_channel    = nsamples,
+                    .progress               = progress,
+                };
+                char* path_copy = strdup(path);
+                format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
+                    close(read_pipe);
+                    if (error) {
+                        free(path_copy);
+                        rsvc_tags_destroy(tags);
+                        decrement_pending(error);
+                        return;
+                    }
+                    set_tags(file, path_copy, tags, ^(rsvc_error_t error){
+                        free(path_copy);
+                        rsvc_tags_destroy(tags);
+                        close(file);
+                        rsvc_progress_done(node);
+                        decrement_pending(error);
+                    });
+                });
             });
         });
     };
@@ -581,16 +599,43 @@ static void rip_all(rsvc_cd_t cd,
     rip_track(0);
 }
 
-static void set_tags(int fd, char* path,
-                     const char* format_path, rsvc_encode_format_t encode_format,
-                     rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
-                     rsvc_done_t done) {
+static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
+                     void (^done)(rsvc_error_t error, rsvc_tags_t tags)) {
     const char* discid      = rsvc_cd_session_discid(session);
     size_t track_number     = rsvc_cd_track_number(track);
     const size_t ntracks    = rsvc_cd_session_ntracks(session);
     const char* mcn         = rsvc_cd_mcn(cd);
     const char* isrc        = rsvc_cd_track_isrc(track);
 
+    rsvc_tags_t tags = rsvc_tags_new();
+    rsvc_done_t wrapped_done = ^(rsvc_error_t error){
+        if (error) {
+            rsvc_tags_destroy(tags);
+            done(error, NULL);
+        } else {
+            done(NULL, tags);
+        }
+    };
+
+    if (!rsvc_tags_addf(tags, wrapped_done, RSVC_ENCODER, "ripservice %s", RSVC_VERSION)
+            || !rsvc_tags_add(tags, wrapped_done, RSVC_MUSICBRAINZ_DISCID, discid)
+            || !rsvc_tags_addf(tags, wrapped_done, RSVC_TRACKNUMBER, "%zu", track_number)
+            || !rsvc_tags_addf(tags, wrapped_done, RSVC_TRACKTOTAL, "%zu", ntracks)
+            || (*mcn && !rsvc_tags_add(tags, wrapped_done, RSVC_MCN, mcn))
+            || (*isrc && !rsvc_tags_add(tags, wrapped_done, RSVC_ISRC, isrc))) {
+        return;
+    }
+
+    rsvc_apply_musicbrainz_tags(tags, ^(rsvc_error_t error){
+        // MusicBrainz tagging could fail for a number of reasons:
+        // wasn't reachable; couldn't find album.  None of those is
+        // reason to stop ripping, so ignore and proceed.
+        (void)error;
+        wrapped_done(NULL);
+    });
+}
+
+static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {
     rsvc_tag_format_t tag_format;
     if (!rsvc_tag_format_detect(fd, &tag_format, done)) {
         return;
@@ -605,42 +650,11 @@ static void set_tags(int fd, char* path,
             rsvc_tags_destroy(tags);
             original_done(error);
         };
-        if (!rsvc_tags_addf(tags, done, RSVC_ENCODER, "ripservice %s", RSVC_VERSION)
-                || !rsvc_tags_add(tags, done, RSVC_MUSICBRAINZ_DISCID, discid)
-                || !rsvc_tags_addf(tags, done, RSVC_TRACKNUMBER, "%zu", track_number)
-                || !rsvc_tags_addf(tags, done, RSVC_TRACKTOTAL, "%zu", ntracks)
-                || (*mcn && !rsvc_tags_add(tags, done, RSVC_MCN, mcn))
-                || (*isrc && !rsvc_tags_add(tags, done, RSVC_ISRC, isrc))) {
+        if (!rsvc_tags_copy(tags, source, done)) {
             return;
         }
-        rsvc_apply_musicbrainz_tags(tags, ^(rsvc_error_t error){
-            // MusicBrainz tagging could fail for a number of reasons:
-            // wasn't reachable; couldn't find album.  None of those is
-            // reason to stop ripping, so ignore and proceed.
-            (void)error;
 
-            rsvc_tags_save(tags, ^(rsvc_error_t error){
-                if (error) {
-                    done(error);
-                    return;
-                }
-
-                rsvc_tags_strf(tags, format_path, encode_format->extension,
-                               ^(rsvc_error_t error, char* new_path){
-                    if (error) {
-                        done(error);
-                        return;
-                    }
-
-                    rsvc_dirname(new_path, ^(const char* new_parent){
-                        if (rsvc_makedirs(new_parent, 0755, done)
-                            && rsvc_mv(path, new_path, done)) {
-                            done(NULL);
-                        }
-                    });
-                });
-            });
-        });
+        rsvc_tags_save(tags, done);
     });
 }
 

@@ -171,6 +171,12 @@ bool                    rsvc_tags_each(rsvc_tags_t tags,
 void rsvc_tags_strf(rsvc_tags_t tags, const char* format, const char* extension,
                     void (^done)(rsvc_error_t error, char* path));
 
+/// ..  function:: bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail)
+bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail);
+
+/// ..  function:: rsvc_tags_t rsvc_tags_new()
+rsvc_tags_t rsvc_tags_new();
+
 /// Tag Formats
 /// -----------
 

@@ -376,6 +376,112 @@ void rsvc_tags_strf(rsvc_tags_t tags, const char* format, const char* extension,
     free(new_path);
 }
 
+bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail) {
+    if (!rsvc_tags_clear(dst, fail)) {
+        return false;
+    }
+    return rsvc_tags_each(src, ^(const char* name, const char* value, rsvc_stop_t stop){
+        rsvc_tags_add(dst, fail, name, value);
+    });
+}
+
+typedef struct rsvc_detached_tags_node* rsvc_detached_tags_node_t;
+struct rsvc_detached_tags_node {
+    char*                           name;
+    char*                           value;
+    rsvc_detached_tags_node_t       prev, next;
+};
+
+typedef struct rsvc_detached_tags_list* rsvc_detached_tags_list_t;
+struct rsvc_detached_tags_list {
+    rsvc_detached_tags_node_t       head, tail;
+};
+
+typedef struct rsvc_detached_tags* rsvc_detached_tags_t;
+struct rsvc_detached_tags {
+    struct rsvc_tags                super;
+    struct rsvc_detached_tags_list  list;
+};
+
+static bool rsvc_detached_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail) {
+    rsvc_detached_tags_t self = DOWN_CAST(struct rsvc_detached_tags, tags);
+    if (name) {
+        rsvc_detached_tags_node_t curr = self->list.head;
+        while (curr) {
+            rsvc_detached_tags_node_t next = curr->next;
+            if (strcmp(curr->name, name) == 0) {
+                free(curr->name);
+                free(curr->value);
+                RSVC_LIST_ERASE(&self->list, curr);
+            }
+            curr = next;
+        }
+    } else {
+        RSVC_LIST_CLEAR(&self->list, ^(rsvc_detached_tags_node_t node){
+            free(node->name);
+            free(node->value);
+        });
+    }
+    return true;
+}
+
+static bool rsvc_detached_tags_add(rsvc_tags_t tags, const char* name, const char* value,
+                                   rsvc_done_t fail) {
+    rsvc_detached_tags_t self = DOWN_CAST(struct rsvc_detached_tags, tags);
+    struct rsvc_detached_tags_node node = {
+        .name   = strdup(name),
+        .value  = strdup(value),
+    };
+    RSVC_LIST_PUSH(&self->list, memdup(&node, sizeof(node)));
+    return true;
+}
+
+static bool rsvc_detached_tags_each(
+        rsvc_tags_t tags,
+        void (^block)(const char* name, const char* value, rsvc_stop_t stop)) {
+    rsvc_detached_tags_t self = DOWN_CAST(struct rsvc_detached_tags, tags);
+    __block bool loop = true;
+    for (rsvc_detached_tags_node_t curr = self->list.head; curr && loop; curr = curr->next) {
+        block(curr->name, curr->value, ^{
+            loop = false;
+        });
+    }
+    return loop;
+}
+
+static void rsvc_detached_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        done(NULL);
+    });
+}
+
+static void rsvc_detached_tags_destroy(rsvc_tags_t tags) {
+    rsvc_detached_tags_t self = DOWN_CAST(struct rsvc_detached_tags, tags);
+    rsvc_detached_tags_remove(tags, NULL, ^(rsvc_error_t error){
+        (void)error;  // Nothing we can do.
+    });
+    free(self);
+}
+
+static struct rsvc_tags_methods detached_vptr = {
+    .remove     = rsvc_detached_tags_remove,
+    .add        = rsvc_detached_tags_add,
+    .each       = rsvc_detached_tags_each,
+    .save       = rsvc_detached_tags_save,
+    .destroy    = rsvc_detached_tags_destroy,
+};
+
+rsvc_tags_t rsvc_tags_new() {
+    struct rsvc_detached_tags tags = {
+        .super = {
+            .vptr   = &detached_vptr,
+            .flags  = RSVC_TAG_RDWR,
+        },
+    };
+    rsvc_detached_tags_t copy = memdup(&tags, sizeof(tags));
+    return &copy->super;
+}
+
 typedef struct rsvc_tag_format_node* rsvc_tag_format_node_t;
 struct rsvc_tag_format_node {
     struct rsvc_tag_format format;
