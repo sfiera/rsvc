@@ -545,6 +545,118 @@ void rsvc_group_cancel(rsvc_group_t group, rsvc_error_t error) {
     });
 }
 
+static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
+                      rsvc_encode_format_t format, int64_t bitrate, const char* format_path,
+                      rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_progress_t progress) {
+    if (n == ntracks) {
+        rsvc_group_ready(group);
+        return;
+    }
+
+    rsvc_done_t rip_done = rsvc_group_add(group);
+    rsvc_done_t encode_done = rsvc_group_add(group);
+    rsvc_done_t cancel_rip = ^(rsvc_error_t error){
+        if (error) {
+            rip_done(error);
+            encode_done(error);
+            rip_track(ntracks, ntracks, group, format, bitrate, format_path, cd, session, progress);
+        }
+    };
+
+    rsvc_cd_track_t track = rsvc_cd_session_track(session, n);
+    size_t track_number = rsvc_cd_track_number(track);
+
+    // Skip data tracks.
+    if (rsvc_cd_track_type(track) == RSVC_CD_TRACK_DATA) {
+        printf("skipping track %zu/%zu\n", track_number, ntracks);
+        rip_track(n + 1, ntracks, group, format, bitrate, format_path, cd, session, progress);
+        return;
+    }
+
+    // Open up a pipe to run between the ripper and encoder, and a
+    // file to receive the encoded content.  If either of these
+    // fails, then stop encoding without proceeding on to the next
+    // track.
+    int pipe_fd[2];
+    if (pipe(pipe_fd) < 0) {
+        rsvc_strerrorf(cancel_rip, __FILE__, __LINE__, "pipe");
+        return;
+    }
+    int write_pipe = pipe_fd[1];
+    int read_pipe = pipe_fd[0];
+
+    get_tags(cd, session, track, ^(rsvc_error_t error, rsvc_tags_t tags){
+        if (error) {
+            cancel_rip(error);
+            return;
+        }
+
+        rsvc_tags_strf(tags, format_path, format->extension,
+                       ^(rsvc_error_t error, char* path){
+            if (error) {
+                rsvc_tags_destroy(tags);
+                cancel_rip(error);
+                return;
+            }
+
+            __block bool makedirs_succeeded;
+            rsvc_dirname(path, ^(const char* parent){
+                makedirs_succeeded = rsvc_makedirs(parent, 0755, cancel_rip);
+            });
+            int file;
+            if (!makedirs_succeeded
+                || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, cancel_rip)) {
+                rsvc_tags_destroy(tags);
+                return;
+            }
+
+            // Rip the current track.  If that fails, bail.  If it succeeds,
+            // start ripping the next track.
+            rsvc_stop_t stop_rip = rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
+                close(write_pipe);
+                rip_done(error);
+                if (error) {
+                    rip_track(ntracks, ntracks, group, format, bitrate, format_path, cd, session, progress);
+                } else {
+                    rip_track(n + 1, ntracks, group, format, bitrate, format_path, cd, session, progress);
+                }
+            });
+            rsvc_group_on_cancel(group, stop_rip);
+
+            // Encode the current track.  If that fails, bail.  If it
+            // succeeds, decrement the number of pending operations.
+            rsvc_progress_node_t node = rsvc_progress_start(progress, path);
+            size_t nsamples = rsvc_cd_track_nsamples(track);
+            void (^progress)(double) = ^(double fraction){
+                rsvc_progress_update(node, fraction);
+            };
+
+            struct rsvc_encode_options encode_options = {
+                .bitrate                = bitrate,
+                .samples_per_channel    = nsamples,
+                .progress               = progress,
+            };
+            char* path_copy = strdup(path);
+            format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
+                close(read_pipe);
+                if (error) {
+                    free(path_copy);
+                    rsvc_tags_destroy(tags);
+                    encode_done(error);
+                    return;
+                }
+                set_tags(file, path_copy, tags, ^(rsvc_error_t error){
+                    free(path_copy);
+                    rsvc_tags_destroy(tags);
+                    close(file);
+                    rsvc_progress_done(node);
+                    encode_done(error);
+                });
+            });
+        });
+    });
+}
+
 static void rip_all(rsvc_cd_t cd,
                     rsvc_encode_format_t format, int64_t bitrate, const char* format_path,
                     rsvc_done_t done) {
@@ -552,10 +664,8 @@ static void rip_all(rsvc_cd_t cd,
     rsvc_cd_session_t session = rsvc_cd_session(cd, 0);
     const size_t ntracks = rsvc_cd_session_ntracks(session);
     rsvc_progress_t progress = rsvc_progress_create();
-    __block void (^rip_track)(size_t n);
 
     rsvc_group_t group = rsvc_group_create(dispatch_get_main_queue(), ^(rsvc_error_t error){
-        Block_release(rip_track);
         rsvc_progress_destroy(progress);
         if (!error) {
             printf("all rips done.\n");
@@ -570,117 +680,7 @@ static void rip_all(rsvc_cd_t cd,
     // recursively calls itself to rip the next track (or to to
     // terminate when `n == ntracks`).  Can't keep the block on the
     // stack, since we exit this function immediately.
-    rip_track = ^(size_t n){
-        if (n == ntracks) {
-            rsvc_group_ready(group);
-            return;
-        }
-
-        rsvc_done_t rip_done = rsvc_group_add(group);
-        rsvc_done_t encode_done = rsvc_group_add(group);
-        rsvc_done_t cancel_rip = ^(rsvc_error_t error){
-            if (error) {
-                rip_done(error);
-                encode_done(error);
-                rip_track(ntracks);
-            }
-        };
-
-        rsvc_cd_track_t track = rsvc_cd_session_track(session, n);
-        size_t track_number = rsvc_cd_track_number(track);
-
-        // Skip data tracks.
-        if (rsvc_cd_track_type(track) == RSVC_CD_TRACK_DATA) {
-            printf("skipping track %zu/%zu\n", track_number, ntracks);
-            rip_track(n + 1);
-            return;
-        }
-
-        // Open up a pipe to run between the ripper and encoder, and a
-        // file to receive the encoded content.  If either of these
-        // fails, then stop encoding without proceeding on to the next
-        // track.
-        int pipe_fd[2];
-        if (pipe(pipe_fd) < 0) {
-            rsvc_strerrorf(cancel_rip, __FILE__, __LINE__, "pipe");
-            return;
-        }
-        int write_pipe = pipe_fd[1];
-        int read_pipe = pipe_fd[0];
-
-        get_tags(cd, session, track, ^(rsvc_error_t error, rsvc_tags_t tags){
-            if (error) {
-                cancel_rip(error);
-                return;
-            }
-
-            rsvc_tags_strf(tags, format_path, format->extension,
-                           ^(rsvc_error_t error, char* path){
-                if (error) {
-                    rsvc_tags_destroy(tags);
-                    cancel_rip(error);
-                    return;
-                }
-
-                __block bool makedirs_succeeded;
-                rsvc_dirname(path, ^(const char* parent){
-                    makedirs_succeeded = rsvc_makedirs(parent, 0755, cancel_rip);
-                });
-                int file;
-                if (!makedirs_succeeded
-                    || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, cancel_rip)) {
-                    rsvc_tags_destroy(tags);
-                    return;
-                }
-
-                // Rip the current track.  If that fails, bail.  If it succeeds,
-                // start ripping the next track.
-                rsvc_stop_t stop_rip = rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
-                    close(write_pipe);
-                    rip_done(error);
-                    if (error) {
-                        rip_track(ntracks);
-                    } else {
-                        rip_track(n + 1);
-                    }
-                });
-                rsvc_group_on_cancel(group, stop_rip);
-
-                // Encode the current track.  If that fails, bail.  If it
-                // succeeds, decrement the number of pending operations.
-                rsvc_progress_node_t node = rsvc_progress_start(progress, path);
-                size_t nsamples = rsvc_cd_track_nsamples(track);
-                void (^progress)(double) = ^(double fraction){
-                    rsvc_progress_update(node, fraction);
-                };
-
-                struct rsvc_encode_options encode_options = {
-                    .bitrate                = bitrate,
-                    .samples_per_channel    = nsamples,
-                    .progress               = progress,
-                };
-                char* path_copy = strdup(path);
-                format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
-                    close(read_pipe);
-                    if (error) {
-                        free(path_copy);
-                        rsvc_tags_destroy(tags);
-                        encode_done(error);
-                        return;
-                    }
-                    set_tags(file, path_copy, tags, ^(rsvc_error_t error){
-                        free(path_copy);
-                        rsvc_tags_destroy(tags);
-                        close(file);
-                        rsvc_progress_done(node);
-                        encode_done(error);
-                    });
-                });
-            });
-        });
-    };
-    rip_track = Block_copy(rip_track);
-    rip_track(0);
+    rip_track(0, ntracks, group, format, bitrate, format_path, cd, session, progress);
 }
 
 static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
