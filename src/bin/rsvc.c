@@ -69,15 +69,18 @@ static void rsvc_command_ls(void (^usage)(const char* message, ...),
 static void rsvc_command_watch(void (^usage)(const char* message, ...),
                                rsvc_done_t done);
 
-static void rsvc_command_rip(char* disk, rsvc_encode_format_t format,
-                             bool has_bitrate, int64_t bitrate,
-                             const char* format_path,
+typedef struct rip_options* rip_options_t;
+struct rip_options {
+    rsvc_encode_format_t format;
+    bool has_bitrate;
+    int64_t bitrate;
+    char* path_format;
+};
+static void rsvc_command_rip(char* disk, rip_options_t options,
                              void (^usage)(const char* message, ...),
                              rsvc_done_t done);
 
-static void rip_all(rsvc_cd_t cd,
-                    rsvc_encode_format_t format, int64_t bitrate, const char* format_path,
-                    rsvc_done_t done);
+static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
 static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
                      void (^done)(rsvc_error_t error, rsvc_tags_t tags));
 static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done);
@@ -133,25 +136,26 @@ static void rsvc_main(int argc, char* const* argv) {
     };
 
     __block char* rip_disk                  = NULL;
-    __block rsvc_encode_format_t format     = NULL;
-    __block bool has_bitrate                = false;
-    __block int64_t bitrate;
-    __block char* format_path               = strdup("%k");
+    __block struct rip_options rip_options = {
+        .format       = NULL,
+        .has_bitrate  = false,
+        .path_format  = strdup("%k"),
+    };
     __block struct command rip = {
         .name = "rip",
         .short_option = ^bool (char opt, char* (^value)()){
             switch (opt) {
               case 'f':
-                if (format_path) {
-                    free(format_path);
+                if (rip_options.path_format) {
+                    free(rip_options.path_format);
                 }
-                format_path = strdup(value());
+                rip_options.path_format = strdup(value());
                 return true;
             }
             return false;
         },
         .long_option = ^bool (char* opt, char* (^value)()){
-            if (strcmp(opt, "format-path") == 0) {
+            if (strcmp(opt, "path-format") == 0) {
                 return callbacks.short_option('f', value);
             }
             return false;
@@ -160,17 +164,17 @@ static void rsvc_main(int argc, char* const* argv) {
             if (!rip_disk) {
                 rip_disk = arg;
                 return true;
-            } else if (!format) {
-                format = rsvc_encode_format_named(arg);
-                if (!format) {
+            } else if (!rip_options.format) {
+                rip_options.format = rsvc_encode_format_named(arg);
+                if (!rip_options.format) {
                     callbacks.usage("invalid format: %s", arg);
                 }
                 return true;
-            } else if (!has_bitrate) {
-                if (!read_si_number(arg, &bitrate)) {
+            } else if (!rip_options.has_bitrate) {
+                if (!read_si_number(arg, &rip_options.bitrate)) {
                     callbacks.usage("invalid bitrate: %s", arg);
                 }
-                has_bitrate = true;
+                rip_options.has_bitrate = true;
                 return true;
             }
             return false;
@@ -189,8 +193,7 @@ static void rsvc_main(int argc, char* const* argv) {
             });
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_rip(rip_disk, format, has_bitrate, bitrate, format_path,
-                             callbacks.usage, done);
+            rsvc_command_rip(rip_disk, &rip_options, callbacks.usage, done);
         },
     };
 
@@ -380,26 +383,24 @@ static void rsvc_command_watch(void (^usage)(const char* message, ...),
     rsvc_disc_watch(callbacks);
 }
 
-static void rsvc_command_rip(char* disk, rsvc_encode_format_t format,
-                             bool has_bitrate, int64_t bitrate,
-                             const char* format_path,
+static void rsvc_command_rip(char* disk, rip_options_t options,
                              void (^usage)(const char* message, ...),
                              rsvc_done_t done) {
     if (!disk) {
         usage(NULL);
-    } else if (!format) {
+    } else if (!options->format) {
         usage("must choose format");
-    } else if (has_bitrate && format->lossless) {
-        usage("bitrate provided for lossless format %s", format->name);
-    } else if (!has_bitrate && !format->lossless) {
-        usage("bitrate not provided for lossy format %s", format->name);
+    } else if (options->has_bitrate && options->format->lossless) {
+        usage("bitrate provided for lossless format %s", options->format->name);
+    } else if (!options->has_bitrate && !options->format->lossless) {
+        usage("bitrate not provided for lossy format %s", options->format->name);
     }
     rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
         if (error) {
             done(error);
             return;
         }
-        rip_all(cd, format, bitrate, format_path, ^(rsvc_error_t error){
+        rip_all(cd, options, ^(rsvc_error_t error){
             rsvc_cd_destroy(cd);
             done(error);
         });
@@ -545,8 +546,7 @@ void rsvc_group_cancel(rsvc_group_t group, rsvc_error_t error) {
     });
 }
 
-static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
-                      rsvc_encode_format_t format, int64_t bitrate, const char* format_path,
+static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_t options,
                       rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_progress_t progress) {
     if (n == ntracks) {
         rsvc_group_ready(group);
@@ -569,7 +569,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
     // Skip data tracks.
     if (rsvc_cd_track_type(track) == RSVC_CD_TRACK_DATA) {
         printf("skipping track %zu/%zu\n", track_number, ntracks);
-        rip_track(n + 1, ntracks, group, format, bitrate, format_path, cd, session, progress);
+        rip_track(n + 1, ntracks, group, options, cd, session, progress);
         return;
     }
 
@@ -591,7 +591,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
             return;
         }
 
-        rsvc_tags_strf(tags, format_path, format->extension,
+        rsvc_tags_strf(tags, options->path_format, options->format->extension,
                        ^(rsvc_error_t error, char* path){
             if (error) {
                 rsvc_tags_destroy(tags);
@@ -616,9 +616,9 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
                 close(write_pipe);
                 rip_done(error);
                 if (error) {
-                    rip_track(ntracks, ntracks, group, format, bitrate, format_path, cd, session, progress);
+                    rip_track(ntracks, ntracks, group, options, cd, session, progress);
                 } else {
-                    rip_track(n + 1, ntracks, group, format, bitrate, format_path, cd, session, progress);
+                    rip_track(n + 1, ntracks, group, options, cd, session, progress);
                 }
             });
             rsvc_group_on_cancel(group, stop_rip);
@@ -632,12 +632,12 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
             };
 
             struct rsvc_encode_options encode_options = {
-                .bitrate                = bitrate,
+                .bitrate                = options->bitrate,
                 .samples_per_channel    = nsamples,
                 .progress               = progress,
             };
             char* path_copy = strdup(path);
-            format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
+            options->format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
                 close(read_pipe);
                 if (error) {
                     free(path_copy);
@@ -657,9 +657,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
     });
 }
 
-static void rip_all(rsvc_cd_t cd,
-                    rsvc_encode_format_t format, int64_t bitrate, const char* format_path,
-                    rsvc_done_t done) {
+static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
     printf("Ripping…\n");
     rsvc_cd_session_t session = rsvc_cd_session(cd, 0);
     const size_t ntracks = rsvc_cd_session_ntracks(session);
@@ -676,7 +674,7 @@ static void rip_all(rsvc_cd_t cd,
         rsvc_group_cancel(group, NULL);
     });
 
-    rip_track(0, ntracks, group, format, bitrate, format_path, cd, session, progress);
+    rip_track(0, ntracks, group, options, cd, session, progress);
 }
 
 static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
