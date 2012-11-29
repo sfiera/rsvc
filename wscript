@@ -61,6 +61,7 @@ def build(bld):
             "src/rsvc/encode.c",
             "src/rsvc/encoding.c",
             "src/rsvc/flac.c",
+            "src/rsvc/group.c",
             "src/rsvc/id3.c",
             "src/rsvc/mp4.c",
             "src/rsvc/musicbrainz.c",
