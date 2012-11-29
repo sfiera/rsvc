@@ -676,10 +676,6 @@ static void rip_all(rsvc_cd_t cd,
         rsvc_group_cancel(group, NULL);
     });
 
-    // Rip via a recursive block.  When each track has been ripped,
-    // recursively calls itself to rip the next track (or to to
-    // terminate when `n == ntracks`).  Can't keep the block on the
-    // stack, since we exit this function immediately.
     rip_track(0, ntracks, group, format, bitrate, format_path, cd, session, progress);
 }
 
