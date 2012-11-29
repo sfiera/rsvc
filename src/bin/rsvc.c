@@ -559,7 +559,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
         if (error) {
             rip_done(error);
             encode_done(error);
-            rip_track(ntracks, ntracks, group, format, bitrate, format_path, cd, session, progress);
+            rsvc_group_ready(group);
         }
     };
 
