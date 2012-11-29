@@ -41,6 +41,8 @@
 #include <rsvc/tag.h>
 #include <rsvc/vorbis.h>
 
+#include "../rsvc/common.h"
+#include "../rsvc/list.h"
 #include "../rsvc/options.h"
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
@@ -443,6 +445,106 @@ static void set_sigint_callback(rsvc_stop_t stop) {
     });
 }
 
+typedef struct rsvc_group_cancel_node* rsvc_group_cancel_node_t;
+struct rsvc_group_cancel_node {
+    void (^cancel)();
+    rsvc_group_cancel_node_t prev, next;
+};
+
+typedef struct rsvc_group_cancel_list* rsvc_group_cancel_list_t;
+struct rsvc_group_cancel_list {
+    rsvc_group_cancel_node_t head, tail;
+};
+
+typedef struct rsvc_group* rsvc_group_t;
+struct rsvc_group {
+    dispatch_queue_t queue;
+    size_t pending;
+    rsvc_error_t final_error;
+    rsvc_done_t done;
+    struct rsvc_group_cancel_list on_cancel_list;
+};
+
+rsvc_group_t rsvc_group_create(dispatch_queue_t queue, rsvc_done_t done) {
+    struct rsvc_group initializer = {queue, 1};
+    rsvc_group_t group = memdup(&initializer, sizeof(initializer));
+    rsvc_done_t group_done = ^(rsvc_error_t error){
+        done(group->final_error);
+        rsvc_error_destroy(group->final_error);
+        Block_release(group->done);
+    };
+    group->done = Block_copy(group_done);
+    return group;
+}
+
+static void finalize(rsvc_group_t group) {
+    RSVC_LIST_CLEAR(&group->on_cancel_list, ^(rsvc_group_cancel_node_t node){
+        Block_release(node->cancel);
+    });
+    group->done(group->final_error);
+    Block_release(group->done);
+    rsvc_error_destroy(group->final_error);
+    free(group);
+}
+
+static void adopt_error(rsvc_group_t group, rsvc_error_t error) {
+    if (group->final_error) {
+        rsvc_error_destroy(error);
+    } else {
+        group->final_error = error;
+        RSVC_LIST_CLEAR(&group->on_cancel_list, ^(rsvc_group_cancel_node_t node){
+            node->cancel();
+            Block_release(node->cancel);
+        });
+    }
+}
+
+rsvc_done_t rsvc_group_add(rsvc_group_t group) {
+    dispatch_sync(group->queue, ^{
+        ++group->pending;
+    });
+    __block rsvc_done_t done = ^(rsvc_error_t error){
+        error = rsvc_error_clone(error);
+        dispatch_async(group->queue, ^{
+            if (error) {
+                adopt_error(group, error);
+            }
+            if (--group->pending == 0) {
+                finalize(group);
+            }
+            Block_release(done);
+        });
+    };
+    done = Block_copy(done);
+    return done;
+}
+
+void rsvc_group_ready(rsvc_group_t group) {
+    dispatch_async(group->queue, ^{
+        if (--group->pending == 0) {
+            finalize(group);
+        }
+    });
+}
+
+void rsvc_group_on_cancel(rsvc_group_t group, rsvc_stop_t stop) {
+    dispatch_async(group->queue, ^{
+        if (group->final_error) {
+            stop();
+        } else {
+            struct rsvc_group_cancel_node node = {Block_copy(stop)};
+            RSVC_LIST_PUSH(&group->on_cancel_list, memdup(&node, sizeof(node)));
+        }
+    });
+}
+
+void rsvc_group_cancel(rsvc_group_t group, rsvc_error_t error) {
+    error = rsvc_error_clone(error);
+    dispatch_async(group->queue, ^{
+        adopt_error(group, error);
+    });
+}
+
 static void rip_all(rsvc_cd_t cd,
                     rsvc_encode_format_t format, int64_t bitrate, const char* format_path,
                     rsvc_done_t done) {
@@ -452,41 +554,17 @@ static void rip_all(rsvc_cd_t cd,
     rsvc_progress_t progress = rsvc_progress_create();
     __block void (^rip_track)(size_t n);
 
-    // Track the number of pending operations: 1 for each track that we
-    // are encoding, plus 1 for ripping the whole disc.  This must only
-    // be modified on the main queue; increment_pending() and
-    // decrement_pending() guarantee this invariant, and perform
-    // appropriate cleanup when it reaches 0.  We also track the error
-    // that should be returned when done.
-    __block size_t pending = 1;
-    __block rsvc_error_t final_error = NULL;
-    void (^increment_pending)() = ^{
-        dispatch_async(dispatch_get_main_queue(), ^{
-            ++pending;
-        });
-    };
-    rsvc_done_t decrement_pending = ^(rsvc_error_t error){
-        error = rsvc_error_clone(error);
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (error) {
-                if (final_error) {
-                    rsvc_error_destroy(error);
-                } else {
-                    final_error = error;
-                }
-            }
-            if (--pending == 0) {
-                set_sigint_callback(NULL);
-                if (!final_error) {
-                    printf("all rips done.\n");
-                }
-                done(final_error);
-                rsvc_error_destroy(final_error);
-                Block_release(rip_track);
-                rsvc_progress_destroy(progress);
-            }
-        });
-    };
+    rsvc_group_t group = rsvc_group_create(dispatch_get_main_queue(), ^(rsvc_error_t error){
+        Block_release(rip_track);
+        rsvc_progress_destroy(progress);
+        if (!error) {
+            printf("all rips done.\n");
+        }
+        done(error);
+    });
+    set_sigint_callback(^{
+        rsvc_group_cancel(group, NULL);
+    });
 
     // Rip via a recursive block.  When each track has been ripped,
     // recursively calls itself to rip the next track (or to to
@@ -494,9 +572,20 @@ static void rip_all(rsvc_cd_t cd,
     // stack, since we exit this function immediately.
     rip_track = ^(size_t n){
         if (n == ntracks) {
-            decrement_pending(NULL);
+            rsvc_group_ready(group);
             return;
         }
+
+        rsvc_done_t rip_done = rsvc_group_add(group);
+        rsvc_done_t encode_done = rsvc_group_add(group);
+        rsvc_done_t cancel_rip = ^(rsvc_error_t error){
+            if (error) {
+                rip_done(error);
+                encode_done(error);
+                rip_track(ntracks);
+            }
+        };
+
         rsvc_cd_track_t track = rsvc_cd_session_track(session, n);
         size_t track_number = rsvc_cd_track_number(track);
 
@@ -513,8 +602,7 @@ static void rip_all(rsvc_cd_t cd,
         // track.
         int pipe_fd[2];
         if (pipe(pipe_fd) < 0) {
-            rsvc_strerrorf(decrement_pending, __FILE__, __LINE__, "pipe");
-            decrement_pending(NULL);
+            rsvc_strerrorf(cancel_rip, __FILE__, __LINE__, "pipe");
             return;
         }
         int write_pipe = pipe_fd[1];
@@ -522,7 +610,7 @@ static void rip_all(rsvc_cd_t cd,
 
         get_tags(cd, session, track, ^(rsvc_error_t error, rsvc_tags_t tags){
             if (error) {
-                decrement_pending(error);
+                cancel_rip(error);
                 return;
             }
 
@@ -530,36 +618,33 @@ static void rip_all(rsvc_cd_t cd,
                            ^(rsvc_error_t error, char* path){
                 if (error) {
                     rsvc_tags_destroy(tags);
-                    decrement_pending(error);
+                    cancel_rip(error);
                     return;
                 }
 
                 __block bool makedirs_succeeded;
                 rsvc_dirname(path, ^(const char* parent){
-                    makedirs_succeeded = rsvc_makedirs(parent, 0755, decrement_pending);
+                    makedirs_succeeded = rsvc_makedirs(parent, 0755, cancel_rip);
                 });
                 int file;
                 if (!makedirs_succeeded
-                    || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file,
-                                  decrement_pending)) {
+                    || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, cancel_rip)) {
                     rsvc_tags_destroy(tags);
                     return;
                 }
 
                 // Rip the current track.  If that fails, bail.  If it succeeds,
                 // start ripping the next track.
-                increment_pending();
                 rsvc_stop_t stop_rip = rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
                     close(write_pipe);
-                    decrement_pending(error);
+                    rip_done(error);
                     if (error) {
-                        decrement_pending(NULL);
+                        rip_track(ntracks);
                     } else {
                         rip_track(n + 1);
                     }
                 });
-                set_sigint_callback(stop_rip);
-                Block_release(stop_rip);
+                rsvc_group_on_cancel(group, stop_rip);
 
                 // Encode the current track.  If that fails, bail.  If it
                 // succeeds, decrement the number of pending operations.
@@ -569,7 +654,6 @@ static void rip_all(rsvc_cd_t cd,
                     rsvc_progress_update(node, fraction);
                 };
 
-                increment_pending();
                 struct rsvc_encode_options encode_options = {
                     .bitrate                = bitrate,
                     .samples_per_channel    = nsamples,
@@ -581,7 +665,7 @@ static void rip_all(rsvc_cd_t cd,
                     if (error) {
                         free(path_copy);
                         rsvc_tags_destroy(tags);
-                        decrement_pending(error);
+                        encode_done(error);
                         return;
                     }
                     set_tags(file, path_copy, tags, ^(rsvc_error_t error){
@@ -589,7 +673,7 @@ static void rip_all(rsvc_cd_t cd,
                         rsvc_tags_destroy(tags);
                         close(file);
                         rsvc_progress_done(node);
-                        decrement_pending(error);
+                        encode_done(error);
                     });
                 });
             });
