@@ -376,6 +376,10 @@ void rsvc_tags_strf(rsvc_tags_t tags, const char* format, const char* extension,
     free(new_path);
 }
 
+bool rsvc_tags_validate_strf(const char* format, rsvc_done_t fail) {
+    return parse_format(format, fail, ^(int type, const char* data, size_t size){ });
+}
+
 bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail) {
     if (!rsvc_tags_clear(dst, fail)) {
         return false;

@@ -170,6 +170,7 @@ bool                    rsvc_tags_each(rsvc_tags_t tags,
 ///                         with the error.
 void rsvc_tags_strf(rsvc_tags_t tags, const char* format, const char* extension,
                     void (^done)(rsvc_error_t error, char* path));
+bool rsvc_tags_validate_strf(const char* format, rsvc_done_t fail);
 
 /// ..  function:: bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail)
 bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail);

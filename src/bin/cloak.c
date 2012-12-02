@@ -320,6 +320,9 @@ static void cloak_main(int argc, char* const* argv) {
                 free(ops.move_format);
             }
             ops.move_format = strdup(value());
+            rsvc_tags_validate_strf(ops.move_format, ^(rsvc_error_t error){
+                callbacks.usage("%s: %s", ops.move_format, error->message);
+            });
             return true;
         }
         return false;

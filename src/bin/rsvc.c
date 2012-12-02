@@ -149,6 +149,9 @@ static void rsvc_main(int argc, char* const* argv) {
                     free(rip_options.path_format);
                 }
                 rip_options.path_format = strdup(value());
+                rsvc_tags_validate_strf(rip_options.path_format, ^(rsvc_error_t error){
+                    callbacks.usage("%s: %s", rip_options.path_format, error->message);
+                });
                 return true;
             }
             return false;
