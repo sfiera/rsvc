@@ -34,24 +34,22 @@ void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
         } else if (strncmp(arg, "--", 2) == 0) {
             char* opt = strdup(arg + 2);
             char* eq = strchr(opt, '=');
-            __block char* value = NULL;
             if (eq) {
                 // --option=value
                 *eq = '\0';
-                value = eq + 1;
+                __block bool used_value = false;
                 if (!callbacks->long_option(opt, ^{
-                    if (!value) {
-                        value = eq + 1;
-                    }
-                    return value;
+                    used_value = true;
+                    return eq + 1;
                 })) {
                     callbacks->usage("illegal option: --%s", opt);
                 }
-                if (!value) {
+                if (!used_value) {
                     callbacks->usage("option --%s: no argument permitted", opt);
                 }
             } else {
                 // --option; --option value
+                __block char* value = NULL;
                 if (!callbacks->long_option(opt, ^{
                     if (!value) {
                         if (++i == argc) {
