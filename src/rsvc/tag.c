@@ -188,35 +188,38 @@ struct format_list {
 static bool parse_format(const char* format,
                          rsvc_done_t fail,
                          void (^block)(int type, const char* data, size_t size)) {
-    while (*format) {
-        size_t literal_size = strcspn(format, "%/");
+    const char* ptr = format;
+    while (*ptr) {
+        size_t literal_size = strcspn(ptr, "%/");
         if (literal_size) {
-            block(0, format, literal_size);
+            block(0, ptr, literal_size);
         }
-        format += literal_size;
+        ptr += literal_size;
 
-        switch (*format) {
+        switch (*ptr) {
           case '\0':
             break;
           case '/':
-            literal_size = strspn(format, "/");
-            block(0, format, literal_size);
-            format += literal_size;
+            literal_size = strspn(ptr, "/");
+            block(0, ptr, literal_size);
+            ptr += literal_size;
             break;
           case '%':
-            ++format;
-            if (*format == '%') {
-                block(0, format, 1);
-                ++format;
-            } else if (get_tag_name(*format)) {
+            ++ptr;
+            if (*ptr == '%') {
+                block(0, ptr, 1);
+                ++ptr;
+            } else if (get_tag_name(*ptr)) {
                 // Check that it's a valid option, then add it.
-                block(*format, NULL, 0);
-                ++format;
-            } else if ((' ' <= *format) && (*format < 0x80)) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "invalid format code %%%c", *format);
+                block(*ptr, NULL, 0);
+                ++ptr;
+            } else if ((' ' <= *ptr) && (*ptr < 0x80)) {
+                rsvc_errorf(fail, __FILE__, __LINE__,
+                            "%s: invalid format code %%%c", format, *ptr);
                 return false;
             } else {
-                rsvc_errorf(fail, __FILE__, __LINE__, "invalid format code %%\\%o", *format);
+                rsvc_errorf(fail, __FILE__, __LINE__,
+                            "%s: invalid format code %%\\%o", format, *ptr);
                 return false;
             }
         }

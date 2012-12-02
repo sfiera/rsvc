@@ -150,7 +150,7 @@ static void rsvc_main(int argc, char* const* argv) {
                 }
                 rip_options.path_format = strdup(value());
                 rsvc_tags_validate_strf(rip_options.path_format, ^(rsvc_error_t error){
-                    callbacks.usage("%s: %s", rip_options.path_format, error->message);
+                    callbacks.usage("%s", error->message);
                 });
                 return true;
             }
