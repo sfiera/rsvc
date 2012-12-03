@@ -208,7 +208,7 @@ static bool any_actions(ops_t ops);
 static int ops_mode(ops_t ops);
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done);
 
-static void validate_name(const char* progname, char* name);
+static bool validate_name(char* name, rsvc_done_t fail);
 static bool split_assignment(const char* assignment, char** name, char** value,
                              rsvc_done_t fail);
 
@@ -237,7 +237,8 @@ static void cloak_main(int argc, char* const* argv) {
     };
     __block string_list_t files = {};
 
-    callbacks.short_option = ^bool (char opt, char* (^value)(rsvc_done_t fail)){
+    callbacks.short_option = ^bool (char opt, char* (^value)(rsvc_done_t fail),
+                                    rsvc_done_t fail){
         switch (opt) {
           case HELP:
             cloak_usage(progname);
@@ -262,10 +263,9 @@ static void cloak_main(int argc, char* const* argv) {
           case REMOVE:
             {
                 char* val = value(fail);
-                if (!val) {
+                if (!val || !validate_name(val, fail)) {
                     return false;
                 }
-                validate_name(progname, val);
                 add_string(&ops.remove_tags, val);
             }
             return true;
@@ -280,13 +280,10 @@ static void cloak_main(int argc, char* const* argv) {
                 char* tag_name;
                 char* tag_value;
                 char* val = value(fail);
-                if (!val) {
+                if (!val || !split_assignment(val, &tag_name, &tag_value, fail) ||
+                        !validate_name(tag_name, fail)) {
                     return false;
                 }
-                if (!split_assignment(val, &tag_name, &tag_value, fail)) {
-                    return true;
-                }
-                validate_name(progname, tag_name);
                 if (opt == SET) {
                     add_string(&ops.remove_tags, tag_name);
                 }
@@ -339,25 +336,28 @@ static void cloak_main(int argc, char* const* argv) {
                     return false;
                 }
                 ops.move_format = strdup(val);
-                rsvc_tags_validate_strf(ops.move_format, ^(rsvc_error_t error){
-                    callbacks.usage("%s", error->message);
-                });
+                rsvc_tags_validate_strf(ops.move_format, fail);
             }
             return true;
+
+          default:
+            rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
+            return false;
         }
-        return false;
     };
 
-    callbacks.long_option = ^bool (char* opt, char* (^value)(rsvc_done_t fail)){
+    callbacks.long_option = ^bool (char* opt, char* (^value)(rsvc_done_t fail),
+                                   rsvc_done_t fail){
         for (struct long_flag* flag = kLongFlags; flag->name; ++flag) {
             if (strcmp(opt, flag->name) == 0) {
-                return callbacks.short_option(flag->value, value);
+                return callbacks.short_option(flag->value, value, fail);
             }
         }
+        rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
         return false;
     };
 
-    callbacks.argument = ^bool (char* arg){
+    callbacks.argument = ^bool (char* arg, rsvc_done_t fail){
         add_string(&files, arg);
         return true;
     };
@@ -709,15 +709,16 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
     done(NULL);
 }
 
-static void validate_name(const char* progname, char* name) {
+static bool validate_name(char* name, rsvc_done_t fail) {
     if (name[strspn(name, "ABCDEFGHIJKLMNOPQRSTUVWXYZ_"
                           "abcdefghijklmnopqrstuvwxyz")] != '\0') {
-        fprintf(stderr, "%s: invalid tag name: %s\n", progname, name);
-        exit(EX_USAGE);
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid tag name: %s", name);
+        return false;
     }
     for (char* p = name; *p; ++p) {
         *p = toupper(*p);
     }
+    return false;
 }
 
 static bool split_assignment(const char* assignment, char** name, char** value,

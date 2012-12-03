@@ -50,9 +50,9 @@ typedef struct command* command_t;
 struct command {
     const char* name;
 
-    bool (^short_option)(char opt, char* (^value)(rsvc_done_t fail));
-    bool (^long_option)(char* opt, char* (^value)(rsvc_done_t fail));
-    bool (^argument)(char* arg);
+    bool (^short_option)(char opt, char* (^value)(rsvc_done_t fail), rsvc_done_t fail);
+    bool (^long_option)(char* opt, char* (^value)(rsvc_done_t fail), rsvc_done_t fail);
+    bool (^argument)(char* arg, rsvc_done_t fail);
     void (^usage)();
 
     void (^run)(rsvc_done_t done);
@@ -99,7 +99,7 @@ static void rsvc_main(int argc, char* const* argv) {
     __block char* print_disk = NULL;
     __block struct command print = {
         .name = "print",
-        .argument = ^bool (char* arg) {
+        .argument = ^bool (char* arg, rsvc_done_t fail) {
             if (!print_disk) {
                 print_disk = arg;
                 return true;
@@ -142,48 +142,56 @@ static void rsvc_main(int argc, char* const* argv) {
     };
     __block struct command rip = {
         .name = "rip",
-        .short_option = ^bool (char opt, char* (^value)(rsvc_done_t fail)){
+        .short_option = ^bool (char opt, char* (^value)(rsvc_done_t fail), rsvc_done_t fail){
             switch (opt) {
               case 'f':
                 if (rip_options.path_format) {
                     free(rip_options.path_format);
                 }
-                rsvc_done_t fail = ^(rsvc_error_t error){
-                    callbacks.usage("%s", error->message);
-                };
                 const char* val = value(fail);
-                if (val) {
-                    rip_options.path_format = strdup(val);
-                    rsvc_tags_validate_strf(rip_options.path_format, fail);
+                if (!val) {
+                    return false;
                 }
-                return val != NULL;
+                rip_options.path_format = strdup(val);
+                rsvc_tags_validate_strf(rip_options.path_format, fail);
+                return true;
+
+              default:
+                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
+                return false;
             }
-            return false;
         },
-        .long_option = ^bool (char* opt, char* (^value)(rsvc_done_t fail)){
+        .long_option = ^bool (char* opt, char* (^value)(rsvc_done_t fail),
+                              rsvc_done_t fail){
             if (strcmp(opt, "path-format") == 0) {
-                return callbacks.short_option('f', value);
+                return callbacks.short_option('f', value, fail);
+            } else {
+                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
+                return false;
             }
-            return false;
         },
-        .argument = ^bool (char* arg) {
+        .argument = ^bool (char* arg, rsvc_done_t fail) {
             if (!rip_disk) {
                 rip_disk = arg;
                 return true;
             } else if (!rip_options.format) {
                 rip_options.format = rsvc_encode_format_named(arg);
                 if (!rip_options.format) {
-                    callbacks.usage("invalid format: %s", arg);
+                    rsvc_errorf(fail, __FILE__, __LINE__, "invalid format: %s", arg);
+                    return false;
                 }
                 return true;
             } else if (!rip_options.has_bitrate) {
                 if (!read_si_number(arg, &rip_options.bitrate)) {
-                    callbacks.usage("invalid bitrate: %s", arg);
+                    rsvc_errorf(fail, __FILE__, __LINE__, "invalid bitrate: %s", arg);
+                    return false;
                 }
                 rip_options.has_bitrate = true;
                 return true;
+            } else {
+                rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
+                return false;
             }
-            return false;
         },
         .usage = ^{
             fprintf(stderr,
@@ -203,29 +211,47 @@ static void rsvc_main(int argc, char* const* argv) {
         },
     };
 
-    callbacks.short_option = ^bool (char opt, char* (^value)(rsvc_done_t fail)){
-        switch (opt) {
-          case 'V':
-            fprintf(stderr, "rsvc %s\n", RSVC_VERSION);
-            exit(0);
-          default:
-            if (command && command->short_option) {
-                return command->short_option(opt, value);
+    callbacks.short_option = ^bool (char opt, char* (^value)(rsvc_done_t fail),
+                                    rsvc_done_t fail){
+        if (command) {
+            if (command->short_option) {
+                return command->short_option(opt, value, fail);
+            } else {
+                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
+                return false;
             }
-            return false;
+        } else {
+            switch (opt) {
+              case 'V':
+                fprintf(stderr, "rsvc %s\n", RSVC_VERSION);
+                exit(0);
+              default:
+                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
+                return false;
+            }
         }
     };
 
-    callbacks.long_option = ^bool (char* opt, char* (^value)(rsvc_done_t fail)){
-        if (strcmp(opt, "version") == 0) {
-            return callbacks.short_option('V', value);
-        } else if (command && command->long_option) {
-            return command->long_option(opt, value);
+    callbacks.long_option = ^bool (char* opt, char* (^value)(rsvc_done_t fail),
+                                   rsvc_done_t fail){
+        if (command) {
+            if (command && command->long_option) {
+                return command->long_option(opt, value, fail);
+            } else {
+                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
+                return false;
+            }
+        } else {
+            if (strcmp(opt, "version") == 0) {
+                return callbacks.short_option('V', value, fail);
+            } else {
+                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
+                return false;
+            }
         }
-        return false;
     };
 
-    callbacks.argument = ^bool (char* arg){
+    callbacks.argument = ^bool (char* arg, rsvc_done_t fail){
         if (command == NULL) {
             if (strcmp(arg, "print") == 0) {
                 command = &print;
@@ -240,8 +266,9 @@ static void rsvc_main(int argc, char* const* argv) {
             }
             return true;
         } else if (command->argument) {
-            return command->argument(arg);
+            return command->argument(arg, fail);
         } else {
+            rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
             return false;
         }
     };
