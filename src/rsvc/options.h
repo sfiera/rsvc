@@ -23,6 +23,7 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
+#include <rsvc/common.h>
 
 /// Option Parsing
 /// --------------
@@ -40,7 +41,7 @@ typedef struct option_callbacks {
     ///     :param value:   A block which may optionally be invoked to
     ///                     retrieve the value of the option.
     ///     :returns:       true iff `opt` is a valid option.
-    bool (^short_option)(char opt, char* (^value)());
+    bool (^short_option)(char opt, char* (^value)(rsvc_done_t fail));
 
     /// ..  member:: bool (^long_option)(char* opt, char* (^value)())
     ///
@@ -52,7 +53,7 @@ typedef struct option_callbacks {
     ///     :param value:   A block which may optionally be invoked to
     ///                     retrieve the value of the option.
     ///     :returns:       true iff `opt` is a valid option.
-    bool (^long_option)(char* opt, char* (^value)());
+    bool (^long_option)(char* opt, char* (^value)(rsvc_done_t fail));
 
     /// ..  member:: bool (^argument)(char *arg)
     ///

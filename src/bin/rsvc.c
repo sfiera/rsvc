@@ -50,8 +50,8 @@ typedef struct command* command_t;
 struct command {
     const char* name;
 
-    bool (^short_option)(char opt, char* (^value)());
-    bool (^long_option)(char* opt, char* (^value)());
+    bool (^short_option)(char opt, char* (^value)(rsvc_done_t fail));
+    bool (^long_option)(char* opt, char* (^value)(rsvc_done_t fail));
     bool (^argument)(char* arg);
     void (^usage)();
 
@@ -142,21 +142,25 @@ static void rsvc_main(int argc, char* const* argv) {
     };
     __block struct command rip = {
         .name = "rip",
-        .short_option = ^bool (char opt, char* (^value)()){
+        .short_option = ^bool (char opt, char* (^value)(rsvc_done_t fail)){
             switch (opt) {
               case 'f':
                 if (rip_options.path_format) {
                     free(rip_options.path_format);
                 }
-                rip_options.path_format = strdup(value());
-                rsvc_tags_validate_strf(rip_options.path_format, ^(rsvc_error_t error){
+                rsvc_done_t fail = ^(rsvc_error_t error){
                     callbacks.usage("%s", error->message);
-                });
-                return true;
+                };
+                const char* val = value(fail);
+                if (val) {
+                    rip_options.path_format = strdup(val);
+                    rsvc_tags_validate_strf(rip_options.path_format, fail);
+                }
+                return val != NULL;
             }
             return false;
         },
-        .long_option = ^bool (char* opt, char* (^value)()){
+        .long_option = ^bool (char* opt, char* (^value)(rsvc_done_t fail)){
             if (strcmp(opt, "path-format") == 0) {
                 return callbacks.short_option('f', value);
             }
@@ -199,7 +203,7 @@ static void rsvc_main(int argc, char* const* argv) {
         },
     };
 
-    callbacks.short_option = ^bool (char opt, char* (^value)()){
+    callbacks.short_option = ^bool (char opt, char* (^value)(rsvc_done_t fail)){
         switch (opt) {
           case 'V':
             fprintf(stderr, "rsvc %s\n", RSVC_VERSION);
@@ -212,7 +216,7 @@ static void rsvc_main(int argc, char* const* argv) {
         }
     };
 
-    callbacks.long_option = ^bool (char* opt, char* (^value)()){
+    callbacks.long_option = ^bool (char* opt, char* (^value)(rsvc_done_t fail)){
         if (strcmp(opt, "version") == 0) {
             return callbacks.short_option('V', value);
         } else if (command && command->long_option) {

@@ -237,7 +237,7 @@ static void cloak_main(int argc, char* const* argv) {
     };
     __block string_list_t files = {};
 
-    bool (^option)(int opt, char* (^value)()) = ^bool (int opt, char* (^value)()){
+    callbacks.short_option = ^bool (char opt, char* (^value)(rsvc_done_t fail)){
         switch (opt) {
           case HELP:
             cloak_usage(progname);
@@ -260,8 +260,14 @@ static void cloak_main(int argc, char* const* argv) {
             return true;
 
           case REMOVE:
-            validate_name(progname, value());
-            add_string(&ops.remove_tags, value());
+            {
+                char* val = value(fail);
+                if (!val) {
+                    return false;
+                }
+                validate_name(progname, val);
+                add_string(&ops.remove_tags, val);
+            }
             return true;
 
           case REMOVE_ALL:
@@ -273,7 +279,11 @@ static void cloak_main(int argc, char* const* argv) {
             {
                 char* tag_name;
                 char* tag_value;
-                if (!split_assignment(value(), &tag_name, &tag_value, fail)) {
+                char* val = value(fail);
+                if (!val) {
+                    return false;
+                }
+                if (!split_assignment(val, &tag_name, &tag_value, fail)) {
                     return true;
                 }
                 validate_name(progname, tag_name);
@@ -299,7 +309,11 @@ static void cloak_main(int argc, char* const* argv) {
           case DISC_TOTAL:
             {
                 const char* tag_name = get_tag_name(opt);
-                char* tag_value = strdup(value());
+                const char* val = value(fail);
+                if (!val) {
+                    return false;
+                }
+                char* tag_value = strdup(val);
                 add_string(&ops.remove_tags, tag_name);
                 add_string(&ops.add_tag_names, tag_name);
                 add_string(&ops.add_tag_values, tag_value);
@@ -316,26 +330,28 @@ static void cloak_main(int argc, char* const* argv) {
             return true;
 
           case FORMAT_PATH:
-            if (ops.move_format) {
-                free(ops.move_format);
+            {
+                if (ops.move_format) {
+                    free(ops.move_format);
+                }
+                char* val = value(fail);
+                if (!val) {
+                    return false;
+                }
+                ops.move_format = strdup(val);
+                rsvc_tags_validate_strf(ops.move_format, ^(rsvc_error_t error){
+                    callbacks.usage("%s", error->message);
+                });
             }
-            ops.move_format = strdup(value());
-            rsvc_tags_validate_strf(ops.move_format, ^(rsvc_error_t error){
-                callbacks.usage("%s", error->message);
-            });
             return true;
         }
         return false;
     };
 
-    callbacks.short_option = ^bool (char opt, char* (^value)()){
-        return option(opt, value);
-    };
-
-    callbacks.long_option = ^bool (char* opt, char* (^value)()){
+    callbacks.long_option = ^bool (char* opt, char* (^value)(rsvc_done_t fail)){
         for (struct long_flag* flag = kLongFlags; flag->name; ++flag) {
             if (strcmp(opt, flag->name) == 0) {
-                return option(flag->value, value);
+                return callbacks.short_option(flag->value, value);
             }
         }
         return false;

@@ -38,7 +38,7 @@ void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
                 // --option=value
                 *eq = '\0';
                 __block bool used_value = false;
-                if (!callbacks->long_option(opt, ^{
+                if (!callbacks->long_option(opt, ^(rsvc_done_t fail){
                     used_value = true;
                     return eq + 1;
                 })) {
@@ -50,10 +50,11 @@ void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
             } else {
                 // --option; --option value
                 __block char* value = NULL;
-                if (!callbacks->long_option(opt, ^{
+                if (!callbacks->long_option(opt, ^(rsvc_done_t fail){
                     if (!value) {
                         if (++i == argc) {
-                            callbacks->usage("option --%s: argument required", opt);
+                            rsvc_errorf(fail, __FILE__, __LINE__,
+                                        "option --%s: argument required", opt);
                         }
                         value = argv[i];
                     }
@@ -67,12 +68,14 @@ void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
             // -abco; -abcovalue; -abco value
             __block char* value = NULL;
             for (char* ch = arg + 1; *ch && !value; ++ch) {
-                if (!callbacks->short_option(*ch, ^{
+                if (!callbacks->short_option(*ch, ^(rsvc_done_t fail){
                     if (!value) {
                         value = ch + 1;
                         if (!*value) {
                             if (++i == argc) {
-                                callbacks->usage("option -%c: argument required", *ch);
+                                rsvc_errorf(fail, __FILE__, __LINE__,
+                                            "option -%c: argument required", *ch);
+                                return (char*)NULL;
                             }
                             value = argv[i];
                         }
