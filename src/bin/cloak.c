@@ -238,7 +238,7 @@ static void cloak_main(int argc, char* const* argv) {
     __block string_list_t files = {};
 
     callbacks.short_option = ^bool (char opt,
-                                    bool (^get_value)(char** value, rsvc_done_t fail),
+                                    rsvc_option_value_t get_value,
                                     rsvc_done_t fail){
         switch (opt) {
           case HELP:
@@ -349,7 +349,7 @@ static void cloak_main(int argc, char* const* argv) {
     };
 
     callbacks.long_option = ^bool (char* opt,
-                                   bool (^get_value)(char** value, rsvc_done_t fail),
+                                   rsvc_option_value_t get_value,
                                    rsvc_done_t fail){
         for (struct long_flag* flag = kLongFlags; flag->name; ++flag) {
             if (strcmp(opt, flag->name) == 0) {
