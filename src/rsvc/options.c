@@ -23,7 +23,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callbacks) {
+bool rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callbacks,
+                  rsvc_done_t fail) {
     __block size_t i = 1;
     for ( ; i < argc; ++i) {
         char* arg = argv[i];
@@ -42,10 +43,10 @@ void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
                     used_value = true;
                     return eq + 1;
                 })) {
-                    callbacks->usage("illegal option: --%s", opt);
+                    rsvc_errorf(fail, __FILE__, __LINE__, "illegal option: --%s", opt);
                 }
                 if (!used_value) {
-                    callbacks->usage("option --%s: no argument permitted", opt);
+                    rsvc_errorf(fail, __FILE__, __LINE__, "option --%s: no argument permitted", opt);
                 }
             } else {
                 // --option; --option value
@@ -60,7 +61,7 @@ void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
                     }
                     return value;
                 })) {
-                    callbacks->usage("illegal option: --%s", opt);
+                    rsvc_errorf(fail, __FILE__, __LINE__, "illegal option: --%s", opt);
                 };
             }
             free(opt);
@@ -82,13 +83,13 @@ void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
                     }
                     return value;
                 })) {
-                    callbacks->usage("illegal option: -%c", *ch);
+                    rsvc_errorf(fail, __FILE__, __LINE__, "illegal option: -%c", *ch);
                 };
             }
         } else {
             // argument
             if (!callbacks->argument(arg)) {
-                callbacks->usage("too many arguments");
+                rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
             }
         }
     }
@@ -96,7 +97,8 @@ void rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
     // Catch arguments after --.
     for ( ; i < argc; ++i) {
         if (!callbacks->argument(argv[i])) {
-            callbacks->usage("too many arguments");
+            rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
         }
     }
+    return true;
 }

@@ -278,8 +278,6 @@ static void rsvc_main(int argc, char* const* argv) {
         exit(EX_USAGE);
     };
 
-    rsvc_options(argc, argv, &callbacks);
-
     rsvc_done_t done = ^(rsvc_error_t error){
         if (error) {
             if (command) {
@@ -294,6 +292,10 @@ static void rsvc_main(int argc, char* const* argv) {
             exit(EX_OK);
         }
     };
+
+    if (!rsvc_options(argc, argv, &callbacks, done)) {
+        exit(1);
+    }
 
     if (command) {
         command->run(done);

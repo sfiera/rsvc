@@ -375,7 +375,9 @@ static void cloak_main(int argc, char* const* argv) {
         exit(EX_USAGE);
     };
 
-    rsvc_options(argc, argv, &callbacks);
+    if (!rsvc_options(argc, argv, &callbacks, fail)) {
+        exit(1);
+    }
 
     if (files.nstrings == 0) {
         callbacks.usage("no input files");

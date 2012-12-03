@@ -87,7 +87,7 @@ typedef struct option_callbacks {
 ///     :param argc:        The length of `argv`.
 ///     :param argv:        An array of argument strings.
 ///     :param callbacks:   A set of callbacks to invoke during parsing.
-void                    rsvc_options(size_t argc, char* const* argv,
-                                     rsvc_option_callbacks_t* callbacks);
+bool                    rsvc_options(size_t argc, char* const* argv,
+                                     rsvc_option_callbacks_t* callbacks, rsvc_done_t fail);
 
 #endif  // RSVC_OPTIONS_H_
