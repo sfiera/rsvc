@@ -50,8 +50,10 @@ typedef struct command* command_t;
 struct command {
     const char* name;
 
-    bool (^short_option)(char opt, char* (^value)(rsvc_done_t fail), rsvc_done_t fail);
-    bool (^long_option)(char* opt, char* (^value)(rsvc_done_t fail), rsvc_done_t fail);
+    bool (^short_option)(char opt, bool (^get_value)(char** value, rsvc_done_t fail),
+                         rsvc_done_t fail);
+    bool (^long_option)(char* opt, bool (^get_value)(char** value, rsvc_done_t fail),
+                        rsvc_done_t fail);
     bool (^argument)(char* arg, rsvc_done_t fail);
     void (^usage)();
 
@@ -142,17 +144,18 @@ static void rsvc_main(int argc, char* const* argv) {
     };
     __block struct command rip = {
         .name = "rip",
-        .short_option = ^bool (char opt, char* (^value)(rsvc_done_t fail), rsvc_done_t fail){
+        .short_option = ^bool (char opt, bool (^get_value)(char** value, rsvc_done_t fail),
+                               rsvc_done_t fail){
             switch (opt) {
               case 'f':
                 if (rip_options.path_format) {
                     free(rip_options.path_format);
                 }
-                const char* val = value(fail);
-                if (!val) {
+                char* value;
+                if (!get_value(&value, fail)) {
                     return false;
                 }
-                rip_options.path_format = strdup(val);
+                rip_options.path_format = strdup(value);
                 rsvc_tags_validate_strf(rip_options.path_format, fail);
                 return true;
 
@@ -161,10 +164,10 @@ static void rsvc_main(int argc, char* const* argv) {
                 return false;
             }
         },
-        .long_option = ^bool (char* opt, char* (^value)(rsvc_done_t fail),
+        .long_option = ^bool (char* opt, bool (^get_value)(char** value, rsvc_done_t fail),
                               rsvc_done_t fail){
             if (strcmp(opt, "path-format") == 0) {
-                return callbacks.short_option('f', value, fail);
+                return callbacks.short_option('f', get_value, fail);
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
                 return false;
@@ -211,11 +214,12 @@ static void rsvc_main(int argc, char* const* argv) {
         },
     };
 
-    callbacks.short_option = ^bool (char opt, char* (^value)(rsvc_done_t fail),
+    callbacks.short_option = ^bool (char opt,
+                                    bool (^get_value)(char** value, rsvc_done_t fail),
                                     rsvc_done_t fail){
         if (command) {
             if (command->short_option) {
-                return command->short_option(opt, value, fail);
+                return command->short_option(opt, get_value, fail);
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
                 return false;
@@ -232,18 +236,19 @@ static void rsvc_main(int argc, char* const* argv) {
         }
     };
 
-    callbacks.long_option = ^bool (char* opt, char* (^value)(rsvc_done_t fail),
+    callbacks.long_option = ^bool (char* opt,
+                                   bool (^get_value)(char** value, rsvc_done_t fail),
                                    rsvc_done_t fail){
         if (command) {
             if (command && command->long_option) {
-                return command->long_option(opt, value, fail);
+                return command->long_option(opt, get_value, fail);
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
                 return false;
             }
         } else {
             if (strcmp(opt, "version") == 0) {
-                return callbacks.short_option('V', value, fail);
+                return callbacks.short_option('V', get_value, fail);
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
                 return false;

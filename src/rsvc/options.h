@@ -41,7 +41,8 @@ typedef struct option_callbacks {
     ///     :param value:   A block which may optionally be invoked to
     ///                     retrieve the value of the option.
     ///     :returns:       true iff `opt` is a valid option.
-    bool (^short_option)(char opt, char* (^value)(rsvc_done_t fail), rsvc_done_t fail);
+    bool (^short_option)(char opt, bool (^get_value)(char** value, rsvc_done_t fail),
+                         rsvc_done_t fail);
 
     /// ..  member:: bool (^long_option)(char* opt, char* (^value)())
     ///
@@ -53,7 +54,8 @@ typedef struct option_callbacks {
     ///     :param value:   A block which may optionally be invoked to
     ///                     retrieve the value of the option.
     ///     :returns:       true iff `opt` is a valid option.
-    bool (^long_option)(char* opt, char* (^value)(rsvc_done_t fail), rsvc_done_t fail);
+    bool (^long_option)(char* opt, bool (^get_value)(char** value, rsvc_done_t fail),
+                        rsvc_done_t fail);
 
     /// ..  member:: bool (^argument)(char *arg)
     ///

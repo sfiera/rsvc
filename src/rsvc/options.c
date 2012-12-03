@@ -39,9 +39,10 @@ bool rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
                 // --option=value
                 *eq = '\0';
                 __block bool used_value = false;
-                if (!callbacks->long_option(opt, ^(rsvc_done_t fail){
+                if (!callbacks->long_option(opt, ^bool (char** value, rsvc_done_t fail){
                     used_value = true;
-                    return eq + 1;
+                    *value = eq + 1;
+                    return true;
                 }, fail)) {
                     return false;
                 } else if (!used_value) {
@@ -50,17 +51,18 @@ bool rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
                 }
             } else {
                 // --option; --option value
-                __block char* value = NULL;
-                if (!callbacks->long_option(opt, ^(rsvc_done_t fail){
-                    if (!value) {
+                __block bool used_value = false;
+                if (!callbacks->long_option(opt, ^bool (char** value, rsvc_done_t fail){
+                    if (!used_value) {
                         if (++i == argc) {
                             rsvc_errorf(fail, __FILE__, __LINE__,
                                         "option --%s: argument required", opt);
-                            return (char*)NULL;
+                            return false;
                         }
-                        value = argv[i];
                     }
-                    return value;
+                    *value = argv[i];
+                    used_value = true;
+                    return true;
                 }, fail)) {
                     return false;
                 };
@@ -68,21 +70,22 @@ bool rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
             free(opt);
         } else if ((arg[0] == '-') && (arg[1] != '\0')) {
             // -abco; -abcovalue; -abco value
-            __block char* value = NULL;
-            for (char* ch = arg + 1; *ch && !value; ++ch) {
-                if (!callbacks->short_option(*ch, ^(rsvc_done_t fail){
-                    if (!value) {
-                        value = ch + 1;
-                        if (!*value) {
+            __block char* val = NULL;
+            for (char* ch = arg + 1; *ch && !val; ++ch) {
+                if (!callbacks->short_option(*ch, ^bool (char** value, rsvc_done_t fail){
+                    if (!val) {
+                        val = ch + 1;
+                        if (!*val) {
                             if (++i == argc) {
                                 rsvc_errorf(fail, __FILE__, __LINE__,
                                             "option -%c: argument required", *ch);
-                                return (char*)NULL;
+                                return false;
                             }
-                            value = argv[i];
+                            val = argv[i];
                         }
                     }
-                    return value;
+                    *value = val;
+                    return true;
                 }, fail)) {
                     return false;
                 };
