@@ -64,7 +64,6 @@ struct rsvc_cd_track {
     int nchannels;
     bool pre_emphasis;
     bool copy_permitted;
-    CDISRC isrc;
 };
 
 static inline bool is_normal_track(const CDTOCDescriptor* desc) {
@@ -161,14 +160,6 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
                                         ? RSVC_CD_TRACK_DATA
                                         : RSVC_CD_TRACK_AUDIO;
                 track->nchannels        = (desc->control & 0x08) ? 4 : 2;
-                track->isrc[0]          = '\0';
-
-                dk_cd_read_isrc_t cd_read_isrc;
-                memset(&cd_read_isrc, 0, sizeof(dk_cd_read_isrc_t));
-                cd_read_isrc.track = track->number;
-                if (ioctl(fd, DKIOCCDREADISRC, &cd_read_isrc) >= 0) {
-                    strcpy(track->isrc, cd_read_isrc.isrc);
-                }
 
                 ++track;
             } else if (desc->adr == 1) {
@@ -320,8 +311,17 @@ size_t rsvc_cd_track_nsamples(rsvc_cd_track_t track) {
     return rsvc_cd_track_nsectors(track) * kCDSectorSizeCDDA / 4;
 }
 
-const char* rsvc_cd_track_isrc(rsvc_cd_track_t track) {
-    return track->isrc;
+void rsvc_cd_track_isrc(rsvc_cd_track_t track, void (^done)(const char* isrc)) {
+    dispatch_async(track->cd->queue, ^{
+        dk_cd_read_isrc_t cd_read_isrc;
+        memset(&cd_read_isrc, 0, sizeof(dk_cd_read_isrc_t));
+        cd_read_isrc.track = track->number;
+        if (ioctl(track->cd->fd, DKIOCCDREADISRC, &cd_read_isrc) >= 0) {
+            done(cd_read_isrc.isrc);
+        } else {
+            done(NULL);
+        }
+    });
 }
 
 static void read_range(

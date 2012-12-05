@@ -216,12 +216,9 @@ size_t                  rsvc_cd_track_nchannels(rsvc_cd_track_t track);
 size_t                  rsvc_cd_track_nsectors(rsvc_cd_track_t track);
 size_t                  rsvc_cd_track_nsamples(rsvc_cd_track_t track);
 
-/// ..  function:: const char* rsvc_cd_track_isrc(rsvc_cd_track_t track)
-///
-///     :returns:   The :abbr:`ISRC (International Standard Recording
-///                 Code)` of the track, if any.  If the track does not
-///                 have one, returns an empty string.
-const char*             rsvc_cd_track_isrc(rsvc_cd_track_t track);
+/// ..  function:: void rsvc_cd_track_isrc(rsvc_cd_track_t track, void (^done)(const char* isrc));
+void                    rsvc_cd_track_isrc(rsvc_cd_track_t track,
+                                           void (^done)(const char* isrc));
 
 /// ..  function:: void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done)
 ///

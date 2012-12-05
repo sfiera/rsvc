@@ -343,10 +343,6 @@ static void print_track(rsvc_cd_session_t session, size_t n) {
         }
         break;
     }
-    const char* isrc = rsvc_cd_track_isrc(track);
-    if (*isrc) {
-        printf("    ISRC: %s\n", isrc);
-    }
     print_track(session, n + 1);
 }
 
@@ -619,7 +615,6 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
     size_t track_number     = rsvc_cd_track_number(track);
     const size_t ntracks    = rsvc_cd_session_ntracks(session);
     const char* mcn         = rsvc_cd_mcn(cd);
-    const char* isrc        = rsvc_cd_track_isrc(track);
 
     rsvc_tags_t tags = rsvc_tags_new();
     rsvc_done_t wrapped_done = ^(rsvc_error_t error){
@@ -635,8 +630,7 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
             || !rsvc_tags_add(tags, wrapped_done, RSVC_MUSICBRAINZ_DISCID, discid)
             || !rsvc_tags_addf(tags, wrapped_done, RSVC_TRACKNUMBER, "%zu", track_number)
             || !rsvc_tags_addf(tags, wrapped_done, RSVC_TRACKTOTAL, "%zu", ntracks)
-            || (*mcn && !rsvc_tags_add(tags, wrapped_done, RSVC_MCN, mcn))
-            || (*isrc && !rsvc_tags_add(tags, wrapped_done, RSVC_ISRC, isrc))) {
+            || (*mcn && !rsvc_tags_add(tags, wrapped_done, RSVC_MCN, mcn))) {
         return;
     }
 
