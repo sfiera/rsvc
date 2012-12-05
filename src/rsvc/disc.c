@@ -30,6 +30,7 @@
 #include <IOKit/storage/IODVDMedia.h>
 #include <IOKit/storage/IOMedia.h>
 #include <sys/param.h>
+CF_EXPORT void CFLog(int32_t level, CFStringRef format, ...);
 
 #include "common.h"
 
@@ -205,4 +206,69 @@ rsvc_stop_t rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
         start_watch(userdata);
     });
     return stop;
+}
+
+static void da_callback(DADiskRef disk, DADissenterRef dissenter, void *userdata) {
+    rsvc_done_t done = userdata;
+    if (dissenter) {
+        CFStringRef cfstr = DADissenterGetStatusString(dissenter);
+        int status = DADissenterGetStatus(dissenter);
+        if (cfstr) {
+            size_t size = CFStringGetLength(cfstr) + 1;
+            char* str = malloc(size);
+            if (CFStringGetCString(cfstr, str, size, kCFStringEncodingUTF8)) {
+                rsvc_errorf(done, __FILE__, __LINE__, "%s", str);
+            } else {
+                rsvc_errorf(done, __FILE__, __LINE__, "CFStringGetCString");
+            }
+            free(str);
+        }
+        errno = status & 0x3fff;
+        //rsvc_strerrorf(done, __FILE__, __LINE__, "%s", DADiskGetBSDName(disk));
+        rsvc_errorf(done, __FILE__, __LINE__, "DADissenterGetStatusString: %x", status);
+    } else {
+        done(NULL);
+    }
+    Block_release(done);
+}
+
+void rsvc_disc_eject(const char* path, rsvc_done_t done) {
+    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    DASessionRef session = DASessionCreate(NULL);
+    DASessionSetDispatchQueue(session, queue);
+    DADiskRef disk = DADiskCreateFromBSDName(NULL, session, path);
+
+    done = ^(rsvc_error_t error){
+        done(error);
+        CFRelease(disk);
+        CFRelease(session);
+    };
+
+    dispatch_async(queue, ^{
+        CFDictionaryRef dict = DADiskCopyDescription(disk);
+        if (!dict) {
+            rsvc_errorf(done, __FILE__, __LINE__, "no such disk");
+            return;
+        }
+        bool mounted = CFDictionaryGetValueIfPresent(dict, kDADiskDescriptionVolumePathKey,
+                                                     NULL);
+        bool ejectable = CFDictionaryGetValue(dict, kDADiskDescriptionMediaEjectableKey)
+                         == kCFBooleanTrue;
+        CFRelease(dict);
+
+        if (!ejectable) {
+            rsvc_errorf(done, __FILE__, __LINE__, "not ejectable");
+        } else if (mounted) {
+            rsvc_done_t eject = ^(rsvc_error_t error){
+                if (error) {
+                    done(error);
+                    return;
+                }
+                DADiskEject(disk, kDADiskEjectOptionDefault, da_callback, Block_copy(done));
+            };
+            DADiskUnmount(disk, kDADiskUnmountOptionDefault, da_callback, Block_copy(eject));
+        } else {
+            DADiskEject(disk, kDADiskEjectOptionDefault, da_callback, Block_copy(done));
+        }
+    });
 }

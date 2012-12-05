@@ -61,6 +61,7 @@ struct command {
 static void rsvc_command_print(char* disk, void (^usage)(), rsvc_done_t done);
 static void rsvc_command_ls(void (^usage)(), rsvc_done_t done);
 static void rsvc_command_watch(void (^usage)(), rsvc_done_t done);
+static void rsvc_command_eject(char* disk, void (^usage)(), rsvc_done_t done);
 
 typedef struct rip_options* rip_options_t;
 struct rip_options {
@@ -99,6 +100,7 @@ static void rsvc_main(int argc, char* const* argv) {
                     "  print DEVICE          print CD contents\n"
                     "  ls                    list CDs\n"
                     "  watch                 watch for CDs\n"
+                    "  eject DEVICE          eject CD\n"
                     "  rip DEVICE            rip tracks to files\n"
                     "\n"
                     "Options:\n"
@@ -144,6 +146,24 @@ static void rsvc_main(int argc, char* const* argv) {
         },
         .run = ^(rsvc_done_t done){
             rsvc_command_watch(usage, done);
+        },
+    };
+
+    __block char* eject_disk = NULL;
+    __block struct command eject = {
+        .name = "eject",
+        .argument = ^bool (char* arg, rsvc_done_t fail) {
+            if (!eject_disk) {
+                eject_disk = arg;
+                return true;
+            }
+            return false;
+        },
+        .usage = ^{
+            fprintf(stderr, "usage: %s eject DEVICE\n", progname);
+        },
+        .run = ^(rsvc_done_t done){
+            rsvc_command_eject(eject_disk, usage, done);
         },
     };
 
@@ -276,6 +296,8 @@ static void rsvc_main(int argc, char* const* argv) {
                 command = &ls;
             } else if (strcmp(arg, "watch") == 0) {
                 command = &watch;
+            } else if (strcmp(arg, "eject") == 0) {
+                command = &eject;
             } else if (strcmp(arg, "rip") == 0) {
                 command = &rip;
             } else {
@@ -411,6 +433,21 @@ static void rsvc_command_watch(void (^usage)(), rsvc_done_t done) {
     };
 
     rsvc_disc_watch(callbacks);
+}
+
+static void rsvc_command_eject(char* disk, void (^usage)(), rsvc_done_t done) {
+    if (disk == NULL) {
+        usage();
+        done(NULL);
+        return;
+    }
+    rsvc_disc_eject(disk, ^(rsvc_error_t error){
+        if (error) {
+            rsvc_errorf(done, __FILE__, __LINE__, "%s: %s", disk, error->message);
+        } else {
+            done(NULL);
+        }
+    });
 }
 
 static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),

@@ -70,4 +70,6 @@ typedef struct rsvc_disc_callbacks {
 ///     dispatch queue to maintain consistency.
 rsvc_stop_t             rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks);
 
+void                    rsvc_disc_eject(const char* path, rsvc_done_t done);
+
 #endif  // RSVC_DISC_H_
