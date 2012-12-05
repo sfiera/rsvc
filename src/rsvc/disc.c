@@ -239,7 +239,12 @@ void rsvc_disc_eject(const char* path, rsvc_done_t done) {
     DADiskRef disk = DADiskCreateFromBSDName(NULL, session, path);
 
     done = ^(rsvc_error_t error){
-        done(error);
+        if (error) {
+            rsvc_errorf(done, __FILE__, __LINE__,
+                        "%s: %s", DADiskGetBSDName(disk), error->message);
+        } else {
+            done(NULL);
+        }
         CFRelease(disk);
         CFRelease(session);
     };

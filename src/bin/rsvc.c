@@ -68,6 +68,7 @@ struct rip_options {
     rsvc_encode_format_t format;
     bool has_bitrate;
     int64_t bitrate;
+    bool eject;
     char* path_format;
 };
 static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
@@ -171,6 +172,7 @@ static void rsvc_main(int argc, char* const* argv) {
     __block struct rip_options rip_options = {
         .format       = NULL,
         .has_bitrate  = false,
+        .eject        = false,
         .path_format  = strdup("%k"),
     };
     __block struct command rip = {
@@ -189,6 +191,10 @@ static void rsvc_main(int argc, char* const* argv) {
                 rsvc_tags_validate_strf(rip_options.path_format, fail);
                 return true;
 
+              case 'e':
+                rip_options.eject = true;
+                return true;
+
               default:
                 rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
                 return false;
@@ -197,6 +203,8 @@ static void rsvc_main(int argc, char* const* argv) {
         .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
             if (strcmp(opt, "path-format") == 0) {
                 return callbacks.short_option('f', get_value, fail);
+            } else if (strcmp(opt, "eject") == 0) {
+                return callbacks.short_option('e', get_value, fail);
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
                 return false;
@@ -230,7 +238,8 @@ static void rsvc_main(int argc, char* const* argv) {
                     "usage: %s rip [OPTIONS] DEVICE FORMAT [BITRATE]\n"
                     "\n"
                     "Options:\n"
-                    "  -f, --format-path PATH  format string for output (default %%k)\n"
+                    "  -e, --eject             eject CD after ripping\n"
+                    "  -f, --path-format PATH  format string for output (default %%k)\n"
                     "\n"
                     "Formats:\n",
                     progname);
@@ -441,13 +450,7 @@ static void rsvc_command_eject(char* disk, void (^usage)(), rsvc_done_t done) {
         done(NULL);
         return;
     }
-    rsvc_disc_eject(disk, ^(rsvc_error_t error){
-        if (error) {
-            rsvc_errorf(done, __FILE__, __LINE__, "%s: %s", disk, error->message);
-        } else {
-            done(NULL);
-        }
-    });
+    rsvc_disc_eject(disk, done);
 }
 
 static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
@@ -470,7 +473,11 @@ static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
             }
             rip_all(cd, options, ^(rsvc_error_t error){
                 rsvc_cd_destroy(cd);
-                done(error);
+                if (options->eject) {
+                    rsvc_disc_eject(disk, done);
+                } else {
+                    done(error);
+                }
             });
         });
     }
