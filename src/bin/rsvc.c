@@ -320,6 +320,46 @@ static void rsvc_main(int argc, char* const* argv) {
     dispatch_main();
 }
 
+static void print_track(rsvc_cd_session_t session, size_t n) {
+    if (n == rsvc_cd_session_ntracks(session)) {
+        return;
+    }
+    rsvc_cd_track_t track = rsvc_cd_session_track(session, n);
+    printf("  - Track: %zu\n", rsvc_cd_track_number(track));
+    size_t sectors = rsvc_cd_track_nsectors(track);
+    switch (rsvc_cd_track_type(track)) {
+        case RSVC_CD_TRACK_DATA: {
+            printf("    Type: data\n");
+            printf("    Sectors: %zu\n", sectors);
+        }
+        break;
+        case RSVC_CD_TRACK_AUDIO: {
+            printf("    Type: audio\n");
+            printf("    Channels: %zu\n", rsvc_cd_track_nchannels(track));
+            printf("    Duration: %zu:%02zu.%03zu\n",
+                   sectors / (75 * 60),
+                   (sectors / 75) % 60,
+                   ((sectors % 75) * 1000) / 75);
+        }
+        break;
+    }
+    const char* isrc = rsvc_cd_track_isrc(track);
+    if (*isrc) {
+        printf("    ISRC: %s\n", isrc);
+    }
+    print_track(session, n + 1);
+}
+
+static void print_session(rsvc_cd_t cd, size_t n) {
+    if (n == rsvc_cd_nsessions(cd)) {
+        return;
+    }
+    rsvc_cd_session_t session = rsvc_cd_session(cd, n);
+    printf("- Session: %zu\n", rsvc_cd_session_number(session));
+    print_track(session, 0);
+    print_session(cd, n + 1);
+}
+
 static void rsvc_command_print(char* disk, void (^usage)(), rsvc_done_t done) {
     if (disk == NULL) {
         usage();
@@ -335,33 +375,7 @@ static void rsvc_command_print(char* disk, void (^usage)(), rsvc_done_t done) {
         if (*mcn) {
             printf("MCN: %s\n", mcn);
         }
-        rsvc_cd_each_session(cd, ^(rsvc_cd_session_t session, rsvc_stop_t stop){
-            printf("- Session: %zu\n", rsvc_cd_session_number(session));
-            rsvc_cd_session_each_track(session, ^(rsvc_cd_track_t track, rsvc_stop_t stop){
-                printf("  - Track: %zu\n", rsvc_cd_track_number(track));
-                size_t sectors = rsvc_cd_track_nsectors(track);
-                switch (rsvc_cd_track_type(track)) {
-                    case RSVC_CD_TRACK_DATA: {
-                        printf("    Type: data\n");
-                        printf("    Sectors: %zu\n", sectors);
-                    }
-                    break;
-                    case RSVC_CD_TRACK_AUDIO: {
-                        printf("    Type: audio\n");
-                        printf("    Channels: %zu\n", rsvc_cd_track_nchannels(track));
-                        printf("    Duration: %zu:%02zu.%03zu\n",
-                               sectors / (75 * 60),
-                               (sectors / 75) % 60,
-                               ((sectors % 75) * 1000) / 75);
-                    }
-                    break;
-                }
-                const char* isrc = rsvc_cd_track_isrc(track);
-                if (*isrc) {
-                    printf("    ISRC: %s\n", isrc);
-                }
-            });
-        });
+        print_session(cd, 0);
 
         rsvc_cd_destroy(cd);
         done(NULL);
