@@ -223,8 +223,6 @@ static void da_callback(DADiskRef disk, DADissenterRef dissenter, void *userdata
             }
             free(str);
         }
-        errno = status & 0x3fff;
-        //rsvc_strerrorf(done, __FILE__, __LINE__, "%s", DADiskGetBSDName(disk));
         rsvc_errorf(done, __FILE__, __LINE__, "DADissenterGetStatusString: %x", status);
     } else {
         done(NULL);
