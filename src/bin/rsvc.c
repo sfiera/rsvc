@@ -102,6 +102,7 @@ static void rsvc_main(int argc, char* const* argv) {
                     "  rip DEVICE            rip tracks to files\n"
                     "\n"
                     "Options:\n"
+                    "  -v, --verbose         more verbose logging\n"
                     "  -V, --version         show version and exit\n",
                     progname);
         }
@@ -233,6 +234,9 @@ static void rsvc_main(int argc, char* const* argv) {
             }
         } else {
             switch (opt) {
+              case 'v':
+                ++rsvc_verbosity;
+                return true;
               case 'V':
                 fprintf(stderr, "rsvc %s\n", RSVC_VERSION);
                 exit(0);
@@ -253,7 +257,9 @@ static void rsvc_main(int argc, char* const* argv) {
                 return false;
             }
         } else {
-            if (strcmp(opt, "version") == 0) {
+            if (strcmp(opt, "verbose") == 0) {
+                return callbacks.short_option('v', get_value, fail);
+            } else if (strcmp(opt, "version") == 0) {
                 return callbacks.short_option('V', get_value, fail);
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
