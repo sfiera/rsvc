@@ -66,19 +66,6 @@ typedef struct option_callbacks {
     ///     :param arg:     The value of the argument.
     ///     :returns:       true iff `arg` was accepted.
     bool (^argument)(char* arg, rsvc_done_t fail);
-
-    /// ..  member:: void (^usage)(const char* message, ...)
-    ///
-    ///     Called when a usage error is detected.  Arguments are passed
-    ///     in the form of a `printf()` format string.
-    ///
-    ///     Must not return.
-    ///
-    ///     TODO(sfiera): support a softer failure mode.
-    ///
-    ///     :param format:  A `printf()`-style format string.
-    ///     :param ...:     Format values for `format`.
-    void (^usage)(const char* format, ...);
 } rsvc_option_callbacks_t;
 
 /// ..  function:: rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callbacks)

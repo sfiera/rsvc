@@ -58,15 +58,9 @@ struct command {
     void (^run)(rsvc_done_t done);
 };
 
-static void rsvc_command_print(char* disk,
-                               void (^usage)(const char* message, ...),
-                               rsvc_done_t done);
-
-static void rsvc_command_ls(void (^usage)(const char* message, ...),
-                            rsvc_done_t done);
-
-static void rsvc_command_watch(void (^usage)(const char* message, ...),
-                               rsvc_done_t done);
+static void rsvc_command_print(char* disk, void (^usage)(), rsvc_done_t done);
+static void rsvc_command_ls(void (^usage)(), rsvc_done_t done);
+static void rsvc_command_watch(void (^usage)(), rsvc_done_t done);
 
 typedef struct rip_options* rip_options_t;
 struct rip_options {
@@ -75,8 +69,7 @@ struct rip_options {
     int64_t bitrate;
     char* path_format;
 };
-static void rsvc_command_rip(char* disk, rip_options_t options,
-                             void (^usage)(const char* message, ...),
+static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
                              rsvc_done_t done);
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
@@ -92,9 +85,28 @@ static void rsvc_main(int argc, char* const* argv) {
     rsvc_vorbis_format_register();
 
     char* const progname = strdup(basename(argv[0]));
-
     __block rsvc_option_callbacks_t callbacks;
     __block command_t command = NULL;
+
+    void (^usage)() = ^{
+        if (command) {
+            command->usage();
+        } else {
+            fprintf(stderr,
+                    "usage: %s COMMAND [OPTIONS]\n"
+                    "\n"
+                    "Commands:\n"
+                    "  print DEVICE          print CD contents\n"
+                    "  ls                    list CDs\n"
+                    "  watch                 watch for CDs\n"
+                    "  rip DEVICE            rip tracks to files\n"
+                    "\n"
+                    "Options:\n"
+                    "  -V, --version         show version and exit\n",
+                    progname);
+        }
+        exit(EX_USAGE);
+    };
 
     __block char* print_disk = NULL;
     __block struct command print = {
@@ -110,7 +122,7 @@ static void rsvc_main(int argc, char* const* argv) {
             fprintf(stderr, "usage: %s print DEVICE\n", progname);
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_print(print_disk, callbacks.usage, done);
+            rsvc_command_print(print_disk, usage, done);
         },
     };
 
@@ -120,7 +132,7 @@ static void rsvc_main(int argc, char* const* argv) {
             fprintf(stderr, "usage: %s ls\n", progname);
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_ls(callbacks.usage, done);
+            rsvc_command_ls(usage, done);
         },
     };
 
@@ -130,7 +142,7 @@ static void rsvc_main(int argc, char* const* argv) {
             fprintf(stderr, "usage: %s watch\n", progname);
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_watch(callbacks.usage, done);
+            rsvc_command_watch(usage, done);
         },
     };
 
@@ -206,7 +218,7 @@ static void rsvc_main(int argc, char* const* argv) {
             });
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_rip(rip_disk, &rip_options, callbacks.usage, done);
+            rsvc_command_rip(rip_disk, &rip_options, usage, done);
         },
     };
 
@@ -261,7 +273,8 @@ static void rsvc_main(int argc, char* const* argv) {
             } else if (strcmp(arg, "rip") == 0) {
                 command = &rip;
             } else {
-                callbacks.usage("illegal command: %s", arg);
+                rsvc_errorf(fail, __FILE__, __LINE__, "%s: illegal command", arg);
+                return false;
             }
             return true;
         } else if (command->argument) {
@@ -270,38 +283,6 @@ static void rsvc_main(int argc, char* const* argv) {
             rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
             return false;
         }
-    };
-
-    callbacks.usage = ^(const char* message, ...){
-        if (message) {
-            if (command) {
-                fprintf(stderr, "%s %s: ", progname, command->name);
-            } else {
-                fprintf(stderr, "%s: ", progname);
-            }
-            va_list vl;
-            va_start(vl, message);
-            vfprintf(stderr, message, vl);
-            va_end(vl);
-            fprintf(stderr, "\n");
-        }
-        if (command) {
-            command->usage();
-        } else {
-            fprintf(stderr,
-                    "usage: %s COMMAND [OPTIONS]\n"
-                    "\n"
-                    "Commands:\n"
-                    "  print DEVICE          print CD contents\n"
-                    "  ls                    list CDs\n"
-                    "  watch                 watch for CDs\n"
-                    "  rip DEVICE            rip tracks to files\n"
-                    "\n"
-                    "Options:\n"
-                    "  -V, --version         show version and exit\n",
-                    progname);
-        }
-        exit(EX_USAGE);
     };
 
     rsvc_done_t done = ^(rsvc_error_t error){
@@ -326,17 +307,18 @@ static void rsvc_main(int argc, char* const* argv) {
     if (command) {
         command->run(done);
     } else {
-        callbacks.usage(NULL);
+        usage();
+        exit(1);
     }
 
     dispatch_main();
 }
 
-static void rsvc_command_print(char* disk,
-                               void (^usage)(const char* message, ...),
-                               rsvc_done_t done) {
+static void rsvc_command_print(char* disk, void (^usage)(), rsvc_done_t done) {
     if (disk == NULL) {
-        usage(NULL);
+        usage();
+        done(NULL);
+        return;
     }
     rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
         if (error) {
@@ -380,8 +362,7 @@ static void rsvc_command_print(char* disk,
     });
 }
 
-static void rsvc_command_ls(void (^usage)(const char* message, ...),
-                            rsvc_done_t done) {
+static void rsvc_command_ls(void (^usage)(), rsvc_done_t done) {
     __block rsvc_stop_t stop;
 
     rsvc_disc_watch_callbacks_t callbacks;
@@ -397,8 +378,7 @@ static void rsvc_command_ls(void (^usage)(const char* message, ...),
     stop = rsvc_disc_watch(callbacks);
 }
 
-static void rsvc_command_watch(void (^usage)(const char* message, ...),
-                               rsvc_done_t done) {
+static void rsvc_command_watch(void (^usage)(), rsvc_done_t done) {
     __block bool show = false;
 
     rsvc_disc_watch_callbacks_t callbacks;
@@ -417,28 +397,30 @@ static void rsvc_command_watch(void (^usage)(const char* message, ...),
     rsvc_disc_watch(callbacks);
 }
 
-static void rsvc_command_rip(char* disk, rip_options_t options,
-                             void (^usage)(const char* message, ...),
+static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
                              rsvc_done_t done) {
     if (!disk) {
-        usage(NULL);
+        usage();
     } else if (!options->format) {
-        usage("must choose format");
+        usage();
     } else if (options->has_bitrate && options->format->lossless) {
-        usage("bitrate provided for lossless format %s", options->format->name);
+        rsvc_errorf(done, __FILE__, __LINE__,
+                    "bitrate provided for lossless format %s", options->format->name);
     } else if (!options->has_bitrate && !options->format->lossless) {
-        usage("bitrate not provided for lossy format %s", options->format->name);
-    }
-    rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
-        if (error) {
-            done(error);
-            return;
-        }
-        rip_all(cd, options, ^(rsvc_error_t error){
-            rsvc_cd_destroy(cd);
-            done(error);
+        rsvc_errorf(done, __FILE__, __LINE__,
+                    "bitrate not provided for lossy format %s", options->format->name);
+    } else {
+        rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
+            if (error) {
+                done(error);
+                return;
+            }
+            rip_all(cd, options, ^(rsvc_error_t error){
+                rsvc_cd_destroy(cd);
+                done(error);
+            });
         });
-    });
+    }
 }
 
 static dispatch_source_t    sigint_source       = NULL;

@@ -365,27 +365,16 @@ static void cloak_main(int argc, char* const* argv) {
         return true;
     };
 
-    callbacks.usage = ^(const char* message, ...){
-        if (message) {
-            fprintf(stderr, "%s: ", progname);
-            va_list vl;
-            va_start(vl, message);
-            vfprintf(stderr, message, vl);
-            va_end(vl);
-            fprintf(stderr, "\n");
-        }
-        cloak_usage(progname);
-        exit(EX_USAGE);
-    };
-
     if (!rsvc_options(argc, argv, &callbacks, fail)) {
         exit(1);
     }
 
     if (files.nstrings == 0) {
-        callbacks.usage("no input files");
+        rsvc_errorf(fail, __FILE__, __LINE__, "no input files");
+        exit(1);
     } else if (!any_actions(&ops)) {
-        callbacks.usage("no actions");
+        rsvc_errorf(fail, __FILE__, __LINE__, "no actions");
+        exit(1);
     }
 
     if ((files.nstrings > 1) && (ops.list_mode == LIST_MODE_SHORT)) {
