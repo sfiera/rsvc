@@ -26,6 +26,7 @@ def configure(cnf):
     common(cnf)
     cnf.env.append_value("FRAMEWORK_ripservice/system/diskarbitration", "DiskArbitration")
     cnf.env.append_value("FRAMEWORK_ripservice/system/audiotoolbox", "AudioToolbox")
+    cnf.env.append_value("FRAMEWORK_ripservice/system/cocoa", "Cocoa")
 
     if unversioned_sys_platform() != "darwin":
         cnf.check_cc(lib="BlocksRuntime", uselib_store="ripservice/system/blocks")
@@ -42,6 +43,30 @@ def build(bld):
             includes="include",
             cflags=CFLAGS,
             use="ripservice/librsvc",
+        )
+
+        bld(
+            rule="${SRC} %s %s ${TGT}" % (VERSION, bld.options.sdk),
+            source="scripts/generate-info-plist.py",
+            target="ripservice/Info.plist",
+        )
+
+        bld.program(
+            target="ripservice/Rip Service",
+            features="universal c cprogram",
+            mac_app=True,
+            mac_plist="ripservice/Info.plist",
+            mac_resources=[
+                "resources/MainMenu.nib",
+            ],
+            source=[
+                "src/bin/rip-service.m",
+            ],
+            cflags=CFLAGS,
+            use=[
+                "ripservice/librsvc",
+                "ripservice/system/cocoa",
+            ],
         )
 
     bld.program(
