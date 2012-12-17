@@ -20,15 +20,60 @@
 
 #include "source-list.h"
 
-static NSString* DISCS = @"DISCS";
+#include <dispatch/dispatch.h>
+#include <rsvc/disc.h>
+
+static NSString* kDiscs = @"DISCS";
+
+static NSString* kDiscName = @"kDiscName";
+static NSString* kDiscType = @"kDiscType";
+static NSString* kDiscTypeNames[] = {
+    @"CD",
+    @"DVD",
+    @"Blu-Ray Disc",
+};
 
 @implementation RSSourceList
+
+- (void)awakeFromNib {
+    discs = [[NSMutableDictionary alloc] init];
+    rsvc_disc_watch_callbacks_t callbacks = {
+        .appeared = ^(rsvc_disc_type_t type, const char* name){
+            NSString* ns_name = [[NSString alloc] initWithUTF8String:name];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSDictionary* dict = [NSDictionary dictionaryWithObjectsAndKeys:
+                    ns_name, kDiscName,
+                    kDiscTypeNames[type], kDiscType,
+                    nil];
+                [discs setObject:dict forKey:ns_name];
+                [ns_name release];
+                [sourceList reloadItem:kDiscs reloadChildren:YES];
+            });
+        },
+        .disappeared = ^(rsvc_disc_type_t type, const char* name){
+            NSString* ns_name = [[NSString alloc] initWithUTF8String:name];
+            dispatch_async(dispatch_get_main_queue(), ^{
+                [discs removeObjectForKey:ns_name];
+                [ns_name release];
+                [sourceList reloadItem:kDiscs reloadChildren:YES];
+            });
+        },
+        .initialized = ^(rsvc_disc_type_t type, const char* name){
+        },
+    };
+    rsvc_disc_watch(callbacks);
+}
+
+- (void)dealloc {
+    [discs release];
+    [super dealloc];
+}
 
 - (NSInteger)outlineView:(NSOutlineView*)outlineView numberOfChildrenOfItem:(id)item {
     if (item == nil) {
         return 1;
-    } else if (item == DISCS) {
-        return 1;
+    } else if (item == kDiscs) {
+        return [discs count];
     } else {
         return 0;
     }
@@ -36,23 +81,28 @@ static NSString* DISCS = @"DISCS";
 
 - (id)outlineView:(NSOutlineView*)outlineView child:(NSInteger)index ofItem:(id)item {
     if (item == nil) {
-        return DISCS;
-    } else {
-        return @"Audio CD";
+        return kDiscs;
+    } else if (item == kDiscs) {
+        NSArray* keys = [discs allKeys];
+        NSArray* sortedKeys = [keys sortedArrayUsingSelector:
+            @selector(caseInsensitiveCompare:)];
+        return [discs objectForKey:[sortedKeys objectAtIndex:index]];
     }
+    return nil;
 }
 
 - (NSView*)outlineView:(NSOutlineView*)outlineView
            viewForTableColumn:(NSTableColumn*)tableColumn item:(id)item {
-    if (item == DISCS) {
+    if ([outlineView parentForItem:item] == nil) {
         NSTextField* field = [outlineView makeViewWithIdentifier:@"HeaderCell" owner:self];
         field.stringValue = item;
         return field;
-    } else {
+    } else if ([outlineView parentForItem:item] == kDiscs) {
         NSTableCellView* view = [outlineView makeViewWithIdentifier:@"MainCell" owner:self];
-        view.textField.stringValue = @"Audio CD";
+        view.textField.stringValue = [item objectForKey:kDiscName];
         return view;
     }
+    return nil;
 }
 
 - (BOOL)outlineView:(NSOutlineView*)outlineView isItemExpandable:(id)item {

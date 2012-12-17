@@ -24,6 +24,8 @@
 #include <Cocoa/Cocoa.h>
 
 @interface RSSourceList : NSObject <NSOutlineViewDataSource> {
+    IBOutlet NSOutlineView* sourceList;
+    NSMutableDictionary* discs;
 }
 
 @end
