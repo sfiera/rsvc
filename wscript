@@ -61,6 +61,8 @@ def build(bld):
             ],
             source=[
                 "src/bin/rip-service.m",
+                "src/app/app-delegate.m",
+                "src/app/source-list.m",
             ],
             cflags=CFLAGS,
             use=[
