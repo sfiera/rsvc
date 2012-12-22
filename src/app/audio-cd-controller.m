@@ -18,18 +18,36 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#ifndef RSVC_APP_SOURCE_LIST_H_
-#define RSVC_APP_SOURCE_LIST_H_
+#include "audio-cd-controller.h"
 
-#include <Cocoa/Cocoa.h>
+@implementation RSAudioCDController
 
-@interface RSSourceList : NSObject <NSOutlineViewDataSource> {
-    IBOutlet NSOutlineView* _source_list;
-    IBOutlet NSView* _view;
-    NSMutableDictionary* _discs;
-    NSViewController* _view_controller;
+- (id)initWithDisc:(NSMutableDictionary*)disc {
+    if (!(self = [super initWithNibName:@"AudioCDView" bundle:nil])) {
+        return nil;
+    }
+    _disc = [disc retain];
+    return self;
+}
+
+- (void)dealloc {
+    [_disc release];
+    [super dealloc];
+}
+
+- (NSString*)album {
+    return [_disc objectForKey:@"kDiscName"];
+}
+
+- (void)setAlbum:(NSString*)album {
+    if (album == nil) {
+        album = @"";
+    }
+    [_disc setObject:album forKey:@"kDiscName"];
+}
+
+- (IBAction)startRip:(id)sender {
+    NSLog(@"-[RSAudioCDController startRip:]");
 }
 
 @end
-
-#endif  // RSVC_APP_SOURCE_LIST_H_

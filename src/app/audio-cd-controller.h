@@ -18,18 +18,26 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#ifndef RSVC_APP_SOURCE_LIST_H_
-#define RSVC_APP_SOURCE_LIST_H_
+#ifndef RSVC_APP_AUDIO_CD_CONTROLLER_H_
+#define RSVC_APP_AUDIO_CD_CONTROLLER_H_
 
 #include <Cocoa/Cocoa.h>
 
-@interface RSSourceList : NSObject <NSOutlineViewDataSource> {
-    IBOutlet NSOutlineView* _source_list;
-    IBOutlet NSView* _view;
-    NSMutableDictionary* _discs;
-    NSViewController* _view_controller;
+@interface RSAudioCDController : NSViewController {
+    IBOutlet NSTextField* _album;
+    IBOutlet NSTextField* _artist;
+    IBOutlet NSTextField* _genre;
+    IBOutlet NSTableView* _tracks;
+
+    NSMutableDictionary* _disc;
 }
+- (id)initWithDisc:(NSMutableDictionary*)disc;
+
+- (NSString*)album;
+- (void)setAlbum:(NSString*)album;
+
+- (IBAction)startRip:(id)sender;
 
 @end
 
-#endif  // RSVC_APP_SOURCE_LIST_H_
+#endif  // RSVC_APP_AUDIO_CD_CONTROLLER_H_

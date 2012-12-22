@@ -57,11 +57,13 @@ def build(bld):
             mac_app=True,
             mac_plist="ripservice/Info.plist",
             mac_resources=[
+                "resources/AudioCDView.nib",
                 "resources/MainMenu.nib",
             ],
             source=[
                 "src/bin/rip-service.m",
                 "src/app/app-delegate.m",
+                "src/app/audio-cd-controller.m",
                 "src/app/source-list.m",
             ],
             cflags=CFLAGS,

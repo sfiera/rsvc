@@ -22,6 +22,7 @@
 
 #include <dispatch/dispatch.h>
 #include <rsvc/disc.h>
+#include "audio-cd-controller.h"
 
 static NSString* kDiscs = @"DISCS";
 
@@ -36,26 +37,28 @@ static NSString* kDiscTypeNames[] = {
 @implementation RSSourceList
 
 - (void)awakeFromNib {
-    discs = [[NSMutableDictionary alloc] init];
+    _discs = [[NSMutableDictionary alloc] init];
     rsvc_disc_watch_callbacks_t callbacks = {
         .appeared = ^(rsvc_disc_type_t type, const char* name){
             NSString* ns_name = [[NSString alloc] initWithUTF8String:name];
             dispatch_async(dispatch_get_main_queue(), ^{
-                NSDictionary* dict = [NSDictionary dictionaryWithObjectsAndKeys:
+                NSMutableDictionary* disc = [NSMutableDictionary dictionaryWithObjectsAndKeys:
                     ns_name, kDiscName,
                     kDiscTypeNames[type], kDiscType,
                     nil];
-                [discs setObject:dict forKey:ns_name];
+
+                [_discs setObject:disc forKey:ns_name];
                 [ns_name release];
-                [sourceList reloadItem:kDiscs reloadChildren:YES];
+                [disc addObserver:self forKeyPath:kDiscName options:0 context:nil];
+                [_source_list reloadItem:kDiscs reloadChildren:YES];
             });
         },
         .disappeared = ^(rsvc_disc_type_t type, const char* name){
             NSString* ns_name = [[NSString alloc] initWithUTF8String:name];
             dispatch_async(dispatch_get_main_queue(), ^{
-                [discs removeObjectForKey:ns_name];
+                [_discs removeObjectForKey:ns_name];
                 [ns_name release];
-                [sourceList reloadItem:kDiscs reloadChildren:YES];
+                [_source_list reloadItem:kDiscs reloadChildren:YES];
             });
         },
         .initialized = ^(rsvc_disc_type_t type, const char* name){
@@ -65,7 +68,8 @@ static NSString* kDiscTypeNames[] = {
 }
 
 - (void)dealloc {
-    [discs release];
+    [_discs release];
+    [_view_controller release];
     [super dealloc];
 }
 
@@ -73,7 +77,7 @@ static NSString* kDiscTypeNames[] = {
     if (item == nil) {
         return 1;
     } else if (item == kDiscs) {
-        return [discs count];
+        return [_discs count];
     } else {
         return 0;
     }
@@ -83,10 +87,11 @@ static NSString* kDiscTypeNames[] = {
     if (item == nil) {
         return kDiscs;
     } else if (item == kDiscs) {
-        NSArray* keys = [discs allKeys];
+        NSArray* keys = [_discs allKeys];
         NSArray* sortedKeys = [keys sortedArrayUsingSelector:
             @selector(caseInsensitiveCompare:)];
-        return [discs objectForKey:[sortedKeys objectAtIndex:index]];
+        NSMutableDictionary* disc = [_discs objectForKey:[sortedKeys objectAtIndex:index]];
+        return disc;
     }
     return nil;
 }
@@ -99,6 +104,7 @@ static NSString* kDiscTypeNames[] = {
         return field;
     } else if ([outlineView parentForItem:item] == kDiscs) {
         NSTableCellView* view = [outlineView makeViewWithIdentifier:@"MainCell" owner:self];
+        [view.textField bind:@"stringValue" toObject:item withKeyPath:kDiscName options:nil];
         view.textField.stringValue = [item objectForKey:kDiscName];
         return view;
     }
@@ -119,6 +125,26 @@ static NSString* kDiscTypeNames[] = {
 
 - (BOOL)outlineView:(NSOutlineView*)outlineView shouldSelectItem:(id)item {
     return [outlineView parentForItem:item] != nil;
+}
+
+- (void)outlineViewSelectionDidChange:(NSNotification*)notification {
+    if ([_source_list selectedRow] == -1) {
+        [_view_controller.view removeFromSuperview];
+        [_view_controller release];
+        _view_controller = nil;
+    } else {
+        NSMutableDictionary* item = [_source_list itemAtRow:[_source_list selectedRow]];
+        _view_controller = [[RSAudioCDController alloc] initWithDisc:item];
+        _view_controller.view.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        NSRect frame = {{0, 0}, _view.frame.size};
+        _view_controller.view.frame = frame;
+        [_view addSubview:_view_controller.view];
+    }
+}
+
+- (void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object
+        change:(NSDictionary*)change context:(void*)context {
+    [_source_list reloadItem:object];
 }
 
 @end
