@@ -65,6 +65,7 @@ def build(bld):
                 "src/app/app-delegate.m",
                 "src/app/audio-cd-controller.m",
                 "src/app/source-list.m",
+                "src/app/source-list-cell.m",
             ],
             cflags=CFLAGS,
             use=[

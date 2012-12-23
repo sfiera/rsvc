@@ -27,6 +27,7 @@
 static NSString* kDiscs = @"DISCS";
 
 static NSString* kDiscName = @"kDiscName";
+static NSString* kDiscPath = @"kDiscPath";
 static NSString* kDiscType = @"kDiscType";
 static NSString* kDiscTypeNames[] = {
     @"CD",
@@ -37,27 +38,27 @@ static NSString* kDiscTypeNames[] = {
 @implementation RSSourceList
 
 - (void)awakeFromNib {
+    [_source_list expandItem:nil expandChildren:YES];
     _discs = [[NSMutableDictionary alloc] init];
     rsvc_disc_watch_callbacks_t callbacks = {
         .appeared = ^(rsvc_disc_type_t type, const char* name){
-            NSString* ns_name = [[NSString alloc] initWithUTF8String:name];
+            NSString* ns_path = [[NSString alloc] initWithUTF8String:name];
             dispatch_async(dispatch_get_main_queue(), ^{
                 NSMutableDictionary* disc = [NSMutableDictionary dictionaryWithObjectsAndKeys:
-                    ns_name, kDiscName,
+                    ns_path, kDiscPath,
                     kDiscTypeNames[type], kDiscType,
                     nil];
 
-                [_discs setObject:disc forKey:ns_name];
-                [ns_name release];
-                [disc addObserver:self forKeyPath:kDiscName options:0 context:nil];
+                [_discs setObject:disc forKey:ns_path];
+                [ns_path release];
                 [_source_list reloadItem:kDiscs reloadChildren:YES];
             });
         },
         .disappeared = ^(rsvc_disc_type_t type, const char* name){
-            NSString* ns_name = [[NSString alloc] initWithUTF8String:name];
+            NSString* ns_path = [[NSString alloc] initWithUTF8String:name];
             dispatch_async(dispatch_get_main_queue(), ^{
-                [_discs removeObjectForKey:ns_name];
-                [ns_name release];
+                [_discs removeObjectForKey:ns_path];
+                [ns_path release];
                 [_source_list reloadItem:kDiscs reloadChildren:YES];
             });
         },
@@ -103,10 +104,7 @@ static NSString* kDiscTypeNames[] = {
         field.stringValue = item;
         return field;
     } else if ([outlineView parentForItem:item] == kDiscs) {
-        NSTableCellView* view = [outlineView makeViewWithIdentifier:@"MainCell" owner:self];
-        [view.textField bind:@"stringValue" toObject:item withKeyPath:kDiscName options:nil];
-        view.textField.stringValue = [item objectForKey:kDiscName];
-        return view;
+        return [outlineView makeViewWithIdentifier:@"MainCell" owner:self];
     }
     return nil;
 }
@@ -140,11 +138,6 @@ static NSString* kDiscTypeNames[] = {
         _view_controller.view.frame = frame;
         [_view addSubview:_view_controller.view];
     }
-}
-
-- (void)observeValueForKeyPath:(NSString*)keyPath ofObject:(id)object
-        change:(NSDictionary*)change context:(void*)context {
-    [_source_list reloadItem:object];
 }
 
 @end

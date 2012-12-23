@@ -18,11 +18,15 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#include "app-delegate.h"
+#ifndef RSVC_APP_SOURCE_LIST_H_
+#define RSVC_APP_SOURCE_LIST_H_
 
-@implementation RSAppDelegate
+#include <Cocoa/Cocoa.h>
 
-- (void)awakeFromNib {
+@interface RSSourceListCell : NSTableCellView {
+    IBOutlet NSProgressIndicator* _progress;
 }
 
 @end
+
+#endif  // RSVC_APP_SOURCE_LIST_H_

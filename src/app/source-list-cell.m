@@ -18,11 +18,16 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#include "app-delegate.h"
+#include "source-list-cell.h"
 
-@implementation RSAppDelegate
+@implementation RSSourceListCell
 
 - (void)awakeFromNib {
+    [self.textField bind:@"stringValue" toObject:self withKeyPath:@"name" options:nil];
+}
+
+- (NSString*)name {
+    return @"Audio CD";
 }
 
 @end

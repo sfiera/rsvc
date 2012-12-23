@@ -36,14 +36,39 @@
 }
 
 - (NSString*)album {
-    return [_disc objectForKey:@"kDiscName"];
+    return [_disc objectForKey:@"kAlbum"];
 }
 
 - (void)setAlbum:(NSString*)album {
     if (album == nil) {
-        album = @"";
+        [_disc removeObjectForKey:@"kAlbum"];
+    } else {
+        [_disc setObject:album forKey:@"kAlbum"];
     }
-    [_disc setObject:album forKey:@"kDiscName"];
+}
+
+- (NSString*)artist {
+    return [_disc objectForKey:@"kArtist"];
+}
+
+- (void)setArtist:(NSString*)artist {
+    if (artist == nil) {
+        [_disc removeObjectForKey:@"kArtist"];
+    } else {
+        [_disc setObject:artist forKey:@"kArtist"];
+    }
+}
+
+- (NSString*)genre {
+    return [_disc objectForKey:@"kGenre"];
+}
+
+- (void)setGenre:(NSString*)genre {
+    if (genre == nil) {
+        [_disc removeObjectForKey:@"kGenre"];
+    } else {
+        [_disc setObject:genre forKey:@"kGenre"];
+    }
 }
 
 - (IBAction)startRip:(id)sender {
