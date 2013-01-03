@@ -455,8 +455,11 @@ static bool rsvc_mp4_tags_remove(rsvc_tags_t tags, const char* name,
             if ((strcmp(tag->vorbis_name, name) != 0)) {
                 continue;
             }
-            return tag->type->remove(self->file, tag, fail);
+            if (!tag->type->remove(self->file, tag, fail)) {
+                return false;
+            }
         }
+        return true;
     } else {
         MP4ItmfItemList* items = MP4ItmfGetItems(self->file);
         for (int i = 0; i < items->size; ++i) {
