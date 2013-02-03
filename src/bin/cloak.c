@@ -715,7 +715,7 @@ static bool validate_name(char* name, rsvc_done_t fail) {
     for (char* p = name; *p; ++p) {
         *p = toupper(*p);
     }
-    return false;
+    return true;
 }
 
 static bool split_assignment(const char* assignment, char** name, char** value,
