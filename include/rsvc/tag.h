@@ -217,6 +217,7 @@ bool                    rsvc_tag_format_detect(int fd, rsvc_tag_format_t* format
 #define RSVC_ARTIST                 "ARTIST"
 #define RSVC_ALBUMARTIST            "ALBUMARTIST"
 #define RSVC_GENRE                  "GENRE"
+#define RSVC_GROUPING               "GROUPING"
 #define RSVC_DATE                   "DATE"
 
 /// ..  var:: RSVC_TRACKNUMBER

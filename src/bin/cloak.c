@@ -61,6 +61,7 @@ enum short_flag {
     ALBUM_ARTIST    = 'b',
     TITLE           = 't',
     GENRE           = 'g',
+    GROUPING        = 'G',
     DATE            = 'y',
     TRACK           = 'k',
     TRACK_TOTAL     = 'K',
@@ -93,6 +94,7 @@ struct long_flag {
     {"album-artist",    ALBUM},
     {"title",           TITLE},
     {"genre",           GENRE},
+    {"grouping",        GROUPING},
     {"date",            DATE},
     {"track",           TRACK},
     {"track-total",     TRACK_TOTAL},
@@ -136,6 +138,7 @@ static void cloak_usage(const char* progname) {
             "    -b, --album-artist AA   set the album artist name\n"
             "    -t, --title TITLE       set the track title\n"
             "    -g, --genre GENRE       set the genre\n"
+            "    -G, --grouping GROUP    set the grouping\n"
             "    -y, --date DATE         set the release date\n"
             "    -k, --track NUM         set the track number\n"
             "    -K, --track-total NUM   set the track total\n"
@@ -159,6 +162,7 @@ static const char* get_tag_name(int opt) {
       case ALBUM_ARTIST:    return RSVC_ALBUMARTIST;
       case TITLE:           return RSVC_TITLE;
       case GENRE:           return RSVC_GENRE;
+      case GROUPING:        return RSVC_GROUPING;
       case DATE:            return RSVC_DATE;
       case TRACK:           return RSVC_TRACKNUMBER;
       case TRACK_TOTAL:     return RSVC_TRACKTOTAL;
@@ -301,6 +305,7 @@ static void cloak_main(int argc, char* const* argv) {
           case ALBUM_ARTIST:
           case TITLE:
           case GENRE:
+          case GROUPING:
           case DATE:
           case TRACK:
           case TRACK_TOTAL:
