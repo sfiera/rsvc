@@ -68,6 +68,12 @@ enum short_flag {
     DISC            = 'd',
     DISC_TOTAL      = 'D',
 
+    SHOW            = 'S',
+    EPISODE         = 'e',
+    EPISODE_TOTAL   = 'E',
+    SEASON          = 'c',
+    SEASON_TOTAL    = 'C',
+
     AUTO            = -1,
 
     MOVE            = 'm',
@@ -100,6 +106,11 @@ struct long_flag {
     {"track-total",     TRACK_TOTAL},
     {"disc",            DISC},
     {"disc-total",      DISC_TOTAL},
+    {"show",            SHOW},
+    {"episode",         EPISODE},
+    {"episode-total",   EPISODE_TOTAL},
+    {"season",          SEASON},
+    {"season-total",    SEASON_TOTAL},
 
     {"auto",            AUTO},
 
@@ -144,6 +155,11 @@ static void cloak_usage(const char* progname) {
             "    -K, --track-total NUM   set the track total\n"
             "    -d, --disc NUM          set the disc number\n"
             "    -D, --disc-total NUM    set the disc total\n"
+            "    -S, --show NUM          set the show name\n"
+            "    -e, --episode NUM       set the episode number\n"
+            "    -E, --episode-total NUM set the episode total\n"
+            "    -c, --season NUM        set the season number\n"
+            "    -C, --season-total NUM  set the season total\n"
             "\n"
             "  MusicBrainz:\n"
             "        --auto              fetch missing tags from MusicBrainz\n"
@@ -168,6 +184,11 @@ static const char* get_tag_name(int opt) {
       case TRACK_TOTAL:     return RSVC_TRACKTOTAL;
       case DISC:            return RSVC_DISCNUMBER;
       case DISC_TOTAL:      return RSVC_DISCTOTAL;
+      case SHOW:            return RSVC_SHOW;
+      case EPISODE:         return RSVC_EPISODENUMBER;
+      case EPISODE_TOTAL:   return RSVC_EPISODETOTAL;
+      case SEASON:          return RSVC_SEASONNUMBER;
+      case SEASON_TOTAL:    return RSVC_SEASONTOTAL;
     }
     return NULL;
 }
@@ -311,6 +332,11 @@ static void cloak_main(int argc, char* const* argv) {
           case TRACK_TOTAL:
           case DISC:
           case DISC_TOTAL:
+          case SHOW:
+          case EPISODE:
+          case EPISODE_TOTAL:
+          case SEASON:
+          case SEASON_TOTAL:
             {
                 const char* tag_name = get_tag_name(opt);
                 char* value;

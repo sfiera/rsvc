@@ -135,9 +135,15 @@ bool                    rsvc_tags_each(rsvc_tags_t tags,
 ///     *   %a: ARTIST
 ///     *   %A: ALBUM
 ///     *   %b: ALBUMARTIST, or ARTIST if there is no ALBUMARTIST
+///     *   %c: SEASONNUMBER, padded to the width of SEASONTOTAL if an
+///         integer in canonical form
+///     *   %C: SEASONTOTAL
 ///     *   %d: DISCNUMBER, padded to the width of DISCTOTAL if an
 ///         integer in canonical form
 ///     *   %D: DISCTOTAL
+///     *   %e: EPISODENUMBER, padded to the width of EPISODETOTAL if an
+///         integer in canonical form
+///     *   %E: EPISODETOTAL
 ///     *   %g: GENRE
 ///     *   %k: TRACKNUMBER, padded to the width of TRACKTOTAL if an
 ///         integer in canonical form
@@ -154,8 +160,9 @@ bool                    rsvc_tags_each(rsvc_tags_t tags,
 ///     If the format string contains two formatting codes next to each
 ///     other (e.g. "%d%k%t"), then a separator will be put between
 ///     them: usually a space, but a hyphen when TRACKNUMBER follows
-///     DISCNUMBER.  Also, if a tag has multiple values, those values
-///     will be separated by a comma and a space.
+///     DISCNUMBER or EPISODENUMBER follows SEASONNUMBER.  Also, if a
+///     tag has multiple values, those values will be separated by a
+///     comma and a space.
 ///
 ///     Also, if formatting results in an empty directory name (e.g.
 ///     "%b/%A/%k" when ARTIST and ALBUMARTIST or ALBUM is not set),
@@ -235,6 +242,15 @@ bool                    rsvc_tag_format_detect(int fd, rsvc_tag_format_t* format
 #define RSVC_ISRC                   "ISRC"
 #define RSVC_MCN                    "MCN"
 #define RSVC_ENCODER                "ENCODER"
+
+/// ..  var:: RSVC_ISRC
+///           RSVC_MCN
+///           RSVC_ENCODER
+#define RSVC_SHOW                   "SHOW"
+#define RSVC_EPISODENUMBER          "EPISODENUMBER"
+#define RSVC_EPISODETOTAL           "EPISODETOTAL"
+#define RSVC_SEASONNUMBER           "SEASONNUMBER"
+#define RSVC_SEASONTOTAL            "SEASONTOTAL"
 
 /// ..  var:: RSVC_MUSICBRAINZ_DISCID
 #define RSVC_MUSICBRAINZ_DISCID     "MUSICBRAINZ_DISCID"

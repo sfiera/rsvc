@@ -120,6 +120,11 @@ typedef enum {
     TRACK_TOTAL     = 'K',
     DISC            = 'd',
     DISC_TOTAL      = 'D',
+    SHOW            = 'S',
+    EPISODE         = 'e',
+    EPISODE_TOTAL   = 'E',
+    SEASON          = 'c',
+    SEASON_TOTAL    = 'C',
 } format_code_t;
 
 static const char* get_tag_name(int opt) {
@@ -134,6 +139,11 @@ static const char* get_tag_name(int opt) {
       case TRACK_TOTAL:     return RSVC_TRACKTOTAL;
       case DISC:            return RSVC_DISCNUMBER;
       case DISC_TOTAL:      return RSVC_DISCTOTAL;
+      case SHOW:            return RSVC_SHOW;
+      case EPISODE:         return RSVC_EPISODENUMBER;
+      case EPISODE_TOTAL:   return RSVC_EPISODETOTAL;
+      case SEASON:          return RSVC_SEASONNUMBER;
+      case SEASON_TOTAL:    return RSVC_SEASONTOTAL;
     }
     return NULL;
 }
@@ -302,16 +312,17 @@ static bool snpathf(char* data, size_t size, size_t* size_needed,
         } else {
             const char* separator = ", ";
             const char* prefix = "";
-            if ((type == TRACK) && (ctx.type == DISC)) {
+            if (((type == TRACK) && (ctx.type == DISC))
+                || ((type == EPISODE) && (ctx.type == SEASON))) {
                 prefix = "-";
             } else if (ctx.type) {
                 prefix = " ";
             }
 
             size_t precision = 0;
-            if (type == TRACK) {
+            if ((type == TRACK) || (type == EPISODE)) {
                 precision = max_precision(tags, RSVC_TRACKTOTAL, 2);
-            } else if (type == DISC) {
+            } else if ((type == DISC) || (type == SEASON)) {
                 precision = max_precision(tags, RSVC_DISCTOTAL, 1);
             } else if ((type == ALBUM_ARTIST) && !any_tags(tags, RSVC_ALBUMARTIST)) {
                 type = ARTIST;

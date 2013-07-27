@@ -433,6 +433,12 @@ static struct mp4_tag mp4_tags[] = {
     {"COMPILATION",         &mp4_bool,          "cpil"},
     {"GAPLESS",             &mp4_bool,          "pgap"},
 
+    {"SHOW",                &mp4_string,        "tvsh"},
+    {"EPISODENUMBER",       &mp4_uint16,        "tves"},
+    {"EPISODETOTAL",        &mp4_string,        "----",     "EPISODETOTAL"},
+    {"SEASONNUMBER",        &mp4_uint16,        "tvsn"},
+    {"SEASONTOTAL",         &mp4_string,        "----",     "SEASONTOTAL"},
+
     {"ISRC",                &mp4_isrc,          "----",     "ISRC"},
     {"MCN",                 &mp4_string,        "----",     "MCN"},
     {"MUSICBRAINZ_DISCID",  &mp4_string,        "----",     "MusicBrainz Disc Id"},
