@@ -434,6 +434,8 @@ static struct mp4_tag mp4_tags[] = {
     {"GAPLESS",             &mp4_bool,          "pgap"},
 
     {"SHOW",                &mp4_string,        "tvsh"},
+    {"SHOWSORT",            &mp4_string,        "sosn"},
+    {"EPISODEID",           &mp4_string,        "tven"},
     {"EPISODENUMBER",       &mp4_uint16,        "tves"},
     {"EPISODETOTAL",        &mp4_string,        "----",     "EPISODETOTAL"},
     {"SEASONNUMBER",        &mp4_uint16,        "tvsn"},
