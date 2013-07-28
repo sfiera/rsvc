@@ -478,8 +478,10 @@ static bool read_id3_header(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     }
 
     if (memcmp(data, "ID3", 3) != 0) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "no ID3 tag found");
-        return false;
+        tags->version[0] = 0;
+        tags->version[1] = 0;
+        tags->size = 0;
+        return true;
     }
 
     memcpy(tags->version, data + 3, 2);
@@ -502,6 +504,10 @@ static bool read_id3_header(rsvc_id3_tags_t tags, rsvc_done_t fail) {
 }
 
 static bool read_id3_frames(rsvc_id3_tags_t tags, rsvc_done_t fail) {
+    if (tags->version[0] == 0) {
+        rsvc_logf(2, "skipping ID3 frames");
+        return true;
+    }
     rsvc_logf(2, "reading ID3 frames");
     uint8_t* orig_data = malloc(tags->size);
     uint8_t* data = orig_data;
@@ -625,7 +631,11 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     //
     // TODO(sfiera): serialize calls to this function through a serial
     // dispatch queue.
-    if (lseek(tags->fd, 10 + tags->size, SEEK_SET) < 0) {
+    off_t offset = 0;
+    if (tags->version[0]) {
+        offset = 10 + tags->size;
+    }
+    if (lseek(tags->fd, offset, SEEK_SET) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
     }
