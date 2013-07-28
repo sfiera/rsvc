@@ -399,7 +399,9 @@ bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail) {
         return false;
     }
     return rsvc_tags_each(src, ^(const char* name, const char* value, rsvc_stop_t stop){
-        rsvc_tags_add(dst, fail, name, value);
+        if (!rsvc_tags_add(dst, fail, name, value)) {
+            stop();
+        }
     });
 }
 
