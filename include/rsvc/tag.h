@@ -197,17 +197,19 @@ struct rsvc_tag_format {
 
     size_t              magic_size;
     const char*         magic;
+    const char*         extension;
 
     rsvc_open_tags_f    open_tags;
 };
 
 void                    rsvc_tag_format_register(const char* name,
                                                  size_t magic_size, const char* magic,
+                                                 const char* extension,
                                                  rsvc_open_tags_f open_tags);
 
 rsvc_tag_format_t       rsvc_tag_format_named(const char* name);
-bool                    rsvc_tag_format_detect(int fd, rsvc_tag_format_t* format,
-                                               rsvc_done_t fail);
+bool                    rsvc_tag_format_detect(const char* path, int fd,
+                                               rsvc_tag_format_t* format, rsvc_done_t fail);
 
 /// ..  _tag_constants:
 ///

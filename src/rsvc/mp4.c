@@ -674,6 +674,6 @@ void rsvc_mp4_open_tags(const char* path, int flags,
 }
 
 void rsvc_mp4_format_register() {
-    rsvc_tag_format_register("mp4", 12, "????ftypM4A ", rsvc_mp4_open_tags);
-    rsvc_tag_format_register("mp4", 12, "????ftypmp42", rsvc_mp4_open_tags);
+    rsvc_tag_format_register("mp4", 12, "????ftypM4A ", "m4a", rsvc_mp4_open_tags);
+    rsvc_tag_format_register("mp4", 12, "????ftypmp42", "m4v", rsvc_mp4_open_tags);
 }

@@ -411,7 +411,7 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
     };
 
     rsvc_tag_format_t format;
-    if (!rsvc_tag_format_detect(fd, &format, done)) {
+    if (!rsvc_tag_format_detect(path, fd, &format, done)) {
         return;
     }
 

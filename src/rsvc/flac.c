@@ -326,6 +326,6 @@ static tell_status_t flac_tell(const FLAC__StreamEncoder* encoder,
 }
 
 void rsvc_flac_format_register() {
-    rsvc_tag_format_register("flac", 4, "fLaC", rsvc_flac_open_tags);
+    rsvc_tag_format_register("flac", 4, "fLaC", "flac", rsvc_flac_open_tags);
     rsvc_encode_format_register("flac", "flac", true, rsvc_flac_encode);
 }

@@ -689,7 +689,7 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
 
 static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {
     rsvc_tag_format_t tag_format;
-    if (!rsvc_tag_format_detect(fd, &tag_format, done)) {
+    if (!rsvc_tag_format_detect(path, fd, &tag_format, done)) {
         return;
     }
     tag_format->open_tags(path, RSVC_TAG_RDWR, ^(rsvc_tags_t tags, rsvc_error_t error){

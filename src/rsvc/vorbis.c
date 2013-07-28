@@ -504,6 +504,6 @@ void rsvc_vorbis_open_tags(const char* path, int flags,
 #undef FAIL
 
 void rsvc_vorbis_format_register() {
-    rsvc_tag_format_register("vorbis", 4, "OggS", rsvc_vorbis_open_tags);
+    rsvc_tag_format_register("vorbis", 4, "OggS", "ogv", rsvc_vorbis_open_tags);
     rsvc_encode_format_register("vorbis", "ogv", false, rsvc_vorbis_encode);
 }

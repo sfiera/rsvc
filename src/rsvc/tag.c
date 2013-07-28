@@ -498,12 +498,13 @@ static struct {
 } formats;
 
 void rsvc_tag_format_register(const char* name, size_t magic_size, const char* magic,
-                                    rsvc_open_tags_f open_tags) {
+                              const char* extension, rsvc_open_tags_f open_tags) {
     struct rsvc_tag_format_node node = {
         .format = {
             .name = strdup(name),
             .magic_size = magic_size,
             .magic = strdup(magic),
+            .extension = strdup(extension),
             .open_tags = open_tags,
         },
     };
@@ -520,7 +521,60 @@ rsvc_tag_format_t rsvc_tag_format_named(const char* name) {
     return NULL;
 }
 
-bool rsvc_tag_format_detect(int fd, rsvc_tag_format_t* format, rsvc_done_t fail) {
+static bool check_magic(rsvc_tag_format_t format, int fd,
+                        bool* matches, rsvc_tag_format_t* out, rsvc_done_t fail) {
+    if (!format->magic_size) {
+        return true;
+    }
+    uint8_t* data = malloc(format->magic_size);
+    ssize_t size = pread(fd, data, format->magic_size, 0);
+    if (size < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        goto failure;
+    } else if (size < format->magic_size) {
+        goto success;
+    }
+    for (size_t i = 0; i < format->magic_size; ++i) {
+        if ((format->magic[i] != '?') && (format->magic[i] != data[i])) {
+            goto success;
+        }
+    }
+    *matches = true;
+    *out = format;
+success:
+    free(data);
+    return true;
+failure:
+    free(data);
+    return false;
+}
+
+static const char* get_extension(const char* path) {
+    char* last_slash = strrchr(path, '/');
+    char* last_dot = strrchr(path, '.');
+    if (last_dot == NULL) {
+        return path + strlen(path);
+    } else if ((last_slash == NULL) || (last_slash < last_dot)) {
+        return last_dot + 1;
+    } else {
+        return path + strlen(path);
+    }
+}
+
+static bool check_extension(rsvc_tag_format_t format, const char* path,
+                            bool* matches, rsvc_tag_format_t* out, rsvc_done_t fail) {
+    if (!format->extension) {
+        return true;
+    }
+    if (strcmp(get_extension(path), format->extension) == 0) {
+        *out = format;
+        *matches = true;
+    }
+    return true;
+}
+
+bool rsvc_tag_format_detect(const char* path, int fd,
+                            rsvc_tag_format_t* format, rsvc_done_t fail) {
     // Don't open directories.
     struct stat st;
     if (fstat(fd, &st) < 0) {
@@ -533,25 +587,13 @@ bool rsvc_tag_format_detect(int fd, rsvc_tag_format_t* format, rsvc_done_t fail)
     }
 
     for (rsvc_tag_format_node_t curr = formats.head; curr; curr = curr->next) {
-        uint8_t* data = malloc(curr->format.magic_size);
-        ssize_t size = pread(fd, data, curr->format.magic_size, 0);
-        if (size < 0) {
-            free(data);
-            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        bool matches = false;
+        if (!(check_magic(&curr->format, fd, &matches, format, fail) &&
+              check_extension(&curr->format, path, &matches, format, fail))) {
             return false;
-        } else if (size < curr->format.magic_size) {
-            goto next_tag_type;
+        } else if (matches) {
+            return true;
         }
-        for (size_t i = 0; i < curr->format.magic_size; ++i) {
-            if ((curr->format.magic[i] != '?') && (curr->format.magic[i] != data[i])) {
-                goto next_tag_type;
-            }
-        }
-        *format = &curr->format;
-        free(data);
-        return true;
-next_tag_type:
-        free(data);
     }
     rsvc_errorf(fail, __FILE__, __LINE__, "couldn't detect file type");
     return false;
