@@ -82,7 +82,7 @@ enum short_flag {
 
 struct long_flag {
     const char* name;
-    enum short_flag value;
+    int value;
 } kLongFlags[] = {
     {"help",            HELP},
     {"dry-run",         DRY_RUN},
@@ -95,22 +95,22 @@ struct long_flag {
     {"add",             ADD},
     {"set",             SET},
 
-    {"artist",          ARTIST},
-    {"album",           ALBUM},
-    {"album-artist",    ALBUM},
-    {"title",           TITLE},
-    {"genre",           GENRE},
-    {"grouping",        GROUPING},
-    {"date",            DATE},
-    {"track",           TRACK},
-    {"track-total",     TRACK_TOTAL},
-    {"disc",            DISC},
-    {"disc-total",      DISC_TOTAL},
-    {"show",            SHOW},
-    {"episode",         EPISODE},
-    {"episode-total",   EPISODE_TOTAL},
-    {"season",          SEASON},
-    {"season-total",    SEASON_TOTAL},
+    {"artist",          RSVC_CODE_ARTIST},
+    {"album",           RSVC_CODE_ALBUM},
+    {"album-artist",    RSVC_CODE_ALBUMARTIST},
+    {"title",           RSVC_CODE_TITLE},
+    {"genre",           RSVC_CODE_GENRE},
+    {"grouping",        RSVC_CODE_GROUPING},
+    {"date",            RSVC_CODE_DATE},
+    {"track",           RSVC_CODE_TRACKNUMBER},
+    {"track-total",     RSVC_CODE_TRACKTOTAL},
+    {"disc",            RSVC_CODE_DISCNUMBER},
+    {"disc-total",      RSVC_CODE_DISCTOTAL},
+    {"show",            RSVC_CODE_SHOW},
+    {"episode",         RSVC_CODE_EPISODENUMBER},
+    {"episode-total",   RSVC_CODE_EPISODETOTAL},
+    {"season",          RSVC_CODE_SEASONNUMBER},
+    {"season-total",    RSVC_CODE_SEASONTOTAL},
 
     {"auto",            AUTO},
 
@@ -169,28 +169,6 @@ static void cloak_usage(const char* progname) {
             "    -m, --move              move file according to new tags\n"
             "    -f, --format-path PATH  format string for --move (default %s)\n",
             progname, DEFAULT_FORMAT);
-}
-
-static const char* get_tag_name(int opt) {
-    switch (opt) {
-      case ARTIST:          return RSVC_ARTIST;
-      case ALBUM:           return RSVC_ALBUM;
-      case ALBUM_ARTIST:    return RSVC_ALBUMARTIST;
-      case TITLE:           return RSVC_TITLE;
-      case GENRE:           return RSVC_GENRE;
-      case GROUPING:        return RSVC_GROUPING;
-      case DATE:            return RSVC_DATE;
-      case TRACK:           return RSVC_TRACKNUMBER;
-      case TRACK_TOTAL:     return RSVC_TRACKTOTAL;
-      case DISC:            return RSVC_DISCNUMBER;
-      case DISC_TOTAL:      return RSVC_DISCTOTAL;
-      case SHOW:            return RSVC_SHOW;
-      case EPISODE:         return RSVC_EPISODENUMBER;
-      case EPISODE_TOTAL:   return RSVC_EPISODETOTAL;
-      case SEASON:          return RSVC_SEASONNUMBER;
-      case SEASON_TOTAL:    return RSVC_SEASONTOTAL;
-    }
-    return NULL;
 }
 
 struct string_list {
@@ -321,36 +299,6 @@ static void cloak_main(int argc, char* const* argv) {
             }
             return true;
 
-          case ARTIST:
-          case ALBUM:
-          case ALBUM_ARTIST:
-          case TITLE:
-          case GENRE:
-          case GROUPING:
-          case DATE:
-          case TRACK:
-          case TRACK_TOTAL:
-          case DISC:
-          case DISC_TOTAL:
-          case SHOW:
-          case EPISODE:
-          case EPISODE_TOTAL:
-          case SEASON:
-          case SEASON_TOTAL:
-            {
-                const char* tag_name = get_tag_name(opt);
-                char* value;
-                if (!get_value(&value, fail)) {
-                    return false;
-                }
-                char* tag_value = strdup(value);
-                add_string(&ops.remove_tags, tag_name);
-                add_string(&ops.add_tag_names, tag_name);
-                add_string(&ops.add_tag_values, tag_value);
-                free(tag_value);
-            }
-            return true;
-
           case AUTO:
             ops.auto_mode = true;
             return true;
@@ -374,6 +322,19 @@ static void cloak_main(int argc, char* const* argv) {
             return true;
 
           default:
+            if (rsvc_tag_code_get(opt)) {
+                const char* tag_name = rsvc_tag_code_get(opt);
+                char* value;
+                if (!get_value(&value, fail)) {
+                    return false;
+                }
+                char* tag_value = strdup(value);
+                add_string(&ops.remove_tags, tag_name);
+                add_string(&ops.add_tag_names, tag_name);
+                add_string(&ops.add_tag_values, tag_value);
+                free(tag_value);
+                return true;
+            }
             rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
             return false;
         }

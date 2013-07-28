@@ -109,41 +109,26 @@ bool rsvc_tags_each(rsvc_tags_t tags,
     return tags->vptr->each(tags, block);
 }
 
-typedef enum {
-    ARTIST          = 'a',
-    ALBUM           = 'A',
-    ALBUM_ARTIST    = 'b',
-    TITLE           = 't',
-    GENRE           = 'g',
-    DATE            = 'y',
-    TRACK           = 'k',
-    TRACK_TOTAL     = 'K',
-    DISC            = 'd',
-    DISC_TOTAL      = 'D',
-    SHOW            = 'S',
-    EPISODE         = 'e',
-    EPISODE_TOTAL   = 'E',
-    SEASON          = 'c',
-    SEASON_TOTAL    = 'C',
-} format_code_t;
-
-static const char* get_tag_name(int opt) {
-    switch (opt) {
-      case ARTIST:          return RSVC_ARTIST;
-      case ALBUM:           return RSVC_ALBUM;
-      case ALBUM_ARTIST:    return RSVC_ALBUMARTIST;
-      case TITLE:           return RSVC_TITLE;
-      case GENRE:           return RSVC_GENRE;
-      case DATE:            return RSVC_DATE;
-      case TRACK:           return RSVC_TRACKNUMBER;
-      case TRACK_TOTAL:     return RSVC_TRACKTOTAL;
-      case DISC:            return RSVC_DISCNUMBER;
-      case DISC_TOTAL:      return RSVC_DISCTOTAL;
-      case SHOW:            return RSVC_SHOW;
-      case EPISODE:         return RSVC_EPISODENUMBER;
-      case EPISODE_TOTAL:   return RSVC_EPISODETOTAL;
-      case SEASON:          return RSVC_SEASONNUMBER;
-      case SEASON_TOTAL:    return RSVC_SEASONTOTAL;
+const char* rsvc_tag_code_get(int code) {
+    switch (code) {
+#define RSVC_TAG_CASE(NAME) case RSVC_CODE_ ## NAME: return RSVC_ ## NAME
+        RSVC_TAG_CASE(ARTIST);
+        RSVC_TAG_CASE(ALBUM);
+        RSVC_TAG_CASE(ALBUMARTIST);
+        RSVC_TAG_CASE(TITLE);
+        RSVC_TAG_CASE(GENRE);
+        RSVC_TAG_CASE(GROUPING);
+        RSVC_TAG_CASE(DATE);
+        RSVC_TAG_CASE(TRACKNUMBER);
+        RSVC_TAG_CASE(TRACKTOTAL);
+        RSVC_TAG_CASE(DISCNUMBER);
+        RSVC_TAG_CASE(DISCTOTAL);
+        RSVC_TAG_CASE(SHOW);
+        RSVC_TAG_CASE(EPISODENUMBER);
+        RSVC_TAG_CASE(EPISODETOTAL);
+        RSVC_TAG_CASE(SEASONNUMBER);
+        RSVC_TAG_CASE(SEASONTOTAL);
+#undef RSVC_TAG_CASE
     }
     return NULL;
 }
@@ -219,7 +204,7 @@ static bool parse_format(const char* format,
             if (*ptr == '%') {
                 block(0, ptr, 1);
                 ++ptr;
-            } else if (get_tag_name(*ptr)) {
+            } else if (rsvc_tag_code_get(*ptr)) {
                 // Check that it's a valid option, then add it.
                 block(*ptr, NULL, 0);
                 ++ptr;
@@ -312,25 +297,25 @@ static bool snpathf(char* data, size_t size, size_t* size_needed,
         } else {
             const char* separator = ", ";
             const char* prefix = "";
-            if (((type == TRACK) && (ctx.type == DISC))
-                || ((type == EPISODE) && (ctx.type == SEASON))) {
+            if (((type == RSVC_CODE_TRACKNUMBER) && (ctx.type == RSVC_CODE_DISCNUMBER))
+                || ((type == RSVC_CODE_EPISODENUMBER) && (ctx.type == RSVC_CODE_SEASONNUMBER))) {
                 prefix = "-";
             } else if (ctx.type) {
                 prefix = " ";
             }
 
             size_t precision = 0;
-            if ((type == TRACK) || (type == EPISODE)) {
+            if ((type == RSVC_CODE_TRACKNUMBER) || (type == RSVC_CODE_EPISODENUMBER)) {
                 precision = max_precision(tags, RSVC_TRACKTOTAL, 2);
-            } else if ((type == DISC) || (type == SEASON)) {
+            } else if ((type == RSVC_CODE_DISCNUMBER) || (type == RSVC_CODE_SEASONNUMBER)) {
                 precision = max_precision(tags, RSVC_DISCTOTAL, 1);
-            } else if ((type == ALBUM_ARTIST) && !any_tags(tags, RSVC_ALBUMARTIST)) {
-                type = ARTIST;
+            } else if ((type == RSVC_CODE_ALBUMARTIST) && !any_tags(tags, RSVC_ALBUMARTIST)) {
+                type = RSVC_CODE_ARTIST;
             }
 
             __block size_t count = 0;
             rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-                if (strcmp(name, get_tag_name(type)) == 0) {
+                if (strcmp(name, rsvc_tag_code_get(type)) == 0) {
                     if (!*value) {
                         return;
                     }

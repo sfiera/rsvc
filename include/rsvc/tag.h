@@ -255,4 +255,25 @@ bool                    rsvc_tag_format_detect(int fd, rsvc_tag_format_t* format
 /// ..  var:: RSVC_MUSICBRAINZ_DISCID
 #define RSVC_MUSICBRAINZ_DISCID     "MUSICBRAINZ_DISCID"
 
+typedef enum {
+    RSVC_CODE_ARTIST            = 'a',
+    RSVC_CODE_ALBUM             = 'A',
+    RSVC_CODE_ALBUMARTIST       = 'b',
+    RSVC_CODE_TITLE             = 't',
+    RSVC_CODE_GENRE             = 'g',
+    RSVC_CODE_GROUPING          = 'G',
+    RSVC_CODE_DATE              = 'y',
+    RSVC_CODE_TRACKNUMBER       = 'k',
+    RSVC_CODE_TRACKTOTAL        = 'K',
+    RSVC_CODE_DISCNUMBER        = 'd',
+    RSVC_CODE_DISCTOTAL         = 'D',
+    RSVC_CODE_SHOW              = 'S',
+    RSVC_CODE_EPISODENUMBER     = 'e',
+    RSVC_CODE_EPISODETOTAL      = 'E',
+    RSVC_CODE_SEASONNUMBER      = 'c',
+    RSVC_CODE_SEASONTOTAL       = 'C',
+} rsvc_tag_code_t;
+
+const char* rsvc_tag_code_get(int code);
+
 #endif  // RSVC_TAG_H_
