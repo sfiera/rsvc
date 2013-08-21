@@ -24,6 +24,7 @@
 #include <mp4v2/mp4v2.h>
 #include <dispatch/dispatch.h>
 #include <rsvc/common.h>
+#include <rsvc/format.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -674,6 +675,20 @@ void rsvc_mp4_open_tags(const char* path, int flags,
 }
 
 void rsvc_mp4_format_register() {
-    rsvc_tag_format_register("mp4", 12, "????ftypM4A ", "m4a", rsvc_mp4_open_tags);
-    rsvc_tag_format_register("mp4", 12, "????ftypmp42", "m4v", rsvc_mp4_open_tags);
+    struct rsvc_format m4a = {
+        .name = "mp4",
+        .magic = "????ftypM4A ",
+        .magic_size = 12,
+        .extension = "m4a",
+        .open_tags = rsvc_mp4_open_tags,
+    };
+    struct rsvc_format m4v = {
+        .name = "mp4",
+        .magic = "????ftypmp42",
+        .magic_size = 12,
+        .extension = "m4v",
+        .open_tags = rsvc_mp4_open_tags,
+    };
+    rsvc_format_register(&m4a);
+    rsvc_format_register(&m4v);
 }

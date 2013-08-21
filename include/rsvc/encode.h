@@ -46,27 +46,4 @@ typedef void (*rsvc_encode_f)(
         rsvc_encode_options_t options,
         rsvc_done_t done);
 
-/// Encode Formats
-/// --------------
-
-typedef struct rsvc_encode_format* rsvc_encode_format_t;
-struct rsvc_encode_format {
-    const char*     name;
-    const char*     extension;
-    bool            lossless;
-    rsvc_encode_f   encode;
-};
-
-void rsvc_encode_format_register(
-        const char* name,
-        const char* extension,
-        bool lossless,
-        rsvc_encode_f encode);
-
-rsvc_encode_format_t rsvc_encode_format_named(
-        const char* name);
-
-bool rsvc_encode_formats_each(
-        void (^block)(rsvc_encode_format_t format, rsvc_stop_t stop));
-
 #endif  // RSVC_ENCODE_H_

@@ -27,6 +27,7 @@
 #include <Block.h>
 #include <dispatch/dispatch.h>
 #include <rsvc/common.h>
+#include <rsvc/format.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -245,6 +246,18 @@ void rsvc_alac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
 }
 
 void rsvc_core_audio_format_register() {
-    rsvc_encode_format_register("aac", "m4a", false, rsvc_aac_encode);
-    rsvc_encode_format_register("alac", "m4a", true, rsvc_alac_encode);
+    struct rsvc_format aac = {
+        .name = "aac",
+        .extension = "m4a",
+        .lossless = false,
+        .encode = rsvc_aac_encode,
+    };
+    struct rsvc_format alac = {
+        .name = "alac",
+        .extension = "m4a",
+        .lossless = true,
+        .encode = rsvc_alac_encode,
+    };
+    rsvc_format_register(&aac);
+    rsvc_format_register(&alac);
 }

@@ -24,6 +24,7 @@
 #include <dispatch/dispatch.h>
 #include <fcntl.h>
 #include <rsvc/common.h>
+#include <rsvc/format.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -399,7 +400,14 @@ static struct rsvc_tags_methods id3_vptr = {
 };
 
 void rsvc_id3_format_register() {
-    rsvc_tag_format_register("id3", 3, "ID3", "mp3", rsvc_id3_open_tags);
+    struct rsvc_format id3 = {
+        .name = "id3",
+        .magic = "ID3",
+        .magic_size = 3,
+        .extension = "mp3",
+        .open_tags = rsvc_id3_open_tags,
+    };
+    rsvc_format_register(&id3);
 }
 
 ////////////////////////////////////////////////////////////////////////

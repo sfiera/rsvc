@@ -25,6 +25,7 @@
 #include <FLAC/stream_encoder.h>
 #include <dispatch/dispatch.h>
 #include <rsvc/common.h>
+#include <rsvc/format.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -326,6 +327,14 @@ static tell_status_t flac_tell(const FLAC__StreamEncoder* encoder,
 }
 
 void rsvc_flac_format_register() {
-    rsvc_tag_format_register("flac", 4, "fLaC", "flac", rsvc_flac_open_tags);
-    rsvc_encode_format_register("flac", "flac", true, rsvc_flac_encode);
+    struct rsvc_format flac = {
+        .name = "flac",
+        .magic = "fLaC",
+        .magic_size = 4,
+        .extension = "flac",
+        .lossless = true,
+        .open_tags = rsvc_flac_open_tags,
+        .encode = rsvc_flac_encode,
+    };
+    rsvc_format_register(&flac);
 }

@@ -36,6 +36,7 @@
 #include <rsvc/core-audio.h>
 #include <rsvc/disc.h>
 #include <rsvc/flac.h>
+#include <rsvc/format.h>
 #include <rsvc/mp4.h>
 #include <rsvc/musicbrainz.h>
 #include <rsvc/tag.h>
@@ -65,7 +66,7 @@ static void rsvc_command_eject(char* disk, void (^usage)(), rsvc_done_t done);
 
 typedef struct rip_options* rip_options_t;
 struct rip_options {
-    rsvc_encode_format_t format;
+    rsvc_format_t format;
     bool has_bitrate;
     int64_t bitrate;
     bool eject;
@@ -215,7 +216,7 @@ static void rsvc_main(int argc, char* const* argv) {
                 rip_disk = arg;
                 return true;
             } else if (!rip_options.format) {
-                rip_options.format = rsvc_encode_format_named(arg);
+                rip_options.format = rsvc_format_named(arg, RSVC_FORMAT_ENCODE);
                 if (!rip_options.format) {
                     rsvc_errorf(fail, __FILE__, __LINE__, "invalid format: %s", arg);
                     return false;
@@ -243,8 +244,10 @@ static void rsvc_main(int argc, char* const* argv) {
                     "\n"
                     "Formats:\n",
                     progname);
-            rsvc_encode_formats_each(^(rsvc_encode_format_t format, rsvc_stop_t stop){
-                fprintf(stderr, "  %s\n", format->name);
+            rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+                if (format->encode) {
+                    fprintf(stderr, "  %s\n", format->name);
+                }
             });
         },
         .run = ^(rsvc_done_t done){
@@ -688,11 +691,11 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
 }
 
 static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {
-    rsvc_tag_format_t tag_format;
-    if (!rsvc_tag_format_detect(path, fd, &tag_format, done)) {
+    rsvc_format_t format;
+    if (!rsvc_format_detect(path, fd, RSVC_FORMAT_OPEN_TAGS, &format, done)) {
         return;
     }
-    tag_format->open_tags(path, RSVC_TAG_RDWR, ^(rsvc_tags_t tags, rsvc_error_t error){
+    format->open_tags(path, RSVC_TAG_RDWR, ^(rsvc_tags_t tags, rsvc_error_t error){
         if (error) {
             done(error);
             return;

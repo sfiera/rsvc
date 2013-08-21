@@ -23,6 +23,7 @@
 #include <Block.h>
 #include <dispatch/dispatch.h>
 #include <fcntl.h>
+#include <rsvc/format.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -504,6 +505,14 @@ void rsvc_vorbis_open_tags(const char* path, int flags,
 #undef FAIL
 
 void rsvc_vorbis_format_register() {
-    rsvc_tag_format_register("vorbis", 4, "OggS", "ogv", rsvc_vorbis_open_tags);
-    rsvc_encode_format_register("vorbis", "ogv", false, rsvc_vorbis_encode);
+    struct rsvc_format vorbis = {
+        .name = "vorbis",
+        .magic = "OggS",
+        .magic_size = 4,
+        .extension = "ogv",
+        .lossless = false,
+        .open_tags = rsvc_vorbis_open_tags,
+        .encode = rsvc_vorbis_encode,
+    };
+    rsvc_format_register(&vorbis);
 }

@@ -185,32 +185,6 @@ bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail);
 /// ..  function:: rsvc_tags_t rsvc_tags_new()
 rsvc_tags_t rsvc_tags_new();
 
-/// Tag Formats
-/// -----------
-
-typedef void (*rsvc_open_tags_f)(const char* path, int flags,
-                                 void (^done)(rsvc_tags_t, rsvc_error_t));
-
-typedef struct rsvc_tag_format* rsvc_tag_format_t;
-struct rsvc_tag_format {
-    const char*         name;
-
-    size_t              magic_size;
-    const char*         magic;
-    const char*         extension;
-
-    rsvc_open_tags_f    open_tags;
-};
-
-void                    rsvc_tag_format_register(const char* name,
-                                                 size_t magic_size, const char* magic,
-                                                 const char* extension,
-                                                 rsvc_open_tags_f open_tags);
-
-rsvc_tag_format_t       rsvc_tag_format_named(const char* name);
-bool                    rsvc_tag_format_detect(const char* path, int fd,
-                                               rsvc_tag_format_t* format, rsvc_done_t fail);
-
 /// ..  _tag_constants:
 ///
 /// Constants
