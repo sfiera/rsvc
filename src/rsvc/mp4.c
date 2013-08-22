@@ -565,7 +565,7 @@ static bool rsvc_mp4_tags_each(rsvc_tags_t tags,
                         number = ((number & 0x0fffffffffffffffLL) << 8) | data->value[i];
                     }
                     char value[16];
-                    sprintf(value, "%lld", number);
+                    sprintf(value, "%lld", (long long)number);
                     block(tag->vorbis_name, value, stop);
                 }
                 break;

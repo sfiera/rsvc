@@ -130,7 +130,7 @@ static void mb_query_cached(const char* discid, void (^done)(rsvc_error_t, MbMet
             // usleep() returns early if there is a signal.  Make sure that
             // we wait out the full thousand microseconds.
             int64_t exit_time = now_usecs() + 1000000ll;
-            rsvc_logf(2, "throttling until %lld", exit_time);
+            rsvc_logf(2, "throttling until %lld", (long long)exit_time);
             int64_t remaining;
             while ((remaining = exit_time - now_usecs()) > 0) {
                 usleep(remaining);
