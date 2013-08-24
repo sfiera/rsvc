@@ -43,7 +43,7 @@
 #include "../rsvc/options.h"
 #include "../rsvc/unix.h"
 
-#define DEFAULT_FORMAT "./%b/%A/%d%k%t"
+#define DEFAULT_PATH "./%b/%A/%d%k%t"
 
 enum short_flag {
     HELP            = 'h',
@@ -78,7 +78,7 @@ enum short_flag {
     AUTO            = -1,
 
     MOVE            = 'm',
-    FORMAT_PATH     = 'f',
+    PATH            = 'p',
 };
 
 struct long_flag {
@@ -116,7 +116,7 @@ struct long_flag {
     {"auto",            AUTO},
 
     {"move",            MOVE},
-    {"format-path",     FORMAT_PATH},
+    {"path",            PATH},
 
     {NULL},
 };
@@ -168,8 +168,8 @@ static void cloak_usage(const char* progname) {
             "\n"
             "  Organization:\n"
             "    -m, --move              move file according to new tags\n"
-            "    -f, --format-path PATH  format string for --move (default %s)\n",
-            progname, DEFAULT_FORMAT);
+            "    -p, --path PATH         format string for --move (default %s)\n",
+            progname, DEFAULT_PATH);
 }
 
 struct string_list {
@@ -308,7 +308,7 @@ static void cloak_main(int argc, char* const* argv) {
             ops.move_mode = true;
             return true;
 
-          case FORMAT_PATH:
+          case PATH:
             {
                 if (ops.move_format) {
                     free(ops.move_format);
@@ -648,7 +648,7 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
             if (error) {
                 done(error);
             } else {
-                const char* format = ops->move_format ? ops->move_format : DEFAULT_FORMAT;
+                const char* format = ops->move_format ? ops->move_format : DEFAULT_PATH;
                 const char* extension = get_extension(path);
                 rsvc_tags_strf(tags, format, extension, ^(rsvc_error_t error, char* new_path){
                     if (error) {

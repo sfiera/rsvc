@@ -232,7 +232,7 @@ static void rsvc_main(int argc, char* const* argv) {
                 return callbacks.short_option('e', get_value, fail);
             } else if (strcmp(opt, "format") == 0) {
                 return callbacks.short_option('f', get_value, fail);
-            } else if (strcmp(opt, "path-format") == 0) {
+            } else if (strcmp(opt, "path") == 0) {
                 return callbacks.short_option('p', get_value, fail);
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
@@ -256,7 +256,7 @@ static void rsvc_main(int argc, char* const* argv) {
                     "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
                     "  -e, --eject             eject CD after ripping\n"
                     "  -f, --format FMT        output format (default: flac or vorbis)\n"
-                    "  -p, --path-format PATH  format string for output (default %%k)\n"
+                    "  -p, --path PATH         format string for output (default %%k)\n"
                     "\n"
                     "Formats:\n",
                     progname);
