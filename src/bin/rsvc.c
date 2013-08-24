@@ -173,18 +173,42 @@ static void rsvc_main(int argc, char* const* argv) {
     __block struct rip_options rip_options = {
         .format       = NULL,
         .has_bitrate  = false,
+        .bitrate      = 192e3,
         .eject        = false,
         .path_format  = strdup("%k"),
     };
     __block struct command rip = {
         .name = "rip",
         .short_option = ^bool (char opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+            char* value;
             switch (opt) {
+              case 'b':
+                if (!get_value(&value, fail)) {
+                    return false;
+                }
+                if (!(read_si_number(value, &rip_options.bitrate)
+                      && (rip_options.bitrate > 0))) {
+                    rsvc_errorf(fail, __FILE__, __LINE__, "invalid bitrate: %s", value);
+                    return false;
+                }
+                rip_options.has_bitrate = true;
+                return true;
+
               case 'f':
+                if (!get_value(&value, fail)) {
+                    return false;
+                }
+                rip_options.format = rsvc_format_named(value, RSVC_FORMAT_ENCODE);
+                if (!rip_options.format) {
+                    rsvc_errorf(fail, __FILE__, __LINE__, "invalid format: %s", value);
+                    return false;
+                }
+                return true;
+
+              case 'p':
                 if (rip_options.path_format) {
                     free(rip_options.path_format);
                 }
-                char* value;
                 if (!get_value(&value, fail)) {
                     return false;
                 }
@@ -202,10 +226,14 @@ static void rsvc_main(int argc, char* const* argv) {
             }
         },
         .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
-            if (strcmp(opt, "path-format") == 0) {
-                return callbacks.short_option('f', get_value, fail);
+            if (strcmp(opt, "bitrate") == 0) {
+                return callbacks.short_option('b', get_value, fail);
             } else if (strcmp(opt, "eject") == 0) {
                 return callbacks.short_option('e', get_value, fail);
+            } else if (strcmp(opt, "format") == 0) {
+                return callbacks.short_option('f', get_value, fail);
+            } else if (strcmp(opt, "path-format") == 0) {
+                return callbacks.short_option('p', get_value, fail);
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
                 return false;
@@ -215,20 +243,6 @@ static void rsvc_main(int argc, char* const* argv) {
             if (!rip_disk) {
                 rip_disk = arg;
                 return true;
-            } else if (!rip_options.format) {
-                rip_options.format = rsvc_format_named(arg, RSVC_FORMAT_ENCODE);
-                if (!rip_options.format) {
-                    rsvc_errorf(fail, __FILE__, __LINE__, "invalid format: %s", arg);
-                    return false;
-                }
-                return true;
-            } else if (!rip_options.has_bitrate) {
-                if (!read_si_number(arg, &rip_options.bitrate)) {
-                    rsvc_errorf(fail, __FILE__, __LINE__, "invalid bitrate: %s", arg);
-                    return false;
-                }
-                rip_options.has_bitrate = true;
-                return true;
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
                 return false;
@@ -236,11 +250,13 @@ static void rsvc_main(int argc, char* const* argv) {
         },
         .usage = ^{
             fprintf(stderr,
-                    "usage: %s rip [OPTIONS] DEVICE FORMAT [BITRATE]\n"
+                    "usage: %s rip [OPTIONS] DEVICE\n"
                     "\n"
                     "Options:\n"
+                    "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
                     "  -e, --eject             eject CD after ripping\n"
-                    "  -f, --path-format PATH  format string for output (default %%k)\n"
+                    "  -f, --format FMT        output format (default: flac or vorbis)\n"
+                    "  -p, --path-format PATH  format string for output (default %%k)\n"
                     "\n"
                     "Formats:\n",
                     progname);
@@ -460,15 +476,17 @@ static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
                              rsvc_done_t done) {
     if (!disk) {
         usage();
-    } else if (!options->format) {
-        usage();
-    } else if (options->has_bitrate && options->format->lossless) {
+    } else if (options->has_bitrate && options->format && options->format->lossless) {
         rsvc_errorf(done, __FILE__, __LINE__,
                     "bitrate provided for lossless format %s", options->format->name);
-    } else if (!options->has_bitrate && !options->format->lossless) {
-        rsvc_errorf(done, __FILE__, __LINE__,
-                    "bitrate not provided for lossy format %s", options->format->name);
     } else {
+        if (!options->format) {
+            if (options->has_bitrate) {
+                options->format = rsvc_format_named("vorbis", RSVC_FORMAT_ENCODE);
+            } else {
+                options->format = rsvc_format_named("flac", RSVC_FORMAT_ENCODE);
+            }
+        }
         rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
             if (error) {
                 done(error);
