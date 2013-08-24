@@ -65,7 +65,8 @@ void rsvc_format_register(rsvc_format_t format) {
 
 static bool check_flags(int flags, rsvc_format_t format) {
     return ((flags & RSVC_FORMAT_OPEN_TAGS)  ? !!format->open_tags  : true)
-        && ((flags & RSVC_FORMAT_ENCODE)     ? !!format->encode     : true);
+        && ((flags & RSVC_FORMAT_ENCODE)     ? !!format->encode     : true)
+        && ((flags & RSVC_FORMAT_DECODE)     ? !!format->decode     : true);
 }
 
 rsvc_format_t rsvc_format_named(const char* name, int flags) {

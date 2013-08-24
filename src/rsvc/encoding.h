@@ -26,20 +26,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-typedef void (*rsvc_decode_f)(uint8_t* data, size_t size,
-                              void (^done)(const char* text, size_t size, rsvc_error_t error));
+typedef void (^rsvc_decode_text_done_f)(const char* text, size_t size, rsvc_error_t error);
+typedef void (*rsvc_decode_text_f)(uint8_t* data, size_t size, rsvc_decode_text_done_f done);
 
-void    rsvc_decode_latin1(uint8_t* data, size_t size,
-                           void (^done)(const char* text, size_t size, rsvc_error_t error));
-void    rsvc_decode_utf16(uint8_t* data, size_t size, bool big_endian,
-                          void (^done)(const char* text, size_t size, rsvc_error_t error));
-void    rsvc_decode_utf16be(uint8_t* data, size_t size,
-                            void (^done)(const char* text, size_t size, rsvc_error_t error));
-void    rsvc_decode_utf16le(uint8_t* data, size_t size,
-                            void (^done)(const char* text, size_t size, rsvc_error_t error));
-void    rsvc_decode_utf16bom(uint8_t* data, size_t size,
-                             void (^done)(const char* text, size_t size, rsvc_error_t error));
-void    rsvc_decode_utf8(uint8_t* data, size_t size,
-                         void (^done)(const char* text, size_t size, rsvc_error_t error));
+void    rsvc_decode_latin1(uint8_t* data, size_t size, rsvc_decode_text_done_f done);
+void    rsvc_decode_utf16(uint8_t* data, size_t size, bool big_endian, rsvc_decode_text_done_f done);
+void    rsvc_decode_utf16be(uint8_t* data, size_t size, rsvc_decode_text_done_f done);
+void    rsvc_decode_utf16le(uint8_t* data, size_t size, rsvc_decode_text_done_f done);
+void    rsvc_decode_utf16bom(uint8_t* data, size_t size, rsvc_decode_text_done_f done);
+void    rsvc_decode_utf8(uint8_t* data, size_t size, rsvc_decode_text_done_f done);
 
 #endif  // SRC_RSVC_ENCODING_H_

@@ -767,7 +767,7 @@ static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
     }
 
     uint8_t encoding = *(data++); --size;
-    rsvc_decode_f decode;
+    rsvc_decode_text_f decode;
     switch (encoding) {
         case 0x00: decode = rsvc_decode_latin1; break;
         case 0x01: decode = rsvc_decode_utf16bom; break;
@@ -809,7 +809,7 @@ static bool id3_text_read_2_3(id3_frame_list_t frames, id3_frame_spec_t spec,
     }
 
     uint8_t encoding = *(data++); --size;
-    rsvc_decode_f decode;
+    rsvc_decode_text_f decode;
     switch (encoding) {
         case 0x00: decode = rsvc_decode_latin1; break;
         case 0x01: decode = rsvc_decode_utf16bom; break;

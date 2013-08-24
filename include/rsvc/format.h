@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <rsvc/common.h>
 #include <rsvc/encode.h>
+#include <rsvc/decode.h>
 #include <rsvc/tag.h>
 
 /// Formats
@@ -44,11 +45,13 @@ struct rsvc_format {
 
     rsvc_open_tags_f    open_tags;
     rsvc_encode_f       encode;
+    rsvc_decode_f       decode;
 };
 
 enum rsvc_format_detect_flags {
     RSVC_FORMAT_OPEN_TAGS   = 1 << 0,
     RSVC_FORMAT_ENCODE      = 1 << 1,
+    RSVC_FORMAT_DECODE      = 1 << 2,
 };
 
 void                    rsvc_format_register(rsvc_format_t format);

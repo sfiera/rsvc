@@ -38,8 +38,7 @@ static void utf8_out(uint32_t rune, char** out) {
     }
 }
 
-void rsvc_decode_latin1(uint8_t* data, size_t size,
-                        void (^done)(const char* text, size_t size, rsvc_error_t error)) {
+void rsvc_decode_latin1(uint8_t* data, size_t size, rsvc_decode_text_done_f done) {
     char* utf8 = malloc((2 * size) - 1);
     char* out = utf8;
     while (size) {
@@ -50,8 +49,7 @@ void rsvc_decode_latin1(uint8_t* data, size_t size,
     free(utf8);
 }
 
-void rsvc_decode_utf16(uint8_t* data, size_t size, bool big_endian,
-                       void (^done)(const char* text, size_t size, rsvc_error_t error)) {
+void rsvc_decode_utf16(uint8_t* data, size_t size, bool big_endian, rsvc_decode_text_done_f done) {
     rsvc_done_t fail = ^(rsvc_error_t error){
         done(NULL, 0, error);
     };
@@ -103,18 +101,15 @@ void rsvc_decode_utf16(uint8_t* data, size_t size, bool big_endian,
     }
 }
 
-void rsvc_decode_utf16be(uint8_t* data, size_t size,
-                         void (^done)(const char* text, size_t size, rsvc_error_t error)) {
+void rsvc_decode_utf16be(uint8_t* data, size_t size, rsvc_decode_text_done_f done) {
     return rsvc_decode_utf16(data, size, true, done);
 }
 
-void rsvc_decode_utf16le(uint8_t* data, size_t size,
-                         void (^done)(const char* text, size_t size, rsvc_error_t error)) {
+void rsvc_decode_utf16le(uint8_t* data, size_t size, rsvc_decode_text_done_f done) {
     return rsvc_decode_utf16(data, size, false, done);
 }
 
-void rsvc_decode_utf16bom(uint8_t* data, size_t size,
-                          void (^done)(const char* text, size_t size, rsvc_error_t error)) {
+void rsvc_decode_utf16bom(uint8_t* data, size_t size, rsvc_decode_text_done_f done) {
     if ((size >= 2) && (data[0] == 0xfe) && (data[1] == 0xff)) {
         return rsvc_decode_utf16be(data + 2, size - 2, done);
     } else if ((size >= 2) && (data[0] == 0xff) && (data[1] == 0xfe)) {
@@ -127,8 +122,7 @@ void rsvc_decode_utf16bom(uint8_t* data, size_t size,
     }
 }
 
-void rsvc_decode_utf8(uint8_t* data, size_t size,
-                      void (^done)(const char* text, size_t size, rsvc_error_t error)) {
+void rsvc_decode_utf8(uint8_t* data, size_t size, rsvc_decode_text_done_f done) {
     rsvc_done_t fail = ^(rsvc_error_t error){
         done(NULL, 0, error);
     };
