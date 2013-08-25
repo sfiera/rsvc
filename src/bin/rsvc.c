@@ -64,11 +64,18 @@ static void rsvc_command_ls(void (^usage)(), rsvc_done_t done);
 static void rsvc_command_watch(void (^usage)(), rsvc_done_t done);
 static void rsvc_command_eject(char* disk, void (^usage)(), rsvc_done_t done);
 
+struct encode_options {
+    rsvc_format_t format;
+    int64_t bitrate;
+};
+static bool bitrate_flag(struct encode_options* encode, rsvc_option_value_t get_value,
+                         rsvc_done_t fail);
+static bool format_flag(struct encode_options* encode, rsvc_option_value_t get_value,
+                        rsvc_done_t fail);
+
 typedef struct rip_options* rip_options_t;
 struct rip_options {
-    rsvc_format_t format;
-    bool has_bitrate;
-    int64_t bitrate;
+    struct encode_options encode;
     bool eject;
     char* path_format;
 };
@@ -171,10 +178,6 @@ static void rsvc_main(int argc, char* const* argv) {
 
     __block char* rip_disk                  = NULL;
     __block struct rip_options rip_options = {
-        .format       = NULL,
-        .has_bitrate  = false,
-        .bitrate      = 192e3,
-        .eject        = false,
         .path_format  = strdup("%k"),
     };
     __block struct command rip = {
@@ -183,27 +186,10 @@ static void rsvc_main(int argc, char* const* argv) {
             char* value;
             switch (opt) {
               case 'b':
-                if (!get_value(&value, fail)) {
-                    return false;
-                }
-                if (!(read_si_number(value, &rip_options.bitrate)
-                      && (rip_options.bitrate > 0))) {
-                    rsvc_errorf(fail, __FILE__, __LINE__, "invalid bitrate: %s", value);
-                    return false;
-                }
-                rip_options.has_bitrate = true;
-                return true;
+                return bitrate_flag(&rip_options.encode, get_value, fail);
 
               case 'f':
-                if (!get_value(&value, fail)) {
-                    return false;
-                }
-                rip_options.format = rsvc_format_named(value, RSVC_FORMAT_ENCODE);
-                if (!rip_options.format) {
-                    rsvc_errorf(fail, __FILE__, __LINE__, "invalid format: %s", value);
-                    return false;
-                }
-                return true;
+                return format_flag(&rip_options.encode, get_value, fail);
 
               case 'p':
                 if (rip_options.path_format) {
@@ -472,36 +458,82 @@ static void rsvc_command_eject(char* disk, void (^usage)(), rsvc_done_t done) {
     rsvc_disc_eject(disk, done);
 }
 
+static bool bitrate_flag(struct encode_options* encode, rsvc_option_value_t get_value,
+                         rsvc_done_t fail) {
+    char* value;
+    if (!get_value(&value, fail)) {
+        return false;
+    }
+    if (!(read_si_number(value, &encode->bitrate)
+          && (encode->bitrate > 0))) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid bitrate: %s", value);
+        return false;
+    }
+    return true;
+}
+
+static bool format_flag(struct encode_options* encode, rsvc_option_value_t get_value,
+                        rsvc_done_t fail) {
+    char* value;
+    if (!get_value(&value, fail)) {
+        return false;
+    }
+    encode->format = rsvc_format_named(value, RSVC_FORMAT_ENCODE);
+    if (!encode->format) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid format: %s", value);
+        return false;
+    }
+    return true;
+}
+
+static bool validate_encode_options(struct encode_options* encode, rsvc_done_t fail) {
+    if (!encode->format) {
+        if (encode->bitrate) {
+            encode->format = rsvc_format_named("vorbis", RSVC_FORMAT_ENCODE);
+        } else {
+            encode->format = rsvc_format_named("flac", RSVC_FORMAT_ENCODE);
+        }
+    }
+
+    if (encode->format->lossless) {
+        if (encode->bitrate) {
+            rsvc_errorf(fail, __FILE__, __LINE__,
+                        "bitrate provided for lossless format %s", encode->format->name);
+            return false;
+        }
+    } else {  // lossy
+        if (!encode->bitrate) {
+            encode->bitrate = 192e3;
+        }
+    }
+
+    return true;
+}
+
 static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
                              rsvc_done_t done) {
     if (!disk) {
         usage();
-    } else if (options->has_bitrate && options->format && options->format->lossless) {
-        rsvc_errorf(done, __FILE__, __LINE__,
-                    "bitrate provided for lossless format %s", options->format->name);
-    } else {
-        if (!options->format) {
-            if (options->has_bitrate) {
-                options->format = rsvc_format_named("vorbis", RSVC_FORMAT_ENCODE);
-            } else {
-                options->format = rsvc_format_named("flac", RSVC_FORMAT_ENCODE);
-            }
-        }
-        rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
-            if (error) {
-                done(error);
-                return;
-            }
-            rip_all(cd, options, ^(rsvc_error_t error){
-                rsvc_cd_destroy(cd);
-                if (options->eject) {
-                    rsvc_disc_eject(disk, done);
-                } else {
-                    done(error);
-                }
-            });
-        });
+        return;
     }
+    if (!validate_encode_options(&options->encode, done)) {
+        return;
+    }
+
+    rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
+        if (error) {
+            done(error);
+            return;
+        }
+        rip_all(cd, options, ^(rsvc_error_t error){
+            rsvc_cd_destroy(cd);
+            if (options->eject) {
+                rsvc_disc_eject(disk, done);
+            } else {
+                done(error);
+            }
+        });
+    });
 }
 
 static dispatch_source_t    sigint_source       = NULL;
@@ -588,7 +620,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             return;
         }
 
-        rsvc_tags_strf(tags, options->path_format, options->format->extension,
+        rsvc_tags_strf(tags, options->path_format, options->encode.format->extension,
                        ^(rsvc_error_t error, char* path){
             if (error) {
                 rsvc_tags_destroy(tags);
@@ -629,12 +661,12 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             };
 
             struct rsvc_encode_options encode_options = {
-                .bitrate                = options->bitrate,
+                .bitrate                = options->encode.bitrate,
                 .samples_per_channel    = nsamples,
                 .progress               = progress,
             };
             char* path_copy = strdup(path);
-            options->format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
+            options->encode.format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
                 close(read_pipe);
                 if (error) {
                     free(path_copy);
