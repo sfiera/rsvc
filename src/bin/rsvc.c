@@ -835,9 +835,87 @@ static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {
     });
 }
 
-static void rsvc_command_convert(char* disk, convert_options_t options, void (^usage)(),
+static void decode_file(struct encode_options* opts, const char* path, int write_fd,
+                        rsvc_done_t done) {
+    int read_fd;
+    if (!rsvc_open(path, O_RDONLY, 0644, &read_fd, done)) {
+        return;
+    }
+    // From here on, prepend the file name to the error message, and
+    // close the file when we're done.
+    done = ^(rsvc_error_t error) {
+        close(read_fd);
+        if (error) {
+            rsvc_errorf(done, error->file, error->lineno, "%s: %s", path, error->message);
+        } else {
+            done(NULL);
+        }
+    };
+    rsvc_format_t format;
+    if (!rsvc_format_detect(path, read_fd, RSVC_FORMAT_DECODE, &format, done)) {
+        return;
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        format->decode(read_fd, write_fd, done);
+    });
+}
+
+static bool wait_for_data(int fd, rsvc_done_t fail) {
+    fd_set read_fds, write_fds, except_fds;
+    FD_ZERO(&read_fds);
+    FD_ZERO(&write_fds);
+    FD_ZERO(&except_fds);
+    FD_SET(fd, &read_fds);
+    while (1) {
+        if (select(fd + 1, &read_fds, &write_fds, &except_fds, NULL) > 0) {
+            return true;
+        } else if (errno != EAGAIN) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+            return false;
+        }
+    }
+}
+
+static void encode_file(struct encode_options* opts, int read_fd, const char* path,
+                        rsvc_done_t done) {
+    int write_fd;
+    if (!wait_for_data(read_fd, done)) {
+        return;
+    }
+    if (!rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &write_fd, done)) {
+        return;
+    }
+    struct rsvc_encode_options encode_options = {
+        .bitrate                = opts->bitrate,
+        // .samples_per_channel    = nsamples,
+        // .progress               = progress,
+    };
+    opts->format->encode(read_fd, write_fd, &encode_options, done);
+}
+
+static void change_extension(const char* path, const char* extension,
+                             void (^done)(const char* new_path)) {
+    const char* dot = strrchr(path, '.');
+    const char* end;
+    if (!dot || strchr(dot, '/')) {
+        end = path + strlen(path);
+    } else {
+        end = dot;
+    }
+    char* new_path = malloc((end - path) + strlen(extension) + 2);
+    char* p = new_path;
+    memcpy(p, path, end - path);
+    p += (end - path);
+    *(p++) = '.';
+    strcpy(p, extension);
+    done(new_path);
+    free(new_path);
+}
+
+static void rsvc_command_convert(char* path, convert_options_t options, void (^usage)(),
                                  rsvc_done_t done) {
-    if (!disk) {
+    if (!path) {
         usage();
         return;
     }
@@ -845,7 +923,24 @@ static void rsvc_command_convert(char* disk, convert_options_t options, void (^u
         return;
     }
 
-    rsvc_errorf(done, __FILE__, __LINE__, "not implemented");
+    int pipe_fd[2];
+    if (pipe(pipe_fd) < 0) {
+        rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
+        return;
+    }
+    int write_pipe = pipe_fd[1];
+    int read_pipe = pipe_fd[0];
+
+    rsvc_done_t read_done = ^(rsvc_error_t error){
+        if (error) {
+            done(error);
+        }
+    };
+    rsvc_done_t write_done = read_done;
+    decode_file(&options->encode, path, write_pipe, read_done);
+    change_extension(path, options->encode.format->extension, ^(const char* new_path) {
+        encode_file(&options->encode, read_pipe, new_path, write_done);
+    });
 }
 
 static bool multiply_safe(int64_t* value, int64_t by) {
