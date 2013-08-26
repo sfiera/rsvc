@@ -82,6 +82,13 @@ struct rip_options {
 static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
                              rsvc_done_t done);
 
+typedef struct convert_options* convert_options_t;
+struct convert_options {
+    struct encode_options encode;
+};
+static void rsvc_command_convert(char* disk, convert_options_t options, void (^usage)(),
+                                 rsvc_done_t done);
+
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
 static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
                      void (^done)(rsvc_error_t error, rsvc_tags_t tags));
@@ -111,6 +118,7 @@ static void rsvc_main(int argc, char* const* argv) {
                     "  watch                 watch for CDs\n"
                     "  eject DEVICE          eject CD\n"
                     "  rip DEVICE            rip tracks to files\n"
+                    "  convert FILE          convert files\n"
                     "\n"
                     "Options:\n"
                     "  -v, --verbose         more verbose logging\n"
@@ -257,6 +265,68 @@ static void rsvc_main(int argc, char* const* argv) {
         },
     };
 
+    __block char* convert_file = NULL;
+    __block struct convert_options convert_options = {
+    };
+    __block struct command convert = {
+        .name = "convert",
+        .short_option = ^bool (char opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+            switch (opt) {
+              case 'b':
+                return bitrate_flag(&convert_options.encode, get_value, fail);
+
+              case 'f':
+                return format_flag(&convert_options.encode, get_value, fail);
+
+              default:
+                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
+                return false;
+            }
+        },
+        .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+            if (strcmp(opt, "bitrate") == 0) {
+                return callbacks.short_option('b', get_value, fail);
+            } else if (strcmp(opt, "format") == 0) {
+                return callbacks.short_option('f', get_value, fail);
+            } else {
+                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
+                return false;
+            }
+        },
+        .argument = ^bool (char* arg, rsvc_done_t fail) {
+            if (!convert_file) {
+                convert_file = arg;
+                return true;
+            } else {
+                rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
+                return false;
+            }
+        },
+        .usage = ^{
+            fprintf(stderr,
+                    "usage: %s convert [OPTIONS] DEVICE\n"
+                    "\n"
+                    "Options:\n"
+                    "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
+                    "  -f, --format FMT        output format (default: flac or vorbis)\n"
+                    "\n"
+                    "Formats:\n",
+                    progname);
+            rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+                if (format->encode && format->decode) {
+                    fprintf(stderr, "  %s (in, out)\n", format->name);
+                } else if (format->encode) {
+                    fprintf(stderr, "  %s (out)\n", format->name);
+                } else if (format->decode) {
+                    fprintf(stderr, "  %s (in)\n", format->name);
+                }
+            });
+        },
+        .run = ^(rsvc_done_t done){
+            rsvc_command_convert(convert_file, &convert_options, usage, done);
+        },
+    };
+
     callbacks.short_option = ^bool (char opt, rsvc_option_value_t get_value,
                                     rsvc_done_t fail){
         if (command) {
@@ -314,6 +384,8 @@ static void rsvc_main(int argc, char* const* argv) {
                 command = &eject;
             } else if (strcmp(arg, "rip") == 0) {
                 command = &rip;
+            } else if (strcmp(arg, "convert") == 0) {
+                command = &convert;
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "%s: illegal command", arg);
                 return false;
@@ -761,6 +833,19 @@ static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {
 
         rsvc_tags_save(tags, done);
     });
+}
+
+static void rsvc_command_convert(char* disk, convert_options_t options, void (^usage)(),
+                                 rsvc_done_t done) {
+    if (!disk) {
+        usage();
+        return;
+    }
+    if (!validate_encode_options(&options->encode, done)) {
+        return;
+    }
+
+    rsvc_errorf(done, __FILE__, __LINE__, "not implemented");
 }
 
 static bool multiply_safe(int64_t* value, int64_t by) {
