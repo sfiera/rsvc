@@ -874,16 +874,16 @@ static void change_extension(const char* path, const char* extension,
     free(new_path);
 }
 
-static void rsvc_command_convert(char* path, convert_options_t options, void (^usage)(),
+static void rsvc_command_convert(char* old_path, convert_options_t options, void (^usage)(),
                                  rsvc_done_t done) {
-    if (!path) {
+    if (!old_path) {
         usage();
         return;
     }
 
     int read_fd, read_pipe, write_pipe;
     if (!(validate_encode_options(&options->encode, done)
-          && rsvc_open(path, O_RDONLY, 0644, &read_fd, done))) {
+          && rsvc_open(old_path, O_RDONLY, 0644, &read_fd, done))) {
         return;
     }
     done = ^(rsvc_error_t error){
@@ -903,13 +903,13 @@ static void rsvc_command_convert(char* path, convert_options_t options, void (^u
         if (!got_metadata) {
             close(read_pipe);
         }
-        rsvc_prefix_error(path, error, read_done);
+        rsvc_prefix_error(old_path, error, read_done);
     };
     rsvc_group_ready(group);
 
     rsvc_decode_metadata_f start = ^(int32_t bitrate, size_t samples_per_channel){
         got_metadata = true;
-        change_extension(path, options->encode.format->extension, ^(const char* new_path) {
+        change_extension(old_path, options->encode.format->extension, ^(const char* new_path) {
             rsvc_done_t write_done = rsvc_group_add(group);
             write_done = ^(rsvc_error_t error){
                 close(read_pipe);
@@ -921,14 +921,14 @@ static void rsvc_command_convert(char* path, convert_options_t options, void (^u
             }
             write_done = ^(rsvc_error_t error){
                 close(write_fd);
-                rsvc_prefix_error(path, error, write_done);
+                rsvc_prefix_error(new_path, error, write_done);
             };
             encode_file(&options->encode, read_pipe, write_fd, new_path, samples_per_channel,
                         write_done);
         });
     };
 
-    decode_file(path, read_fd, write_pipe, start, read_done);
+    decode_file(old_path, read_fd, write_pipe, start, read_done);
 }
 
 static bool multiply_safe(int64_t* value, int64_t by) {
