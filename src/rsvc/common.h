@@ -23,6 +23,9 @@
 
 #include <rsvc/common.h>
 
+void                    rsvc_prefix_error(const char* prefix, rsvc_error_t error,
+                                          rsvc_done_t done);
+
 int                     rsvc_vasprintf(char** value, const char* format, va_list ap);
 
 #define memdup rsvc_memdup

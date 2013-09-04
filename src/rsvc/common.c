@@ -31,6 +31,14 @@
 #include <sysexits.h>
 #include <time.h>
 
+void rsvc_prefix_error(const char* prefix, rsvc_error_t error, rsvc_done_t done) {
+    if (error) {
+        rsvc_errorf(done, error->file, error->lineno, "%s: %s", prefix, error->message);
+    } else {
+        done(NULL);
+    }
+}
+
 int rsvc_vasprintf(char** value, const char* format, va_list ap) {
     va_list ap2;
     va_copy(ap2, ap);

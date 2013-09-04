@@ -38,4 +38,6 @@ void rsvc_trimdirs(const char* path);
 
 void rsvc_dirname(const char* path, void (^block)(const char* parent));
 
+bool rsvc_pipe(int* read_pipe, int* write_pipe, rsvc_done_t fail);
+
 #endif  // SRC_RSVC_POSIX_H_

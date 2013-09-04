@@ -132,3 +132,14 @@ void rsvc_dirname(const char* path, void (^block)(const char* parent)) {
         free(parent);
     }
 }
+
+bool rsvc_pipe(int* read_pipe, int* write_pipe, rsvc_done_t fail) {
+    int pipe_fd[2];
+    if (pipe(pipe_fd) < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "pipe");
+        return false;
+    }
+    *read_pipe = pipe_fd[0];
+    *write_pipe = pipe_fd[1];
+    return true;
+}
