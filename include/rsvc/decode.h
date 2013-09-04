@@ -25,9 +25,14 @@
 
 /// Decoding
 /// ========
+typedef void (^rsvc_decode_metadata_f)(
+        int32_t bitrate,
+        size_t samples_per_channel);
+
 typedef void (*rsvc_decode_f)(
         int src_fd,
         int dst_fd,
+        rsvc_decode_metadata_f metadata,
         rsvc_done_t done);
 
 #endif  // RSVC_DECODE_H_

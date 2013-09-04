@@ -27,7 +27,7 @@
 
 typedef struct rsvc_group* rsvc_group_t;
 
-rsvc_group_t rsvc_group_create(dispatch_queue_t queue, rsvc_done_t done);
+rsvc_group_t rsvc_group_create(rsvc_done_t done);
 rsvc_done_t rsvc_group_add(rsvc_group_t group);
 void rsvc_group_ready(rsvc_group_t group);
 void rsvc_group_on_cancel(rsvc_group_t group, rsvc_stop_t stop);

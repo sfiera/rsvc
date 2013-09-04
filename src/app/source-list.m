@@ -26,7 +26,7 @@
 
 static NSString* kDiscs = @"DISCS";
 
-static NSString* kDiscName = @"kDiscName";
+//static NSString* kDiscName = @"kDiscName";
 static NSString* kDiscPath = @"kDiscPath";
 static NSString* kDiscType = @"kDiscType";
 static NSString* kDiscTypeNames[] = {

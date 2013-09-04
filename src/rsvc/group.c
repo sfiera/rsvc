@@ -44,7 +44,8 @@ struct rsvc_group {
     struct rsvc_group_cancel_list on_cancel_list;
 };
 
-rsvc_group_t rsvc_group_create(dispatch_queue_t queue, rsvc_done_t done) {
+rsvc_group_t rsvc_group_create(rsvc_done_t done) {
+    dispatch_queue_t queue = dispatch_queue_create("org.rsvc.group", NULL);
     struct rsvc_group initializer = {queue, 1};
     rsvc_group_t group = memdup(&initializer, sizeof(initializer));
     rsvc_done_t group_done = ^(rsvc_error_t error){

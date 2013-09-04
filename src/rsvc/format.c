@@ -58,6 +58,7 @@ void rsvc_format_register(rsvc_format_t format) {
             .lossless   = format->lossless,
             .open_tags  = format->open_tags,
             .encode     = format->encode,
+            .decode     = format->decode,
         },
     };
     RSVC_LIST_PUSH(&formats, memdup(&node, sizeof(node)));

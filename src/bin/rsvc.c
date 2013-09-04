@@ -764,7 +764,7 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
     const size_t ntracks = rsvc_cd_session_ntracks(session);
     rsvc_progress_t progress = rsvc_progress_create();
 
-    rsvc_group_t group = rsvc_group_create(dispatch_get_main_queue(), ^(rsvc_error_t error){
+    rsvc_group_t group = rsvc_group_create(^(rsvc_error_t error){
         rsvc_progress_destroy(progress);
         if (!error) {
             printf("all rips done.\n");
@@ -835,61 +835,25 @@ static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {
     });
 }
 
-static void decode_file(struct encode_options* opts, const char* path, int write_fd,
-                        rsvc_done_t done) {
-    int read_fd;
-    if (!rsvc_open(path, O_RDONLY, 0644, &read_fd, done)) {
-        return;
-    }
-    // From here on, prepend the file name to the error message, and
-    // close the file when we're done.
-    done = ^(rsvc_error_t error) {
-        close(read_fd);
-        if (error) {
-            rsvc_errorf(done, error->file, error->lineno, "%s: %s", path, error->message);
-        } else {
-            done(NULL);
-        }
-    };
+static void decode_file(const char* path, int read_fd, int write_fd,
+                        rsvc_decode_metadata_f start, rsvc_done_t done) {
     rsvc_format_t format;
     if (!rsvc_format_detect(path, read_fd, RSVC_FORMAT_DECODE, &format, done)) {
         return;
     }
-
-    dispatch_async(dispatch_get_main_queue(), ^{
-        format->decode(read_fd, write_fd, done);
-    });
+    format->decode(read_fd, write_fd, start, done);
 }
 
-static bool wait_for_data(int fd, rsvc_done_t fail) {
-    fd_set read_fds, write_fds, except_fds;
-    FD_ZERO(&read_fds);
-    FD_ZERO(&write_fds);
-    FD_ZERO(&except_fds);
-    FD_SET(fd, &read_fds);
-    while (1) {
-        if (select(fd + 1, &read_fds, &write_fds, &except_fds, NULL) > 0) {
-            return true;
-        } else if (errno != EAGAIN) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
-            return false;
-        }
-    }
-}
-
-static void encode_file(struct encode_options* opts, int read_fd, const char* path,
-                        rsvc_done_t done) {
-    int write_fd;
-    if (!wait_for_data(read_fd, done)) {
-        return;
-    }
-    if (!rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &write_fd, done)) {
-        return;
-    }
+static void encode_file(struct encode_options* opts, int read_fd, int write_fd, const char* path,
+                        size_t samples_per_channel, rsvc_done_t done) {
+    rsvc_progress_t progress = rsvc_progress_create();
+    rsvc_progress_node_t node = rsvc_progress_start(progress, path);
     struct rsvc_encode_options encode_options = {
         .bitrate                = opts->bitrate,
-        // .samples_per_channel    = nsamples,
-        // .progress               = progress,
+        .samples_per_channel    = samples_per_channel,
+        .progress = ^(double fraction){
+            rsvc_progress_update(node, fraction);
+        },
     };
     opts->format->encode(read_fd, write_fd, &encode_options, done);
 }
@@ -931,16 +895,45 @@ static void rsvc_command_convert(char* path, convert_options_t options, void (^u
     int write_pipe = pipe_fd[1];
     int read_pipe = pipe_fd[0];
 
-    rsvc_done_t read_done = ^(rsvc_error_t error){
+    rsvc_group_t group = rsvc_group_create(done);
+    rsvc_done_t read_done = rsvc_group_add(group);
+    read_done = ^(rsvc_error_t error){
+        close(write_pipe);
+        read_done(error);
+    };
+    rsvc_done_t write_done = rsvc_group_add(group);
+    write_done = ^(rsvc_error_t error){
+        close(read_pipe);
+        write_done(error);
+    };
+    rsvc_group_ready(group);
+
+    rsvc_decode_metadata_f start = ^(int32_t bitrate, size_t samples_per_channel){
+        change_extension(path, options->encode.format->extension, ^(const char* new_path) {
+            int write_fd;
+            if (!rsvc_open(new_path, O_RDWR | O_CREAT | O_EXCL, 0644, &write_fd, write_done)) {
+                return;
+            }
+            encode_file(&options->encode, read_pipe, write_fd, new_path, samples_per_channel,
+                        write_done);
+        });
+    };
+
+    int read_fd;
+    if (!rsvc_open(path, O_RDONLY, 0644, &read_fd, done)) {
+        return;
+    }
+    read_done = ^(rsvc_error_t error){
+        close(read_fd);
+        close(write_pipe);
         if (error) {
-            done(error);
+            rsvc_errorf(read_done, error->file, error->lineno, "%s: %s", path, error->message);
+            // TODO(sfiera): prevent hang.
+        } else {
+            read_done(NULL);
         }
     };
-    rsvc_done_t write_done = read_done;
-    decode_file(&options->encode, path, write_pipe, read_done);
-    change_extension(path, options->encode.format->extension, ^(const char* new_path) {
-        encode_file(&options->encode, read_pipe, new_path, write_done);
-    });
+    decode_file(path, read_fd, write_pipe, start, read_done);
 }
 
 static bool multiply_safe(int64_t* value, int64_t by) {
@@ -979,6 +972,7 @@ static bool read_si_number(const char* in, int64_t* out) {
 }
 
 int main(int argc, char* const* argv) {
+    signal(SIGPIPE, SIG_IGN);
     rsvc_main(argc, argv);
     return EX_OK;
 }
