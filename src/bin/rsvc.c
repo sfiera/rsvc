@@ -654,75 +654,82 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
         return;
     }
 
-    rsvc_done_t rip_done = rsvc_group_add(group);
-    rsvc_done_t encode_done = rsvc_group_add(group);
-    rsvc_done_t cancel_rip = ^(rsvc_error_t error){
-        if (error) {
-            rip_done(error);
-            encode_done(error);
-            rsvc_group_ready(group);
-        }
-    };
-
+    // Skip data tracks.
     rsvc_cd_track_t track = rsvc_cd_session_track(session, n);
     size_t track_number = rsvc_cd_track_number(track);
-
-    // Skip data tracks.
     if (rsvc_cd_track_type(track) == RSVC_CD_TRACK_DATA) {
         printf("skipping track %zu/%zu\n", track_number, ntracks);
         rip_track(n + 1, ntracks, group, options, cd, session, progress);
         return;
     }
 
+    rsvc_done_t rip_done = rsvc_group_add(group);
+    rip_done = ^(rsvc_error_t error){
+        if (error) {
+            rsvc_group_ready(group);
+        }
+        rip_done(error);
+    };
+
     // Open up a pipe to run between the ripper and encoder, and a
     // file to receive the encoded content.  If either of these
     // fails, then stop encoding without proceeding on to the next
     // track.
     int read_pipe, write_pipe;
-    if (!rsvc_pipe(&read_pipe, &write_pipe, cancel_rip)) {
+    if (!rsvc_pipe(&read_pipe, &write_pipe, rip_done)) {
         return;
     }
+    __block bool encode_started = false;
+    rip_done = ^(rsvc_error_t error){
+        close(write_pipe);
+        if (!encode_started) {
+            close(read_pipe);
+        }
+        rip_done(error);
+    };
 
     get_tags(cd, session, track, ^(rsvc_error_t error, rsvc_tags_t tags){
         if (error) {
-            cancel_rip(error);
+            rip_done(error);
             return;
         }
+
+        rsvc_done_t tmp = rip_done;
+        rsvc_done_t rip_done = ^(rsvc_error_t error){
+            rsvc_tags_destroy(tags);
+            tmp(error);
+        };
 
         rsvc_tags_strf(tags, options->path_format, options->encode.format->extension,
                        ^(rsvc_error_t error, char* path){
             if (error) {
-                rsvc_tags_destroy(tags);
-                cancel_rip(error);
+                rip_done(error);
                 return;
             }
 
             __block bool makedirs_succeeded;
             rsvc_dirname(path, ^(const char* parent){
-                makedirs_succeeded = rsvc_makedirs(parent, 0755, cancel_rip);
+                makedirs_succeeded = rsvc_makedirs(parent, 0755, rip_done);
             });
             int file;
             if (!makedirs_succeeded
-                || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, cancel_rip)) {
-                rsvc_tags_destroy(tags);
+                || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, rip_done)) {
                 return;
             }
 
+            encode_started = true;
+            rsvc_done_t encode_done = rsvc_group_add(group);
+
             // Rip the current track.  If that fails, bail.  If it succeeds,
             // start ripping the next track.
-            rsvc_stop_t stop_rip = rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
-                close(write_pipe);
+            rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
                 rip_done(error);
-                if (error) {
-                    rip_track(ntracks, ntracks, group, options, cd, session, progress);
-                } else {
+                if (!error) {
                     rip_track(n + 1, ntracks, group, options, cd, session, progress);
                 }
             });
-            rsvc_group_on_cancel(group, stop_rip);
 
-            // Encode the current track.  If that fails, bail.  If it
-            // succeeds, decrement the number of pending operations.
+            // Encode the current track.
             rsvc_progress_node_t node = rsvc_progress_start(progress, path);
             size_t nsamples = rsvc_cd_track_nsamples(track);
             void (^progress)(double) = ^(double fraction){
@@ -735,21 +742,19 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
                 .progress               = progress,
             };
             char* path_copy = strdup(path);
-            options->encode.format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
+            encode_done = ^(rsvc_error_t error){
+                close(file);
                 close(read_pipe);
+                rsvc_progress_done(node);
+                free(path_copy);
+                encode_done(error);
+            };
+            options->encode.format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
                 if (error) {
-                    free(path_copy);
-                    rsvc_tags_destroy(tags);
                     encode_done(error);
-                    return;
+                } else {
+                    set_tags(file, path_copy, tags, encode_done);
                 }
-                set_tags(file, path_copy, tags, ^(rsvc_error_t error){
-                    free(path_copy);
-                    rsvc_tags_destroy(tags);
-                    close(file);
-                    rsvc_progress_done(node);
-                    encode_done(error);
-                });
             });
         });
     });
@@ -874,11 +879,16 @@ static char* change_extension(const char* path, const char* extension) {
 
 static void copy_tags(const char* read_path, int read_fd, const char* write_path, int write_fd,
                       rsvc_done_t done) {
+    // If we don't have tag support for both the input and output
+    // formats (e.g. conversion to/from WAV), then silently do nothing.
     rsvc_format_t read_fmt, write_fmt;
-    if (!(rsvc_format_detect(read_path, read_fd, RSVC_FORMAT_OPEN_TAGS, &read_fmt, done)
-          && rsvc_format_detect(write_path, write_fd, RSVC_FORMAT_OPEN_TAGS, &write_fmt, done))) {
+    rsvc_done_t ignore = ^(rsvc_error_t error){ /* do nothing */ };
+    if (!(rsvc_format_detect(read_path, read_fd, RSVC_FORMAT_OPEN_TAGS, &read_fmt, ignore)
+          && rsvc_format_detect(write_path, write_fd, RSVC_FORMAT_OPEN_TAGS, &write_fmt, ignore))) {
+        done(NULL);
         return;
     }
+
     read_fmt->open_tags(read_path, RSVC_TAG_RDONLY, ^(rsvc_tags_t read_tags, rsvc_error_t error){
         if (error) {
             done(error);
