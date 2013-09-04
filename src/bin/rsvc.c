@@ -883,9 +883,16 @@ static void rsvc_command_convert(char* path, convert_options_t options, void (^u
         usage();
         return;
     }
-    if (!validate_encode_options(&options->encode, done)) {
+
+    int read_fd;
+    if (!(validate_encode_options(&options->encode, done)
+          && rsvc_open(path, O_RDONLY, 0644, &read_fd, done))) {
         return;
     }
+    done = ^(rsvc_error_t error){
+        close(read_fd);
+        done(error);
+    };
 
     int pipe_fd[2];
     if (pipe(pipe_fd) < 0) {
@@ -899,12 +906,20 @@ static void rsvc_command_convert(char* path, convert_options_t options, void (^u
     rsvc_done_t read_done = rsvc_group_add(group);
     read_done = ^(rsvc_error_t error){
         close(write_pipe);
-        read_done(error);
+        if (error) {
+            rsvc_errorf(read_done, error->file, error->lineno, "%s: %s", path, error->message);
+        } else {
+            read_done(NULL);
+        }
     };
     rsvc_done_t write_done = rsvc_group_add(group);
     write_done = ^(rsvc_error_t error){
         close(read_pipe);
-        write_done(error);
+        if (error) {
+            rsvc_errorf(write_done, error->file, error->lineno, "%s: %s", path, error->message);
+        } else {
+            write_done(NULL);
+        }
     };
     rsvc_group_ready(group);
 
@@ -919,20 +934,6 @@ static void rsvc_command_convert(char* path, convert_options_t options, void (^u
         });
     };
 
-    int read_fd;
-    if (!rsvc_open(path, O_RDONLY, 0644, &read_fd, done)) {
-        return;
-    }
-    read_done = ^(rsvc_error_t error){
-        close(read_fd);
-        close(write_pipe);
-        if (error) {
-            rsvc_errorf(read_done, error->file, error->lineno, "%s: %s", path, error->message);
-            // TODO(sfiera): prevent hang.
-        } else {
-            read_done(NULL);
-        }
-    };
     decode_file(path, read_fd, write_pipe, start, read_done);
 }
 

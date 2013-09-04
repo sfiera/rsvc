@@ -65,6 +65,8 @@ struct flac_decode_userdata {
     int                     read_fd;
     int                     write_fd;
     rsvc_decode_metadata_f  metadata;
+    rsvc_done_t             done;
+    bool                    called_done;
 };
 
 static void                    flac_decode_metadata(const FLAC__StreamDecoder* decoder,
@@ -231,9 +233,10 @@ void rsvc_flac_decode(int src_fd, int dst_fd,
         };
 
         struct flac_decode_userdata userdata = {
-            .read_fd = src_fd,
-            .write_fd = dst_fd,
-            .metadata = metadata,
+            .read_fd   = src_fd,
+            .write_fd  = dst_fd,
+            .metadata  = metadata,
+            .done      = done,
         };
         FLAC__StreamDecoderInitStatus init_status = FLAC__stream_decoder_init_stream(
                 decoder, flac_decode_read, flac_decode_seek, flac_decode_tell,
@@ -251,7 +254,9 @@ void rsvc_flac_decode(int src_fd, int dst_fd,
             FLAC__StreamDecoderState state = FLAC__stream_decoder_get_state(decoder);
             const char* message = FLAC__StreamDecoderStateString[state];
             cleanup();
-            rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
+            if (!userdata.called_done) {
+                rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
+            }
             return;
         }
         cleanup();
@@ -434,7 +439,9 @@ static read_decode_status_t flac_decode_read(const FLAC__StreamDecoder* encoder,
     flac_decode_userdata_t u = (flac_decode_userdata_t)userdata;
     void* data = bytes;
     ssize_t bytes_read = read(u->read_fd, data, *nbytes);
-    if (bytes_read <= 0) {
+    if (bytes_read < 0) {
+        rsvc_strerrorf(u->done, __FILE__, __LINE__, NULL);
+        u->called_done = true;
         return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
     } else if (bytes_read == 0) {
         return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
@@ -457,7 +464,16 @@ static write_decode_status_t flac_decode_write(const FLAC__StreamDecoder* decode
             *(p++) = data[c][i];
         }
     }
-    write(u->write_fd, s16, size);
+    while (size > 0) {
+        ssize_t written = write(u->write_fd, s16, size);
+        if (written <= 0) {
+            rsvc_strerrorf(u->done, __FILE__, __LINE__, NULL);
+            u->called_done = true;
+            return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
+        } else {
+            size -= written;
+        }
+    }
     return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
 }
 
