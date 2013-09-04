@@ -855,8 +855,7 @@ static void encode_file(struct encode_options* opts, int read_fd, int write_fd, 
     opts->format->encode(read_fd, write_fd, &encode_options, done);
 }
 
-static void change_extension(const char* path, const char* extension,
-                             void (^done)(const char* new_path)) {
+static char* change_extension(const char* path, const char* extension) {
     const char* dot = strrchr(path, '.');
     const char* end;
     if (!dot || strchr(dot, '/')) {
@@ -870,8 +869,39 @@ static void change_extension(const char* path, const char* extension,
     p += (end - path);
     *(p++) = '.';
     strcpy(p, extension);
-    done(new_path);
-    free(new_path);
+    return new_path;
+}
+
+static void copy_tags(const char* read_path, int read_fd, const char* write_path, int write_fd,
+                      rsvc_done_t done) {
+    rsvc_format_t read_fmt, write_fmt;
+    if (!(rsvc_format_detect(read_path, read_fd, RSVC_FORMAT_OPEN_TAGS, &read_fmt, done)
+          && rsvc_format_detect(write_path, write_fd, RSVC_FORMAT_OPEN_TAGS, &write_fmt, done))) {
+        return;
+    }
+    read_fmt->open_tags(read_path, RSVC_TAG_RDONLY, ^(rsvc_tags_t read_tags, rsvc_error_t error){
+        if (error) {
+            done(error);
+            return;
+        }
+        rsvc_done_t read_done = ^(rsvc_error_t error){
+            rsvc_tags_destroy(read_tags);
+            done(error);
+        };
+        write_fmt->open_tags(write_path, RSVC_TAG_RDWR, ^(rsvc_tags_t write_tags, rsvc_error_t error){
+            if (error) {
+                read_done(error);
+                return;
+            }
+            rsvc_done_t write_done = ^(rsvc_error_t error){
+                rsvc_tags_destroy(write_tags);
+                read_done(error);
+            };
+            if (rsvc_tags_copy(write_tags, read_tags, write_done)) {
+                rsvc_tags_save(write_tags, write_done);
+            }
+        });
+    });
 }
 
 static void rsvc_command_convert(char* old_path, convert_options_t options, void (^usage)(),
@@ -886,7 +916,9 @@ static void rsvc_command_convert(char* old_path, convert_options_t options, void
           && rsvc_open(old_path, O_RDONLY, 0644, &read_fd, done))) {
         return;
     }
+    char* new_path = change_extension(old_path, options->encode.format->extension);
     done = ^(rsvc_error_t error){
+        free(new_path);
         close(read_fd);
         done(error);
     };
@@ -909,22 +941,26 @@ static void rsvc_command_convert(char* old_path, convert_options_t options, void
 
     rsvc_decode_metadata_f start = ^(int32_t bitrate, size_t samples_per_channel){
         got_metadata = true;
-        change_extension(old_path, options->encode.format->extension, ^(const char* new_path) {
-            rsvc_done_t write_done = rsvc_group_add(group);
-            write_done = ^(rsvc_error_t error){
-                close(read_pipe);
-                write_done(error);
-            };
-            int write_fd;
-            if (!rsvc_open(new_path, O_RDWR | O_CREAT | O_EXCL, 0644, &write_fd, write_done)) {
+        rsvc_done_t write_done = rsvc_group_add(group);
+        write_done = ^(rsvc_error_t error){
+            close(read_pipe);
+            write_done(error);
+        };
+        int write_fd;
+        if (!rsvc_open(new_path, O_RDWR | O_CREAT | O_EXCL, 0644, &write_fd, write_done)) {
+            return;
+        }
+        write_done = ^(rsvc_error_t error){
+            close(write_fd);
+            write_done(error);
+        };
+        encode_file(&options->encode, read_pipe, write_fd, new_path, samples_per_channel,
+                    ^(rsvc_error_t error){
+            if (error) {
+                rsvc_prefix_error(new_path, error, write_done);
                 return;
             }
-            write_done = ^(rsvc_error_t error){
-                close(write_fd);
-                rsvc_prefix_error(new_path, error, write_done);
-            };
-            encode_file(&options->encode, read_pipe, write_fd, new_path, samples_per_channel,
-                        write_done);
+            copy_tags(old_path, read_fd, new_path, write_fd, write_done);
         });
     };
 

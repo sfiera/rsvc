@@ -227,11 +227,13 @@ static bool rsvc_vorbis_tags_remove(rsvc_tags_t tags, const char* name, rsvc_don
     // I bet this is not the most efficient thing to do.
     vorbis_comment vc;
     vorbis_comment_init(&vc);
-    size_t size = strlen(name);
-    for (int i = 0; i < self->vc.comments; ++i) {
-        const char* comment = self->vc.user_comments[i];
-        if ((strncmp(name, comment, size) != 0) && (comment[size] != '=')) {
-            vorbis_comment_add(&vc, comment);
+    if (name) {
+        size_t size = strlen(name);
+        for (int i = 0; i < self->vc.comments; ++i) {
+            const char* comment = self->vc.user_comments[i];
+            if ((strncmp(name, comment, size) != 0) && (comment[size] != '=')) {
+                vorbis_comment_add(&vc, comment);
+            }
         }
     }
     vorbis_comment_clear(&self->vc);
@@ -377,11 +379,11 @@ void rsvc_vorbis_open_tags(const char* path, int flags,
         },
         .path = strdup(path),
     };
-    done = ^(rsvc_tags_t tags, rsvc_error_t error){
+    done = ^(rsvc_tags_t result, rsvc_error_t error){
         if (error) {
-            rsvc_vorbis_tags_clear(tags);
+            rsvc_vorbis_tags_clear(&tags.super);
         }
-        done(tags, error);
+        done(result, error);
     };
 
     void (^done_copy)(rsvc_tags_t, rsvc_error_t) = done;
