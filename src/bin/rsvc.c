@@ -599,10 +599,12 @@ static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
         }
         rip_all(cd, options, ^(rsvc_error_t error){
             rsvc_cd_destroy(cd);
-            if (options->eject) {
+            if (error) {
+                done(error);
+            } else if (options->eject) {
                 rsvc_disc_eject(disk, done);
             } else {
-                done(error);
+                done(NULL);
             }
         });
     });
