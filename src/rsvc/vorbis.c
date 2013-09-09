@@ -277,10 +277,8 @@ static void rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         rsvc_done_t done = done_copy;
         int fd;
-        char tmp_path[PATH_MAX + 5] = {'\0'};
-        strcat(tmp_path, self->path);
-        strcat(tmp_path, ".tmp");
-        if (!rsvc_open(tmp_path, O_WRONLY | O_CREAT | O_TRUNC, 0644, &fd, done)) {
+        char tmp_path[MAXPATHLEN];
+        if (!rsvc_temp(self->path, 0644, tmp_path, &fd, done)) {
             return;
         }
 
@@ -312,9 +310,9 @@ static void rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
             write(fd, curr->page.header, curr->page.header_len);
             write(fd, curr->page.body, curr->page.body_len);
         }
-        rename(tmp_path, self->path);
-
-        done(NULL);
+        if (rsvc_refile(tmp_path, self->path, done)) {
+            done(NULL);
+        }
     });
 }
 

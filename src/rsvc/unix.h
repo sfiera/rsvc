@@ -26,7 +26,9 @@
 #include <rsvc/common.h>
 
 bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail);
+bool rsvc_temp(const char* base, mode_t mode, char* path, int* fd, rsvc_done_t fail);
 bool rsvc_rename(const char* src, const char* dst, rsvc_done_t fail);
+bool rsvc_refile(const char* src, const char* dst, rsvc_done_t fail);
 bool rsvc_rm(const char* path, rsvc_done_t fail);
 bool rsvc_mkdir(const char* path, mode_t mode, rsvc_done_t fail);
 bool rsvc_rmdir(const char* path, rsvc_done_t fail);

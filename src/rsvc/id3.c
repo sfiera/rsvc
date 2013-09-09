@@ -656,10 +656,8 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     // write out the new ID3 tags, then reuse that space without
     // creating a new file.
     int fd;
-    char tmp_path[PATH_MAX + 5] = {'\0'};
-    strcat(tmp_path, tags->path);
-    strcat(tmp_path, ".tmp");
-    if (!rsvc_open(tmp_path, O_RDWR | O_CREAT | O_TRUNC, 0644, &fd, fail)) {
+    char tmp_path[MAXPATHLEN];
+    if (!rsvc_temp(tags->path, 0644, tmp_path, &fd, fail)) {
         return false;
     }
     write(fd, header, 10);
@@ -691,9 +689,8 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     // move the one that pointed to the temporary file into its place.
     // We'll use that if we try to write the file again.
     rsvc_logf(2, "renaming %s to %s", tmp_path, tags->path);
-    if (rename(tmp_path, tags->path) < 0) {
+    if (!rsvc_refile(tmp_path, tags->path, fail)) {
         close(fd);
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
     }
     close(tags->fd);

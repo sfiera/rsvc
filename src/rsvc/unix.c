@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 #include <unistd.h>
 
 bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail) {
@@ -40,8 +41,84 @@ bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fa
     return true;
 }
 
+bool rsvc_temp(const char* base, mode_t mode, char* path, int* fd, rsvc_done_t fail) {
+    if ((strlen(base) + 12) >= MAXPATHLEN) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "%s: File name too long", base);
+        return false;
+    }
+
+    char result[MAXPATHLEN];
+    char* dst = result;
+    const char* src = base;
+
+    const char* slash = strrchr(src, '/');
+    if (slash) {
+        size_t size = slash - src + 1;
+        memcpy(dst, src, size);
+        src += size;
+        dst += size;
+    }
+    *(dst++) = '.';
+
+    char* dot = strrchr(src, '.');
+    if (dot && (dot != src)) {
+        size_t size = dot - src;
+        memcpy(dst, src, size);
+        src += size;
+        dst += size;
+    }
+
+    while (true) {
+        strcpy(dst, ".XXXXXXXXXX");
+        mktemp(result);
+        strcat(dst, src);
+
+        rsvc_logf(3, "temp %s", result);
+        *fd = open(result, O_RDWR | O_CREAT | O_EXCL, mode);
+        if (*fd < 0) {
+            switch (errno) {
+              case EEXIST:
+              case EINTR:
+              case EISDIR:
+                // Ignore errors that will be resolved by picking a new
+                // file name.  EACCES sometimes can, but not always.
+                continue;
+              default:
+                rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", result);
+                return false;
+            }
+        }
+        break;
+    }
+
+    strcpy(path, result);
+    return true;
+}
+
 bool rsvc_rename(const char* src, const char* dst, rsvc_done_t fail) {
     rsvc_logf(3, "rename %s %s", src, dst);
+    if (rename(src, dst) < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "rename %s to %s", src, dst);
+        return false;
+    }
+    return true;
+}
+
+bool rsvc_refile(const char* src, const char* dst, rsvc_done_t fail) {
+    rsvc_logf(3, "refile %s %s", src, dst);
+    struct stat st;
+    if (stat(dst, &st) < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "stat %s", dst);
+        return false;
+    }
+    if ((chmod(src, st.st_mode) < 0) && (errno != EPERM)) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "chmod %s", src);
+        return false;
+    }
+    if ((chown(src, st.st_uid, st.st_gid) < 0) && (errno != EPERM)) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "chmod %s", src);
+        return false;
+    }
     if (rename(src, dst) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "rename %s to %s", src, dst);
         return false;
