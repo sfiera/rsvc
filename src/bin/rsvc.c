@@ -72,6 +72,9 @@ static bool bitrate_flag(struct encode_options* encode, rsvc_option_value_t get_
                          rsvc_done_t fail);
 static bool format_flag(struct encode_options* encode, rsvc_option_value_t get_value,
                         rsvc_done_t fail);
+static bool string_flag(char** string, rsvc_option_value_t get_value, rsvc_done_t fail);
+static bool boolean_flag(bool* boolean);
+static bool illegal_flag(char opt, rsvc_done_t fail);
 
 typedef struct rip_options* rip_options_t;
 struct rip_options {
@@ -190,32 +193,12 @@ static void rsvc_main(int argc, char* const* argv) {
     __block struct command rip = {
         .name = "rip",
         .short_option = ^bool (char opt, rsvc_option_value_t get_value, rsvc_done_t fail){
-            char* value;
             switch (opt) {
-              case 'b':
-                return bitrate_flag(&rip_options.encode, get_value, fail);
-
-              case 'f':
-                return format_flag(&rip_options.encode, get_value, fail);
-
-              case 'p':
-                if (rip_options.path_format) {
-                    free(rip_options.path_format);
-                }
-                if (!get_value(&value, fail)) {
-                    return false;
-                }
-                rip_options.path_format = strdup(value);
-                rsvc_tags_validate_strf(rip_options.path_format, fail);
-                return true;
-
-              case 'e':
-                rip_options.eject = true;
-                return true;
-
-              default:
-                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
-                return false;
+              case 'b': return bitrate_flag(&rip_options.encode, get_value, fail);
+              case 'f': return format_flag(&rip_options.encode, get_value, fail);
+              case 'p': return string_flag(&rip_options.disk, get_value, fail);
+              case 'e': return boolean_flag(&rip_options.eject);
+              default:  return illegal_flag(opt, fail);
             }
         },
         .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
@@ -270,15 +253,9 @@ static void rsvc_main(int argc, char* const* argv) {
         .name = "convert",
         .short_option = ^bool (char opt, rsvc_option_value_t get_value, rsvc_done_t fail){
             switch (opt) {
-              case 'b':
-                return bitrate_flag(&convert_options.encode, get_value, fail);
-
-              case 'f':
-                return format_flag(&convert_options.encode, get_value, fail);
-
-              default:
-                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
-                return false;
+              case 'b': return bitrate_flag(&convert_options.encode, get_value, fail);
+              case 'f': return format_flag(&convert_options.encode, get_value, fail);
+              default:  return illegal_flag(opt, fail);
             }
         },
         .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
@@ -554,6 +531,28 @@ static bool format_flag(struct encode_options* encode, rsvc_option_value_t get_v
         return false;
     }
     return true;
+}
+
+static bool string_flag(char** string, rsvc_option_value_t get_value, rsvc_done_t fail) {
+    if (*string) {
+        free(*string);
+    }
+    char* value;
+    if (!get_value(&value, fail)) {
+        return false;
+    }
+    *string = strdup(value);
+    return true;
+}
+
+static bool boolean_flag(bool* boolean) {
+    *boolean = true;
+    return true;
+}
+
+static bool illegal_flag(char opt, rsvc_done_t fail) {
+    rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
+    return false;
 }
 
 static bool validate_encode_options(struct encode_options* encode, rsvc_done_t fail) {
