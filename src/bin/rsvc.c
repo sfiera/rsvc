@@ -75,19 +75,19 @@ static bool format_flag(struct encode_options* encode, rsvc_option_value_t get_v
 
 typedef struct rip_options* rip_options_t;
 struct rip_options {
+    char* disk;
     struct encode_options encode;
     bool eject;
     char* path_format;
 };
-static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
-                             rsvc_done_t done);
+static void rsvc_command_rip(rip_options_t options, void (^usage)(), rsvc_done_t done);
 
 typedef struct convert_options* convert_options_t;
 struct convert_options {
+    char* file;
     struct encode_options encode;
 };
-static void rsvc_command_convert(char* disk, convert_options_t options, void (^usage)(),
-                                 rsvc_done_t done);
+static void rsvc_command_convert(convert_options_t options, void (^usage)(), rsvc_done_t done);
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
 static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
@@ -184,7 +184,6 @@ static void rsvc_main(int argc, char* const* argv) {
         },
     };
 
-    __block char* rip_disk                  = NULL;
     __block struct rip_options rip_options = {
         .path_format  = strdup("%k"),
     };
@@ -234,8 +233,8 @@ static void rsvc_main(int argc, char* const* argv) {
             }
         },
         .argument = ^bool (char* arg, rsvc_done_t fail) {
-            if (!rip_disk) {
-                rip_disk = arg;
+            if (!rip_options.disk) {
+                rip_options.disk = arg;
                 return true;
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
@@ -261,11 +260,10 @@ static void rsvc_main(int argc, char* const* argv) {
             });
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_rip(rip_disk, &rip_options, usage, done);
+            rsvc_command_rip(&rip_options, usage, done);
         },
     };
 
-    __block char* convert_file = NULL;
     __block struct convert_options convert_options = {
     };
     __block struct command convert = {
@@ -294,8 +292,8 @@ static void rsvc_main(int argc, char* const* argv) {
             }
         },
         .argument = ^bool (char* arg, rsvc_done_t fail) {
-            if (!convert_file) {
-                convert_file = arg;
+            if (!convert_options.file) {
+                convert_options.file = arg;
                 return true;
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
@@ -323,7 +321,7 @@ static void rsvc_main(int argc, char* const* argv) {
             });
         },
         .run = ^(rsvc_done_t done){
-            rsvc_command_convert(convert_file, &convert_options, usage, done);
+            rsvc_command_convert(&convert_options, usage, done);
         },
     };
 
@@ -582,9 +580,8 @@ static bool validate_encode_options(struct encode_options* encode, rsvc_done_t f
     return true;
 }
 
-static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
-                             rsvc_done_t done) {
-    if (!disk) {
+static void rsvc_command_rip(rip_options_t options, void (^usage)(), rsvc_done_t done) {
+    if (!options->disk) {
         usage();
         return;
     }
@@ -592,7 +589,7 @@ static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
         return;
     }
 
-    rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
+    rsvc_cd_create(options->disk, ^(rsvc_cd_t cd, rsvc_error_t error){
         if (error) {
             done(error);
             return;
@@ -602,7 +599,7 @@ static void rsvc_command_rip(char* disk, rip_options_t options, void (^usage)(),
             if (error) {
                 done(error);
             } else if (options->eject) {
-                rsvc_disc_eject(disk, done);
+                rsvc_disc_eject(options->disk, done);
             } else {
                 done(NULL);
             }
@@ -913,19 +910,19 @@ static void copy_tags(const char* read_path, int read_fd, const char* write_path
     });
 }
 
-static void rsvc_command_convert(char* old_path, convert_options_t options, void (^usage)(),
+static void rsvc_command_convert(convert_options_t options, void (^usage)(),
                                  rsvc_done_t done) {
-    if (!old_path) {
+    if (!options->file) {
         usage();
         return;
     }
 
     int read_fd, read_pipe, write_pipe;
     if (!(validate_encode_options(&options->encode, done)
-          && rsvc_open(old_path, O_RDONLY, 0644, &read_fd, done))) {
+          && rsvc_open(options->file, O_RDONLY, 0644, &read_fd, done))) {
         return;
     }
-    char* new_path = change_extension(old_path, options->encode.format->extension);
+    char* new_path = change_extension(options->file, options->encode.format->extension);
     done = ^(rsvc_error_t error){
         free(new_path);
         close(read_fd);
@@ -944,7 +941,7 @@ static void rsvc_command_convert(char* old_path, convert_options_t options, void
         if (!got_metadata) {
             close(read_pipe);
         }
-        rsvc_prefix_error(old_path, error, read_done);
+        rsvc_prefix_error(options->file, error, read_done);
     };
     rsvc_group_ready(group);
 
@@ -969,11 +966,11 @@ static void rsvc_command_convert(char* old_path, convert_options_t options, void
                 rsvc_prefix_error(new_path, error, write_done);
                 return;
             }
-            copy_tags(old_path, read_fd, new_path, write_fd, write_done);
+            copy_tags(options->file, read_fd, new_path, write_fd, write_done);
         });
     };
 
-    decode_file(old_path, read_fd, write_pipe, start, read_done);
+    decode_file(options->file, read_fd, write_pipe, start, read_done);
 }
 
 static bool multiply_safe(int64_t* value, int64_t by) {
