@@ -696,16 +696,11 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             return;
         }
 
-        rsvc_done_t tmp = rip_done;
-        rsvc_done_t rip_done = ^(rsvc_error_t error){
-            rsvc_tags_destroy(tags);
-            tmp(error);
-        };
-
         rsvc_tags_strf(tags, options->path_format, options->encode.format->extension,
                        ^(rsvc_error_t error, char* path){
             if (error) {
                 rip_done(error);
+                rsvc_tags_destroy(tags);
                 return;
             }
 
@@ -716,6 +711,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             int file;
             if (!makedirs_succeeded
                 || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, rip_done)) {
+                rsvc_tags_destroy(tags);
                 return;
             }
 
@@ -747,6 +743,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             encode_done = ^(rsvc_error_t error){
                 close(file);
                 close(read_pipe);
+                rsvc_tags_destroy(tags);
                 rsvc_progress_done(node);
                 free(path_copy);
                 encode_done(error);
