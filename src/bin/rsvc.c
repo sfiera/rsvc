@@ -76,6 +76,14 @@ static bool string_flag(char** string, rsvc_option_value_t get_value, rsvc_done_
 static bool boolean_flag(bool* boolean);
 static bool illegal_flag(char opt, rsvc_done_t fail);
 
+typedef bool (^short_option_f)(char opt, rsvc_option_value_t get_value, rsvc_done_t fail);
+struct rsvc_long_option_name {
+    const char* long_name;
+    int short_name;
+};
+static bool long_flag(struct rsvc_long_option_name table[], short_option_f short_option,
+                      const char* opt, rsvc_option_value_t get_value, rsvc_done_t fail);
+
 typedef struct rip_options* rip_options_t;
 struct rip_options {
     char* disk;
@@ -202,18 +210,14 @@ static void rsvc_main(int argc, char* const* argv) {
             }
         },
         .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
-            if (strcmp(opt, "bitrate") == 0) {
-                return callbacks.short_option('b', get_value, fail);
-            } else if (strcmp(opt, "eject") == 0) {
-                return callbacks.short_option('e', get_value, fail);
-            } else if (strcmp(opt, "format") == 0) {
-                return callbacks.short_option('f', get_value, fail);
-            } else if (strcmp(opt, "path") == 0) {
-                return callbacks.short_option('p', get_value, fail);
-            } else {
-                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
-                return false;
-            }
+            struct rsvc_long_option_name table[] = {
+                {"bitrate",  'b'},
+                {"eject",    'e'},
+                {"format",   'f'},
+                {"path",     'p'},
+                {NULL}
+            };
+            return long_flag(table, callbacks.short_option, opt, get_value, fail);
         },
         .argument = ^bool (char* arg, rsvc_done_t fail) {
             if (!rip_options.disk) {
@@ -259,14 +263,12 @@ static void rsvc_main(int argc, char* const* argv) {
             }
         },
         .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
-            if (strcmp(opt, "bitrate") == 0) {
-                return callbacks.short_option('b', get_value, fail);
-            } else if (strcmp(opt, "format") == 0) {
-                return callbacks.short_option('f', get_value, fail);
-            } else {
-                rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
-                return false;
-            }
+            struct rsvc_long_option_name table[] = {
+                {"bitrate",  'b'},
+                {"format",   'f'},
+                {NULL}
+            };
+            return long_flag(table, callbacks.short_option, opt, get_value, fail);
         },
         .argument = ^bool (char* arg, rsvc_done_t fail) {
             if (!convert_options.file) {
@@ -552,6 +554,17 @@ static bool boolean_flag(bool* boolean) {
 
 static bool illegal_flag(char opt, rsvc_done_t fail) {
     rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
+    return false;
+}
+
+static bool long_flag(struct rsvc_long_option_name table[], short_option_f short_option,
+                      const char* opt, rsvc_option_value_t get_value, rsvc_done_t fail) {
+    for ( ; table->long_name; ++table) {
+        if (strcmp(opt, table->long_name) == 0) {
+            return short_option(table->short_name, get_value, fail);
+        }
+    }
+    rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
     return false;
 }
 
