@@ -80,4 +80,18 @@ typedef struct option_callbacks {
 bool                    rsvc_options(size_t argc, char* const* argv,
                                      rsvc_option_callbacks_t* callbacks, rsvc_done_t fail);
 
+typedef struct rsvc_long_option_name {
+    const char* long_name;
+    int short_name;
+} rsvc_long_option_names[];
+bool rsvc_long_option(
+        struct rsvc_long_option_name table[],
+        bool (^short_option)(char opt, rsvc_option_value_t get_value, rsvc_done_t fail),
+        const char* opt, rsvc_option_value_t get_value, rsvc_done_t fail);
+
+bool rsvc_illegal_short_option(char opt, rsvc_done_t fail);
+bool rsvc_illegal_long_option(const char* opt, rsvc_done_t fail);
+bool rsvc_string_option(char** string, rsvc_option_value_t get_value, rsvc_done_t fail);
+bool rsvc_boolean_option(bool* boolean);
+
 #endif  // RSVC_OPTIONS_H_

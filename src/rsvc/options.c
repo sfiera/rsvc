@@ -106,3 +106,43 @@ bool rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
     }
     return true;
 }
+
+bool rsvc_long_option(
+        struct rsvc_long_option_name table[],
+        bool (^short_option)(char opt, rsvc_option_value_t get_value, rsvc_done_t fail),
+        const char* opt, rsvc_option_value_t get_value, rsvc_done_t fail) {
+    for ( ; table->long_name; ++table) {
+        if (strcmp(opt, table->long_name) == 0) {
+            return short_option(table->short_name, get_value, fail);
+        }
+    }
+    rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
+    return false;
+}
+
+bool rsvc_illegal_short_option(char opt, rsvc_done_t fail) {
+    rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
+    return false;
+}
+
+bool rsvc_illegal_long_option(const char* opt, rsvc_done_t fail) {
+    rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
+    return false;
+}
+
+bool rsvc_string_option(char** string, rsvc_option_value_t get_value, rsvc_done_t fail) {
+    if (*string) {
+        free(*string);
+    }
+    char* value;
+    if (!get_value(&value, fail)) {
+        return false;
+    }
+    *string = strdup(value);
+    return true;
+}
+
+bool rsvc_boolean_option(bool* boolean) {
+    *boolean = true;
+    return true;
+}
