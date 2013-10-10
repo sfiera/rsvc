@@ -208,7 +208,7 @@ static bool parse_format(const char* format,
                 // Check that it's a valid option, then add it.
                 block(*ptr, NULL, 0);
                 ++ptr;
-            } else if ((' ' <= *ptr) && (*ptr < 0x80)) {
+            } else if ((' ' <= *ptr) && ((*ptr + 0) < 0x80)) {
                 rsvc_errorf(fail, __FILE__, __LINE__,
                             "%s: invalid format code %%%c", format, *ptr);
                 return false;
