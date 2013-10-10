@@ -81,10 +81,7 @@ enum short_flag {
     PATH            = 'p',
 };
 
-struct long_flag {
-    const char* name;
-    int value;
-} kLongFlags[] = {
+rsvc_long_option_names kLongFlags = {
     {"help",            HELP},
     {"dry-run",         DRY_RUN},
     {"verbose",         VERBOSE},
@@ -250,8 +247,7 @@ static void cloak_main(int argc, char* const* argv) {
             exit(0);
 
           case DRY_RUN:
-            ops.dry_run = true;
-            return true;
+            return rsvc_boolean_option(&ops.dry_run);
 
           case VERBOSE:
             ++rsvc_verbosity;
@@ -276,8 +272,7 @@ static void cloak_main(int argc, char* const* argv) {
             return true;
 
           case REMOVE_ALL:
-            ops.remove_all_tags = true;
-            return true;
+            return rsvc_boolean_option(&ops.remove_all_tags);
 
           case ADD:
           case SET:
@@ -301,23 +296,13 @@ static void cloak_main(int argc, char* const* argv) {
             return true;
 
           case AUTO:
-            ops.auto_mode = true;
-            return true;
+            return rsvc_boolean_option(&ops.auto_mode);
 
           case MOVE:
-            ops.move_mode = true;
-            return true;
+            return rsvc_boolean_option(&ops.move_mode);
 
           case PATH:
-            {
-                if (ops.move_format) {
-                    free(ops.move_format);
-                }
-                char* val;
-                if (!get_value(&val, fail)) {
-                    return false;
-                }
-                ops.move_format = strdup(val);
+            if (rsvc_string_option(&ops.move_format, get_value, fail)) {
                 rsvc_tags_validate_strf(ops.move_format, fail);
             }
             return true;
@@ -344,13 +329,7 @@ static void cloak_main(int argc, char* const* argv) {
     callbacks.long_option = ^bool (char* opt,
                                    rsvc_option_value_t get_value,
                                    rsvc_done_t fail){
-        for (struct long_flag* flag = kLongFlags; flag->name; ++flag) {
-            if (strcmp(opt, flag->name) == 0) {
-                return callbacks.short_option(flag->value, get_value, fail);
-            }
-        }
-        rsvc_errorf(fail, __FILE__, __LINE__, "illegal option --%s", opt);
-        return false;
+        return rsvc_long_option(kLongFlags, callbacks.short_option, opt, get_value, fail);
     };
 
     callbacks.argument = ^bool (char* arg, rsvc_done_t fail){
