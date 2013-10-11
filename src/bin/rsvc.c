@@ -51,7 +51,7 @@ typedef struct command* command_t;
 struct command {
     const char* name;
 
-    bool (^short_option)(char opt, rsvc_option_value_t get_value, rsvc_done_t fail);
+    bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail);
     bool (^long_option)(char* opt, rsvc_option_value_t get_value, rsvc_done_t fail);
     bool (^argument)(char* arg, rsvc_done_t fail);
     void (^usage)();
@@ -189,7 +189,7 @@ static void rsvc_main(int argc, char* const* argv) {
     };
     __block struct command rip = {
         .name = "rip",
-        .short_option = ^bool (char opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+        .short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
             switch (opt) {
               case 'b': return bitrate_option(&rip_options.encode, get_value, fail);
               case 'f': return format_option(&rip_options.encode, get_value, fail);
@@ -243,7 +243,7 @@ static void rsvc_main(int argc, char* const* argv) {
     };
     __block struct command convert = {
         .name = "convert",
-        .short_option = ^bool (char opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+        .short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
             switch (opt) {
               case 'b': return bitrate_option(&convert_options.encode, get_value, fail);
               case 'f': return format_option(&convert_options.encode, get_value, fail);
@@ -291,7 +291,7 @@ static void rsvc_main(int argc, char* const* argv) {
         },
     };
 
-    callbacks.short_option = ^bool (char opt, rsvc_option_value_t get_value,
+    callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_t get_value,
                                     rsvc_done_t fail){
         if (command) {
             if (command->short_option) {

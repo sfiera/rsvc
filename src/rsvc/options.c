@@ -109,7 +109,7 @@ bool rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callb
 
 bool rsvc_long_option(
         struct rsvc_long_option_name table[],
-        bool (^short_option)(char opt, rsvc_option_value_t get_value, rsvc_done_t fail),
+        bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail),
         const char* opt, rsvc_option_value_t get_value, rsvc_done_t fail) {
     for ( ; table->long_name; ++table) {
         if (strcmp(opt, table->long_name) == 0) {
@@ -120,7 +120,7 @@ bool rsvc_long_option(
     return false;
 }
 
-bool rsvc_illegal_short_option(char opt, rsvc_done_t fail) {
+bool rsvc_illegal_short_option(int32_t opt, rsvc_done_t fail) {
     rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
     return false;
 }

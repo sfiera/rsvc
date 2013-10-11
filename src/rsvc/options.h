@@ -35,7 +35,7 @@ typedef bool (^rsvc_option_value_t)(char** value, rsvc_done_t fail);
 ///
 ///     A struct of blocks that can be used with :func:`rsvc_options()`.
 typedef struct option_callbacks {
-    /// ..  member:: bool (^short_option)(char opt, rsvc_option_value_t get_value, rsvc_done_t fail)
+    /// ..  member:: bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail)
     ///
     ///     Called for each short option (-o) in the command-line.  May
     ///     return false to indicate that `opt` is not a valid option.
@@ -44,7 +44,7 @@ typedef struct option_callbacks {
     ///     :param value:   A block which may optionally be invoked to
     ///                     retrieve the value of the option.
     ///     :returns:       true iff `opt` is a valid option.
-    bool (^short_option)(char opt, rsvc_option_value_t get_value, rsvc_done_t fail);
+    bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail);
 
     /// ..  member:: bool (^long_option)(char* opt, rsvc_option_value_t get_value, rsvc_done_t fail)
     ///
@@ -86,10 +86,10 @@ typedef struct rsvc_long_option_name {
 } rsvc_long_option_names[];
 bool rsvc_long_option(
         struct rsvc_long_option_name table[],
-        bool (^short_option)(char opt, rsvc_option_value_t get_value, rsvc_done_t fail),
+        bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail),
         const char* opt, rsvc_option_value_t get_value, rsvc_done_t fail);
 
-bool rsvc_illegal_short_option(char opt, rsvc_done_t fail);
+bool rsvc_illegal_short_option(int32_t opt, rsvc_done_t fail);
 bool rsvc_illegal_long_option(const char* opt, rsvc_done_t fail);
 bool rsvc_string_option(char** string, rsvc_option_value_t get_value, rsvc_done_t fail);
 bool rsvc_boolean_option(bool* boolean);

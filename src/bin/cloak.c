@@ -196,7 +196,7 @@ static void cloak_main(int argc, char* const* argv) {
     };
     __block string_list_t files = {};
 
-    callbacks.short_option = ^bool (char opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+    callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
         switch (opt) {
           case HELP:        return help_option(progname);
           case DRY_RUN:     return rsvc_boolean_option(&ops.dry_run);
