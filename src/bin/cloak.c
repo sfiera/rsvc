@@ -287,6 +287,17 @@ static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_t get_value,
     return rsvc_illegal_short_option(opt, fail);
 }
 
+bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail) {
+    if (files->nstrings == 0) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "no input files");
+        return false;
+    } else if (!any_actions(ops)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "no actions");
+        return false;
+    }
+    return true;
+}
+
 static void cloak_main(int argc, char* const* argv) {
     const char* progname = strdup(basename(argv[0]));
     rsvc_done_t fail = ^(rsvc_error_t error){
@@ -339,15 +350,8 @@ static void cloak_main(int argc, char* const* argv) {
         return true;
     };
 
-    if (!rsvc_options(argc, argv, &callbacks, fail)) {
-        exit(1);
-    }
-
-    if (files.nstrings == 0) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "no input files");
-        exit(1);
-    } else if (!any_actions(&ops)) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "no actions");
+    if (!(rsvc_options(argc, argv, &callbacks, fail)
+          && check_options(&files, &ops, fail))) {
         exit(1);
     }
 
