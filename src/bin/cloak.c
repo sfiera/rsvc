@@ -169,6 +169,26 @@ static void cloak_usage(const char* progname) {
             progname, DEFAULT_PATH);
 }
 
+static bool help_option(const char* progname) {
+    cloak_usage(progname);
+    exit(0);
+}
+
+static bool verbosity_option() {
+    ++rsvc_verbosity;
+    return true;
+}
+
+static bool version_option() {
+    printf("cloak %s\n", RSVC_VERSION);
+    exit(0);
+}
+
+static bool list_option(list_mode_t* list_mode) {
+    *list_mode = LIST_MODE_SHORT;
+    return true;
+}
+
 struct string_list {
     size_t nstrings;
     char** strings;
@@ -213,6 +233,60 @@ static bool validate_name(char* name, rsvc_done_t fail);
 static bool split_assignment(const char* assignment, char** name, char** value,
                              rsvc_done_t fail);
 
+static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
+                       rsvc_done_t fail) {
+    if (flag == REMOVE) {
+        char* value;
+        if (!get_value(&value, fail) || !validate_name(value, fail)) {
+            return false;
+        }
+        add_string(&ops->remove_tags, value);
+        return true;
+    }
+
+    char* tag_name;
+    char* tag_value;
+    char* value;
+    if (!get_value(&value, fail) ||
+            !split_assignment(value, &tag_name, &tag_value, fail) ||
+            !validate_name(tag_name, fail)) {
+        return false;
+    }
+    if (flag == SET) {
+        add_string(&ops->remove_tags, tag_name);
+    }
+    add_string(&ops->add_tag_names, tag_name);
+    add_string(&ops->add_tag_values, tag_value);
+    free(tag_name);
+    free(tag_value);
+    return true;
+}
+
+static bool path_option(ops_t ops, rsvc_option_value_t get_value, rsvc_done_t fail) {
+    if (rsvc_string_option(&ops->move_format, get_value, fail)) {
+        rsvc_tags_validate_strf(ops->move_format, fail);
+    }
+    return true;
+}
+
+static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_t get_value,
+        rsvc_done_t fail) {
+    if (rsvc_tag_code_get(opt)) {
+        const char* tag_name = rsvc_tag_code_get(opt);
+        char* value;
+        if (!get_value(&value, fail)) {
+            return false;
+        }
+        char* tag_value = strdup(value);
+        add_string(&ops->remove_tags, tag_name);
+        add_string(&ops->add_tag_names, tag_name);
+        add_string(&ops->add_tag_values, tag_value);
+        free(tag_value);
+        return true;
+    }
+    return rsvc_illegal_short_option(opt, fail);
+}
+
 static void cloak_main(int argc, char* const* argv) {
     const char* progname = strdup(basename(argv[0]));
     rsvc_done_t fail = ^(rsvc_error_t error){
@@ -238,97 +312,25 @@ static void cloak_main(int argc, char* const* argv) {
     };
     __block string_list_t files = {};
 
-    callbacks.short_option = ^bool (char opt,
-                                    rsvc_option_value_t get_value,
-                                    rsvc_done_t fail){
+    callbacks.short_option = ^bool (char opt, rsvc_option_value_t get_value, rsvc_done_t fail){
         switch (opt) {
-          case HELP:
-            cloak_usage(progname);
-            exit(0);
-
-          case DRY_RUN:
-            return rsvc_boolean_option(&ops.dry_run);
-
-          case VERBOSE:
-            ++rsvc_verbosity;
-            return true;
-
-          case VERSION:
-            printf("cloak %s\n", RSVC_VERSION);
-            exit(0);
-
-          case LIST:
-            ops.list_mode = LIST_MODE_SHORT;
-            return true;
-
-          case REMOVE:
-            {
-                char* value;
-                if (!get_value(&value, fail) || !validate_name(value, fail)) {
-                    return false;
-                }
-                add_string(&ops.remove_tags, value);
-            }
-            return true;
-
-          case REMOVE_ALL:
-            return rsvc_boolean_option(&ops.remove_all_tags);
-
-          case ADD:
-          case SET:
-            {
-                char* tag_name;
-                char* tag_value;
-                char* value;
-                if (!get_value(&value, fail) ||
-                        !split_assignment(value, &tag_name, &tag_value, fail) ||
-                        !validate_name(tag_name, fail)) {
-                    return false;
-                }
-                if (opt == SET) {
-                    add_string(&ops.remove_tags, tag_name);
-                }
-                add_string(&ops.add_tag_names, tag_name);
-                add_string(&ops.add_tag_values, tag_value);
-                free(tag_name);
-                free(tag_value);
-            }
-            return true;
-
-          case AUTO:
-            return rsvc_boolean_option(&ops.auto_mode);
-
-          case MOVE:
-            return rsvc_boolean_option(&ops.move_mode);
-
-          case PATH:
-            if (rsvc_string_option(&ops.move_format, get_value, fail)) {
-                rsvc_tags_validate_strf(ops.move_format, fail);
-            }
-            return true;
-
-          default:
-            if (rsvc_tag_code_get(opt)) {
-                const char* tag_name = rsvc_tag_code_get(opt);
-                char* value;
-                if (!get_value(&value, fail)) {
-                    return false;
-                }
-                char* tag_value = strdup(value);
-                add_string(&ops.remove_tags, tag_name);
-                add_string(&ops.add_tag_names, tag_name);
-                add_string(&ops.add_tag_values, tag_value);
-                free(tag_value);
-                return true;
-            }
-            rsvc_errorf(fail, __FILE__, __LINE__, "illegal option -%c", opt);
-            return false;
+          case HELP:        return help_option(progname);
+          case DRY_RUN:     return rsvc_boolean_option(&ops.dry_run);
+          case VERBOSE:     return verbosity_option();
+          case VERSION:     return version_option();
+          case LIST:        return list_option(&ops.list_mode);
+          case ADD:         return tag_option(&ops, get_value, ADD, fail);
+          case SET:         return tag_option(&ops, get_value, SET, fail);
+          case REMOVE:      return tag_option(&ops, get_value, REMOVE, fail);
+          case REMOVE_ALL:  return rsvc_boolean_option(&ops.remove_all_tags);
+          case AUTO:        return rsvc_boolean_option(&ops.auto_mode);
+          case MOVE:        return rsvc_boolean_option(&ops.move_mode);
+          case PATH:        return path_option(&ops, get_value, fail);
+          default:          return shorthand_option(&ops, opt, get_value, fail);
         }
     };
 
-    callbacks.long_option = ^bool (char* opt,
-                                   rsvc_option_value_t get_value,
-                                   rsvc_done_t fail){
+    callbacks.long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
         return rsvc_long_option(kLongFlags, callbacks.short_option, opt, get_value, fail);
     };
 
