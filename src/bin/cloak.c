@@ -124,71 +124,6 @@ typedef enum list_mode {
     LIST_MODE_LONG,
 } list_mode_t;
 
-static void cloak_usage(const char* progname) {
-    fprintf(stderr,
-            "usage: %s [OPTIONS] FILE...\n"
-            "\n"
-            "Options:\n"
-            "  -h, --help                display this help and exit\n"
-            "  -n, --dry-run             validate inputs but don't save changes\n"
-            "  -v, --verbose             more verbose logging\n"
-            "  -V, --version             show version and exit\n"
-            "\n"
-            "  Basic:\n"
-            "    -l, --list              list all tags\n"
-            "    -r, --remove NAME       remove all tags with name NAME\n"
-            "    -R, --remove-all        remove all tags\n"
-            "    -x, --add NAME=VALUE    add VALUE to the tag with name NAME\n"
-            "    -s, --set NAME=VALUE    set the tag with name NAME to VALUE\n"
-            "\n"
-            "  Shorthand:\n"
-            "    -a, --artist ARTIST     set the artist name\n"
-            "    -A, --album ALBUM       set the album name\n"
-            "    -b, --album-artist AA   set the album artist name\n"
-            "    -t, --title TITLE       set the track title\n"
-            "    -g, --genre GENRE       set the genre\n"
-            "    -G, --grouping GROUP    set the grouping\n"
-            "    -y, --date DATE         set the release date\n"
-            "    -k, --track NUM         set the track number\n"
-            "    -K, --track-total NUM   set the track total\n"
-            "    -d, --disc NUM          set the disc number\n"
-            "    -D, --disc-total NUM    set the disc total\n"
-            "    -S, --show NUM          set the show name\n"
-            "    -e, --episode NUM       set the episode number\n"
-            "    -E, --episode-total NUM set the episode total\n"
-            "    -c, --season NUM        set the season number\n"
-            "    -C, --season-total NUM  set the season total\n"
-            "\n"
-            "  MusicBrainz:\n"
-            "        --auto              fetch missing tags from MusicBrainz\n"
-            "                            (requires that MUSICBRAINZ_DISCID be set)\n"
-            "\n"
-            "  Organization:\n"
-            "    -m, --move              move file according to new tags\n"
-            "    -p, --path PATH         format string for --move (default %s)\n",
-            progname, DEFAULT_PATH);
-}
-
-static bool help_option(const char* progname) {
-    cloak_usage(progname);
-    exit(0);
-}
-
-static bool verbosity_option() {
-    ++rsvc_verbosity;
-    return true;
-}
-
-static bool version_option() {
-    printf("cloak %s\n", RSVC_VERSION);
-    exit(0);
-}
-
-static bool list_option(list_mode_t* list_mode) {
-    *list_mode = LIST_MODE_SHORT;
-    return true;
-}
-
 struct string_list {
     size_t nstrings;
     char** strings;
@@ -224,79 +159,17 @@ struct ops {
 typedef struct ops* ops_t;
 
 static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done);
-static void tag_file(const char* path, ops_t ops, rsvc_done_t done);
-static bool any_actions(ops_t ops);
-static int ops_mode(ops_t ops);
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done);
 
-static bool validate_name(char* name, rsvc_done_t fail);
-static bool split_assignment(const char* assignment, char** name, char** value,
-                             rsvc_done_t fail);
-
+static bool help_option(const char* progname);
+static bool verbosity_option();
+static bool version_option();
+static bool list_option(list_mode_t* list_mode);
 static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
-                       rsvc_done_t fail) {
-    if (flag == REMOVE) {
-        char* value;
-        if (!get_value(&value, fail) || !validate_name(value, fail)) {
-            return false;
-        }
-        add_string(&ops->remove_tags, value);
-        return true;
-    }
-
-    char* tag_name;
-    char* tag_value;
-    char* value;
-    if (!get_value(&value, fail) ||
-            !split_assignment(value, &tag_name, &tag_value, fail) ||
-            !validate_name(tag_name, fail)) {
-        return false;
-    }
-    if (flag == SET) {
-        add_string(&ops->remove_tags, tag_name);
-    }
-    add_string(&ops->add_tag_names, tag_name);
-    add_string(&ops->add_tag_values, tag_value);
-    free(tag_name);
-    free(tag_value);
-    return true;
-}
-
-static bool path_option(ops_t ops, rsvc_option_value_t get_value, rsvc_done_t fail) {
-    if (rsvc_string_option(&ops->move_format, get_value, fail)) {
-        rsvc_tags_validate_strf(ops->move_format, fail);
-    }
-    return true;
-}
-
-static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_t get_value,
-        rsvc_done_t fail) {
-    if (rsvc_tag_code_get(opt)) {
-        const char* tag_name = rsvc_tag_code_get(opt);
-        char* value;
-        if (!get_value(&value, fail)) {
-            return false;
-        }
-        char* tag_value = strdup(value);
-        add_string(&ops->remove_tags, tag_name);
-        add_string(&ops->add_tag_names, tag_name);
-        add_string(&ops->add_tag_values, tag_value);
-        free(tag_value);
-        return true;
-    }
-    return rsvc_illegal_short_option(opt, fail);
-}
-
-bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail) {
-    if (files->nstrings == 0) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "no input files");
-        return false;
-    } else if (!any_actions(ops)) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "no actions");
-        return false;
-    }
-    return true;
-}
+                       rsvc_done_t fail);
+static bool path_option(ops_t ops, rsvc_option_value_t get_value, rsvc_done_t fail);
+static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_t get_value, rsvc_done_t fail);
+static bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail);
 
 static void cloak_main(int argc, char* const* argv) {
     const char* progname = strdup(basename(argv[0]));
@@ -363,21 +236,34 @@ static void cloak_main(int argc, char* const* argv) {
     dispatch_main();
 }
 
-static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done) {
-    if (nfiles == 0) {
-        done(NULL);
-        return;
+// TODO(sfiera): more robust extension-finding.
+static const char* get_extension(const char* path) {
+    const char* dot = strrchr(path, '.');
+    if (!dot || strchr(dot, '/')) {
+        return NULL;
+    } else {
+        return dot + 1;
     }
-    tag_file(files[0], ops, ^(rsvc_error_t error){
-        if (error) {
-            done(error);
-            return;
-        }
-        if (ops->list_mode && (nfiles > 1)) {
-            printf("\n");
-        }
-        tag_files(nfiles - 1, files + 1, ops, done);
-    });
+}
+
+static bool any_actions(ops_t ops) {
+    return ops->remove_all_tags
+        || ops->remove_tags.nstrings
+        || ops->add_tag_names.nstrings
+        || ops->auto_mode
+        || ops->list_mode
+        || ops->move_mode;
+}
+
+static int ops_mode(ops_t ops) {
+    if (ops->remove_all_tags
+            || ops->remove_tags.nstrings
+            || ops->add_tag_names.nstrings
+            || ops->auto_mode) {
+        return RSVC_TAG_RDWR;
+    } else {
+        return RSVC_TAG_RDONLY;
+    }
 }
 
 static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
@@ -427,34 +313,21 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
     });
 }
 
-// TODO(sfiera): more robust extension-finding.
-static const char* get_extension(const char* path) {
-    const char* dot = strrchr(path, '.');
-    if (!dot || strchr(dot, '/')) {
-        return NULL;
-    } else {
-        return dot + 1;
+static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done) {
+    if (nfiles == 0) {
+        done(NULL);
+        return;
     }
-}
-
-static bool any_actions(ops_t ops) {
-    return ops->remove_all_tags
-        || ops->remove_tags.nstrings
-        || ops->add_tag_names.nstrings
-        || ops->auto_mode
-        || ops->list_mode
-        || ops->move_mode;
-}
-
-static int ops_mode(ops_t ops) {
-    if (ops->remove_all_tags
-            || ops->remove_tags.nstrings
-            || ops->add_tag_names.nstrings
-            || ops->auto_mode) {
-        return RSVC_TAG_RDWR;
-    } else {
-        return RSVC_TAG_RDONLY;
-    }
+    tag_file(files[0], ops, ^(rsvc_error_t error){
+        if (error) {
+            done(error);
+            return;
+        }
+        if (ops->list_mode && (nfiles > 1)) {
+            printf("\n");
+        }
+        tag_files(nfiles - 1, files + 1, ops, done);
+    });
 }
 
 typedef struct segment* segment_t;
@@ -700,6 +573,132 @@ static bool split_assignment(const char* assignment, char** name, char** value,
     }
     *name = strndup(assignment, eq - assignment);
     *value = strdup(eq + 1);
+    return true;
+}
+
+static bool help_option(const char* progname) {
+    fprintf(stderr,
+            "usage: %s [OPTIONS] FILE...\n"
+            "\n"
+            "Options:\n"
+            "  -h, --help                display this help and exit\n"
+            "  -n, --dry-run             validate inputs but don't save changes\n"
+            "  -v, --verbose             more verbose logging\n"
+            "  -V, --version             show version and exit\n"
+            "\n"
+            "  Basic:\n"
+            "    -l, --list              list all tags\n"
+            "    -r, --remove NAME       remove all tags with name NAME\n"
+            "    -R, --remove-all        remove all tags\n"
+            "    -x, --add NAME=VALUE    add VALUE to the tag with name NAME\n"
+            "    -s, --set NAME=VALUE    set the tag with name NAME to VALUE\n"
+            "\n"
+            "  Shorthand:\n"
+            "    -a, --artist ARTIST     set the artist name\n"
+            "    -A, --album ALBUM       set the album name\n"
+            "    -b, --album-artist AA   set the album artist name\n"
+            "    -t, --title TITLE       set the track title\n"
+            "    -g, --genre GENRE       set the genre\n"
+            "    -G, --grouping GROUP    set the grouping\n"
+            "    -y, --date DATE         set the release date\n"
+            "    -k, --track NUM         set the track number\n"
+            "    -K, --track-total NUM   set the track total\n"
+            "    -d, --disc NUM          set the disc number\n"
+            "    -D, --disc-total NUM    set the disc total\n"
+            "    -S, --show NUM          set the show name\n"
+            "    -e, --episode NUM       set the episode number\n"
+            "    -E, --episode-total NUM set the episode total\n"
+            "    -c, --season NUM        set the season number\n"
+            "    -C, --season-total NUM  set the season total\n"
+            "\n"
+            "  MusicBrainz:\n"
+            "        --auto              fetch missing tags from MusicBrainz\n"
+            "                            (requires that MUSICBRAINZ_DISCID be set)\n"
+            "\n"
+            "  Organization:\n"
+            "    -m, --move              move file according to new tags\n"
+            "    -p, --path PATH         format string for --move (default %s)\n",
+            progname, DEFAULT_PATH);
+    exit(0);
+}
+
+static bool verbosity_option() {
+    ++rsvc_verbosity;
+    return true;
+}
+
+static bool version_option() {
+    printf("cloak %s\n", RSVC_VERSION);
+    exit(0);
+}
+
+static bool list_option(list_mode_t* list_mode) {
+    *list_mode = LIST_MODE_SHORT;
+    return true;
+}
+
+static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
+                       rsvc_done_t fail) {
+    if (flag == REMOVE) {
+        char* value;
+        if (!get_value(&value, fail) || !validate_name(value, fail)) {
+            return false;
+        }
+        add_string(&ops->remove_tags, value);
+        return true;
+    }
+
+    char* tag_name;
+    char* tag_value;
+    char* value;
+    if (!get_value(&value, fail) ||
+            !split_assignment(value, &tag_name, &tag_value, fail) ||
+            !validate_name(tag_name, fail)) {
+        return false;
+    }
+    if (flag == SET) {
+        add_string(&ops->remove_tags, tag_name);
+    }
+    add_string(&ops->add_tag_names, tag_name);
+    add_string(&ops->add_tag_values, tag_value);
+    free(tag_name);
+    free(tag_value);
+    return true;
+}
+
+static bool path_option(ops_t ops, rsvc_option_value_t get_value, rsvc_done_t fail) {
+    if (rsvc_string_option(&ops->move_format, get_value, fail)) {
+        rsvc_tags_validate_strf(ops->move_format, fail);
+    }
+    return true;
+}
+
+static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_t get_value,
+        rsvc_done_t fail) {
+    if (rsvc_tag_code_get(opt)) {
+        const char* tag_name = rsvc_tag_code_get(opt);
+        char* value;
+        if (!get_value(&value, fail)) {
+            return false;
+        }
+        char* tag_value = strdup(value);
+        add_string(&ops->remove_tags, tag_name);
+        add_string(&ops->add_tag_names, tag_name);
+        add_string(&ops->add_tag_values, tag_value);
+        free(tag_value);
+        return true;
+    }
+    return rsvc_illegal_short_option(opt, fail);
+}
+
+static bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail) {
+    if (files->nstrings == 0) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "no input files");
+        return false;
+    } else if (!any_actions(ops)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "no actions");
+        return false;
+    }
     return true;
 }
 
