@@ -628,25 +628,11 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
     rip_done = ^(rsvc_error_t error){
         if (error) {
             rsvc_group_ready(group);
+            rip_done(error);
+        } else {
+            rip_done(error);
+            rip_track(n + 1, ntracks, group, options, cd, session, progress);
         }
-        rip_done(error);
-    };
-
-    // Open up a pipe to run between the ripper and encoder, and a
-    // file to receive the encoded content.  If either of these
-    // fails, then stop encoding without proceeding on to the next
-    // track.
-    int read_pipe, write_pipe;
-    if (!rsvc_pipe(&read_pipe, &write_pipe, rip_done)) {
-        return;
-    }
-    __block bool encode_started = false;
-    rip_done = ^(rsvc_error_t error){
-        close(write_pipe);
-        if (!encode_started) {
-            close(read_pipe);
-        }
-        rip_done(error);
     };
 
     get_tags(cd, session, track, ^(rsvc_error_t error, rsvc_tags_t tags){
@@ -674,16 +660,22 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
                 return;
             }
 
-            encode_started = true;
-            rsvc_done_t encode_done = rsvc_group_add(group);
+            rsvc_group_t rip_group = rsvc_group_create(rip_done);
+            rsvc_done_t decode_done = rsvc_group_add(rip_group);
+            rsvc_done_t encode_done = rsvc_group_add(rip_group);
+            rsvc_group_ready(rip_group);
+
+            int read_pipe, write_pipe;
+            if (!rsvc_pipe(&read_pipe, &write_pipe, rip_done)) {
+                close(file);
+                return;
+            }
 
             // Rip the current track.  If that fails, bail.  If it succeeds,
             // start ripping the next track.
             rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
-                rip_done(error);
-                if (!error) {
-                    rip_track(n + 1, ntracks, group, options, cd, session, progress);
-                }
+                close(write_pipe);
+                decode_done(error);
             });
 
             // Encode the current track.
