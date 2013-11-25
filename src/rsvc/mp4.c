@@ -686,6 +686,13 @@ void rsvc_mp4_format_register() {
     };
     struct rsvc_format m4v = {
         .name = "mp4",
+        .magic = "????ftypM4V ",
+        .magic_size = 12,
+        .extension = "m4a",
+        .open_tags = rsvc_mp4_open_tags,
+    };
+    struct rsvc_format mp42 = {
+        .name = "mp4",
         .magic = "????ftypmp42",
         .magic_size = 12,
         .extension = "m4v",
@@ -693,4 +700,5 @@ void rsvc_mp4_format_register() {
     };
     rsvc_format_register(&m4a);
     rsvc_format_register(&m4v);
+    rsvc_format_register(&mp42);
 }
