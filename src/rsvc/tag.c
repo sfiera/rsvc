@@ -151,7 +151,7 @@ static bool is_canonical_int(const char* str) {
 static size_t max_precision(rsvc_tags_t tags, const char* tag_name, size_t minimum) {
     __block size_t result = minimum;
     rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        if ((strcmp(name, tag_name) == 0) && (strlen(value) > result)) {
+        if ((strcasecmp(name, tag_name) == 0) && (strlen(value) > result)) {
             result = strlen(value);
         }
     });
@@ -160,7 +160,7 @@ static size_t max_precision(rsvc_tags_t tags, const char* tag_name, size_t minim
 
 static bool any_tags(rsvc_tags_t tags, const char* tag_name) {
     return !rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        if (strcmp(name, tag_name) == 0) {
+        if (strcasecmp(name, tag_name) == 0) {
             stop();
         }
     });
@@ -315,7 +315,7 @@ static bool snpathf(char* data, size_t size, size_t* size_needed,
 
             __block size_t count = 0;
             rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-                if (strcmp(name, rsvc_tag_code_get(type)) == 0) {
+                if (strcasecmp(name, rsvc_tag_code_get(type)) == 0) {
                     if (!*value) {
                         return;
                     }
@@ -414,7 +414,7 @@ static bool rsvc_detached_tags_remove(rsvc_tags_t tags, const char* name, rsvc_d
         rsvc_detached_tags_node_t curr = self->list.head;
         while (curr) {
             rsvc_detached_tags_node_t next = curr->next;
-            if (strcmp(curr->name, name) == 0) {
+            if (strcasecmp(curr->name, name) == 0) {
                 free(curr->name);
                 free(curr->value);
                 RSVC_LIST_ERASE(&self->list, curr);
