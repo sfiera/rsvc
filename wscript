@@ -9,7 +9,7 @@ WARNINGS = ["-Wall", "-Werror", "-Wno-sign-compare"]
 CFLAGS = WARNINGS + ["-fblocks"]
 
 def common(ctx):
-    ctx.default_sdk = "10.7"
+    ctx.default_sdk = "10.8"
     ctx.default_compiler = "clang"
     ctx.load("compiler_c")
     ctx.load("core externals", tooldir="ext/waf-sfiera")
