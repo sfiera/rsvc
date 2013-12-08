@@ -864,67 +864,89 @@ static void copy_tags(const char* read_path, int read_fd, const char* write_path
     });
 }
 
-static void rsvc_command_convert(convert_options_t options, void (^usage)(),
-                                 rsvc_done_t done) {
+static bool validate_convert_options(convert_options_t options, void (^usage)(),
+                                     rsvc_done_t fail) {
+    if (!validate_encode_options(&options->encode, fail)) {
+        return false;
+    }
     if (!options->file) {
         usage();
-        return;
+        return false;
     }
+    return true;
+}
 
-    int read_fd, read_pipe, write_pipe;
-    if (!(validate_encode_options(&options->encode, done)
-          && rsvc_open(options->file, O_RDONLY, 0644, &read_fd, done))) {
+static void convert_read(convert_options_t options, int write_fd, rsvc_done_t done,
+                         void (^start)(bool ok, size_t samples_per_channel)) {
+    done = ^(rsvc_error_t error){
+        close(write_fd);
+        done(error);
+    };
+
+    int read_fd;
+    if (!rsvc_open(options->file, O_RDONLY, 0644, &read_fd, done)) {
         return;
     }
-    char* new_path = change_extension(options->file, options->encode.format->extension);
+    __block bool got_metadata = false;
+    rsvc_decode_metadata_f metadata = ^(int32_t bitrate, size_t samples_per_channel){
+        got_metadata = true;
+        start(true, samples_per_channel);
+    };
+    decode_file(options->file, read_fd, write_fd, metadata, ^(rsvc_error_t error){
+        close(read_fd);
+        if (!got_metadata) {
+            start(false, -1);
+        }
+        rsvc_prefix_error(options->file, error, done);
+    });
+}
+
+static void convert_write(convert_options_t options, size_t samples_per_channel, int read_fd,
+                          rsvc_done_t done) {
     done = ^(rsvc_error_t error){
-        free(new_path);
         close(read_fd);
         done(error);
     };
 
-    if (!rsvc_pipe(&read_pipe, &write_pipe, done)) {
+    int write_fd;
+    char* new_path = change_extension(options->file, options->encode.format->extension);
+    if (!rsvc_open(new_path, O_RDWR | O_CREAT | O_EXCL, 0644, &write_fd, done)) {
+        return;
+    }
+    done = ^(rsvc_error_t error){
+        close(write_fd);
+        rsvc_prefix_error(new_path, error, done);
+        free(new_path);
+    };
+
+    encode_file(&options->encode, read_fd, write_fd, new_path, samples_per_channel,
+                ^(rsvc_error_t error){
+        if (error) {
+            done(error);
+        } else {
+            copy_tags(options->file, read_fd, new_path, write_fd, done);
+        }
+    });
+}
+
+static void rsvc_command_convert(convert_options_t options, void (^usage)(),
+                                 rsvc_done_t done) {
+    int read_pipe, write_pipe;
+    if (!(validate_convert_options(options, usage, done)
+          && rsvc_pipe(&read_pipe, &write_pipe, done))) {
         return;
     }
 
-    __block bool got_metadata = false;
     rsvc_group_t group = rsvc_group_create(done);
-    rsvc_done_t read_done = rsvc_group_add(group);
-    read_done = ^(rsvc_error_t error){
-        close(write_pipe);
-        if (!got_metadata) {
+    convert_read(options, write_pipe, rsvc_group_add(group),
+                 ^(bool ok, size_t samples_per_channel){
+        if (ok) {
+            convert_write(options, samples_per_channel, read_pipe, rsvc_group_add(group));
+        } else {
             close(read_pipe);
         }
-        rsvc_prefix_error(options->file, error, read_done);
-    };
+    });
     rsvc_group_ready(group);
-
-    rsvc_decode_metadata_f start = ^(int32_t bitrate, size_t samples_per_channel){
-        got_metadata = true;
-        rsvc_done_t write_done = rsvc_group_add(group);
-        write_done = ^(rsvc_error_t error){
-            close(read_pipe);
-            write_done(error);
-        };
-        int write_fd;
-        if (!rsvc_open(new_path, O_RDWR | O_CREAT | O_EXCL, 0644, &write_fd, write_done)) {
-            return;
-        }
-        write_done = ^(rsvc_error_t error){
-            close(write_fd);
-            write_done(error);
-        };
-        encode_file(&options->encode, read_pipe, write_fd, new_path, samples_per_channel,
-                    ^(rsvc_error_t error){
-            if (error) {
-                rsvc_prefix_error(new_path, error, write_done);
-                return;
-            }
-            copy_tags(options->file, read_fd, new_path, write_fd, write_done);
-        });
-    };
-
-    decode_file(options->file, read_fd, write_pipe, start, read_done);
 }
 
 static bool multiply_safe(int64_t* value, int64_t by) {
