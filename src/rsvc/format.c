@@ -18,6 +18,9 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
+#define _BSD_SOURCE
+#define _POSIX_C_SOURCE 200809L
+
 #include <rsvc/format.h>
 
 #include <stdarg.h>
@@ -154,7 +157,7 @@ bool rsvc_format_detect(const char* path, int fd, int flags,
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
     }
-    if (st.st_mode & S_IFDIR) {
+    if (S_ISDIR(st.st_mode)) {
         rsvc_errorf(fail, __FILE__, __LINE__, "is a directory");
         return false;
     }
