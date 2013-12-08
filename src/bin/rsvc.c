@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/param.h>
 #include <sysexits.h>
 #include <unistd.h>
 
@@ -810,7 +811,8 @@ static void encode_file(struct encode_options* opts, int read_fd, int write_fd, 
     opts->format->encode(read_fd, write_fd, &encode_options, done);
 }
 
-static char* change_extension(const char* path, const char* extension) {
+static bool change_extension(const char* path, const char* extension, char* new_path,
+                             rsvc_done_t fail) {
     const char* dot = strrchr(path, '.');
     const char* end;
     if (!dot || strchr(dot, '/')) {
@@ -818,13 +820,18 @@ static char* change_extension(const char* path, const char* extension) {
     } else {
         end = dot;
     }
-    char* new_path = malloc((end - path) + strlen(extension) + 2);
+
+    if (((end - path) + strlen(extension) + 2) >= MAXPATHLEN) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "%s: File name too long", path);
+        return false;
+    }
+
     char* p = new_path;
     memcpy(p, path, end - path);
     p += (end - path);
     *(p++) = '.';
     strcpy(p, extension);
-    return new_path;
+    return true;
 }
 
 static void copy_tags(const char* read_path, int read_fd, const char* write_path, int write_fd,
@@ -909,22 +916,35 @@ static void convert_write(convert_options_t options, size_t samples_per_channel,
     };
 
     int write_fd;
-    char* new_path = change_extension(options->file, options->encode.format->extension);
-    if (!rsvc_open(new_path, O_RDWR | O_CREAT | O_EXCL, 0644, &write_fd, done)) {
+    char new_path[MAXPATHLEN], tmp_path[MAXPATHLEN];
+    if (!(change_extension(options->file, options->encode.format->extension, new_path, done) &&
+          rsvc_temp(new_path, 0644, tmp_path, &write_fd, done))) {
         return;
     }
+
+    char* new_path_copy = strdup(new_path);
+    char* tmp_path_copy = strdup(tmp_path);
     done = ^(rsvc_error_t error){
+        free(new_path_copy);
+        free(tmp_path_copy);
         close(write_fd);
-        rsvc_prefix_error(new_path, error, done);
-        free(new_path);
+        rsvc_prefix_error(new_path_copy, error, done);
     };
 
-    encode_file(&options->encode, read_fd, write_fd, new_path, samples_per_channel,
+    encode_file(&options->encode, read_fd, write_fd, new_path_copy, samples_per_channel,
                 ^(rsvc_error_t error){
         if (error) {
             done(error);
         } else {
-            copy_tags(options->file, read_fd, new_path, write_fd, done);
+            copy_tags(options->file, read_fd, tmp_path_copy, write_fd, ^(rsvc_error_t error){
+                if (error) {
+                    done(error);
+                } else {
+                    if (rsvc_mv(tmp_path_copy, new_path_copy, done)) {
+                        done(NULL);
+                    }
+                }
+            });
         }
     });
 }
