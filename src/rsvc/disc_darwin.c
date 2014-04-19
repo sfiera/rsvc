@@ -106,7 +106,7 @@ yield_cleanup:
     CFRelease(cfpath);
 }
 
-static void start_watch(struct watch_context* watch) {
+static void start_watch(struct watch_context* watch, rsvc_stop_t stop) {
     CFMutableDictionaryRef classes = IOServiceMatching(kIOMediaClass);
     if (classes == NULL) {
         return;
@@ -125,7 +125,7 @@ static void start_watch(struct watch_context* watch) {
         IOObjectRelease(object);
     }
 
-    watch->callbacks.initialized();
+    watch->callbacks.initialized(stop);
     watch->enable = true;
 }
 
@@ -160,7 +160,7 @@ static void disappeared_callback(DADiskRef disk, void* userdata) {
     }
 }
 
-rsvc_stop_t rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
+void rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
     struct watch_context build_userdata = {
         .queue = dispatch_queue_create("net.sfiera.ripservice.disc", NULL),
         .enable = false,
@@ -203,9 +203,8 @@ rsvc_stop_t rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
     DARegisterDiskAppearedCallback(session, NULL, appeared_callback, userdata);
     DARegisterDiskDisappearedCallback(session, NULL, disappeared_callback, userdata);
     dispatch_async(userdata->queue, ^{
-        start_watch(userdata);
+        start_watch(userdata, stop);
     });
-    return stop;
 }
 
 static void da_callback(DADiskRef disk, DADissenterRef dissenter, void *userdata) {

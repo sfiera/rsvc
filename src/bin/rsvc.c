@@ -18,6 +18,8 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <Block.h>
 #include <ctype.h>
 #include <dispatch/dispatch.h>
@@ -97,7 +99,9 @@ static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done);
 static bool read_si_number(const char* in, int64_t* out);
 
 static void rsvc_main(int argc, char* const* argv) {
+#ifdef __APPLE__
     rsvc_core_audio_format_register();
+#endif
     rsvc_flac_format_register();
     rsvc_mp4_format_register();
     rsvc_vorbis_format_register();
@@ -448,19 +452,16 @@ static void rsvc_command_print(char* disk, void (^usage)(), rsvc_done_t done) {
 }
 
 static void rsvc_command_ls(void (^usage)(), rsvc_done_t done) {
-    __block rsvc_stop_t stop;
-
     rsvc_disc_watch_callbacks_t callbacks;
     callbacks.appeared = ^(rsvc_disc_type_t type, const char* path){
         printf("%s\t%s\n", path, rsvc_disc_type_name[type]);
     };
     callbacks.disappeared = ^(rsvc_disc_type_t type, const char* path){};
-    callbacks.initialized = ^{
+    callbacks.initialized = ^(rsvc_stop_t stop){
         stop();
         done(NULL);
     };
-
-    stop = rsvc_disc_watch(callbacks);
+    rsvc_disc_watch(callbacks);
 }
 
 static void rsvc_command_watch(void (^usage)(), rsvc_done_t done) {
@@ -475,7 +476,7 @@ static void rsvc_command_watch(void (^usage)(), rsvc_done_t done) {
     callbacks.disappeared = ^(rsvc_disc_type_t type, const char* path){
         printf("-\t%s\t%s\n", path, rsvc_disc_type_name[type]);
     };
-    callbacks.initialized = ^{
+    callbacks.initialized = ^(rsvc_stop_t stop){
         show = true;
     };
 

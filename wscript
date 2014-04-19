@@ -35,16 +35,25 @@ def configure(cnf):
 def build(bld):
     common(bld)
 
-    if unversioned_sys_platform() == "darwin":
-        bld.program(
-            target="ripservice/rsvc",
-            features="universal",
-            source="src/bin/rsvc.c",
-            includes="include",
-            cflags=CFLAGS,
-            use="ripservice/librsvc",
-        )
+    bld.program(
+        target="ripservice/rsvc",
+        features="universal",
+        source="src/bin/rsvc.c",
+        includes="include",
+        cflags=CFLAGS,
+        use="ripservice/librsvc",
+    )
 
+    bld.program(
+        target="ripservice/cloak",
+        features="universal",
+        source="src/bin/cloak.c",
+        includes="include",
+        cflags=CFLAGS,
+        use="ripservice/librsvc",
+    )
+
+    if unversioned_sys_platform() == "darwin":
         bld(
             rule="${SRC} %s %s ${TGT}" % (VERSION, bld.options.sdk),
             source="scripts/generate-info-plist.py",
@@ -73,15 +82,6 @@ def build(bld):
                 "ripservice/system/cocoa",
             ],
         )
-
-    bld.program(
-        target="ripservice/cloak",
-        features="universal",
-        source="src/bin/cloak.c",
-        includes="include",
-        cflags=CFLAGS,
-        use="ripservice/librsvc",
-    )
 
     bld.stlib(
         target="ripservice/librsvc",
@@ -118,9 +118,9 @@ def build(bld):
         target="ripservice/librsvc",
         platform="darwin",
         source=[
-            "src/rsvc/cd.c",
+            "src/rsvc/cd_darwin.c",
             "src/rsvc/core-audio.c",
-            "src/rsvc/disc.c",
+            "src/rsvc/disc_darwin.c",
             "src/rsvc/unix_darwin.c",
         ],
         use=[
@@ -132,7 +132,11 @@ def build(bld):
     bld.platform(
         target="ripservice/librsvc",
         platform="linux",
-        source="src/rsvc/unix_linux.c",
+        source=[
+            "src/rsvc/cd_linux.c",
+            "src/rsvc/unix_linux.c",
+            "src/rsvc/disc_linux.c",
+        ],
         use=[
             "ripservice/system/blocks",
             "ripservice/system/dispatch",
