@@ -62,7 +62,7 @@ static NSString* kDiscTypeNames[] = {
                 [_source_list reloadItem:kDiscs reloadChildren:YES];
             });
         },
-        .initialized = ^(rsvc_disc_type_t type, const char* name){
+        .initialized = ^(rsvc_stop_t stop){
         },
     };
     rsvc_disc_watch(callbacks);
