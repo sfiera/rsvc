@@ -39,6 +39,7 @@ const char* rsvc_disc_type_name[] = {
     [RSVC_DISC_TYPE_CD]     = "cd",
     [RSVC_DISC_TYPE_DVD]    = "dvd",
     [RSVC_DISC_TYPE_BD]     = "bd",
+    [RSVC_DISC_TYPE_HDDVD]  = "hddvd",
 };
 
 static bool get_type(const char* name, rsvc_disc_type_t* type) {

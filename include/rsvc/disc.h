@@ -51,6 +51,11 @@ typedef enum rsvc_disc_type {
     ///
     ///     Denotes a Blu-Ray disc.
     RSVC_DISC_TYPE_BD,
+
+    /// ..  var:: RSVC_DISC_TYPE_HDDVD
+    ///
+    ///     Denotes a HD-DVD disc.
+    RSVC_DISC_TYPE_HDDVD,
 } rsvc_disc_type_t;
 
 extern const char* rsvc_disc_type_name[];
