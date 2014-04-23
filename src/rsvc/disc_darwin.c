@@ -31,6 +31,7 @@
 #include <IOKit/storage/IOMedia.h>
 #include <sys/param.h>
 
+#include "list.h"
 #include "common.h"
 
 const char* rsvc_disc_type_name[] = {
@@ -58,18 +59,49 @@ static bool get_type(const char* name, rsvc_disc_type_t* type) {
 struct watch_context {
     dispatch_queue_t queue;
     bool enable;
-    struct watch_node* head;
     rsvc_disc_watch_callbacks_t callbacks;
+
+    struct disc_node* head;
+    struct disc_node* tail;
 };
 
-struct watch_node {
+struct disc_node {
     char* name;
     rsvc_disc_type_t type;
-    struct watch_node* next;
+    struct disc_node* prev;
+    struct disc_node* next;
 };
 
-static void yield_disc(struct watch_context* watch,
-                       io_object_t object) {
+static void send_disc(struct watch_context* watch, const char* name, rsvc_disc_type_t type) {
+    if (type == RSVC_DISC_TYPE_NONE) {
+        for (struct disc_node* node = watch->head; node; node = node->next) {
+            if (strcmp(node->name, name) == 0) {
+                watch->callbacks.disappeared(node->type, node->name);
+                RSVC_LIST_ERASE(watch, node);
+                break;
+            }
+        }
+    } else {
+        for (struct disc_node* node = watch->head; node; node = node->next) {
+            if (strcmp(node->name, name) == 0) {
+                if (node->type != type) {
+                    watch->callbacks.disappeared(node->type, node->name);
+                    node->type = type;
+                    watch->callbacks.appeared(node->type, node->name);
+                }
+                return;
+            }
+        }
+        struct disc_node node = {
+            .name = strdup(name),
+            .type = type,
+        };
+        RSVC_LIST_PUSH(watch, memdup(&node, sizeof(node)));
+        watch->callbacks.appeared(node.type, node.name);
+    }
+}
+
+static void send_io_object(struct watch_context* watch, io_object_t object) {
     io_name_t type_string;
     if (IOObjectGetClass(object, type_string) != KERN_SUCCESS) {
         return;
@@ -89,21 +121,9 @@ static void yield_disc(struct watch_context* watch,
     if (cfpath) {
         char name[MAXPATHLEN] = {};
         if (CFStringGetCString(cfpath, name, MAXPATHLEN, kCFStringEncodingUTF8)) {
-            for (struct watch_node* node = watch->head; node; node = node->next) {
-                if (strcmp(node->name, name) == 0) {
-                    goto yield_cleanup;
-                }
-            }
-            struct watch_node head = {
-                .name = strdup(name),
-                .type = type,
-                .next = watch->head,
-            };
-            watch->head = memdup(&head, sizeof(head));
-            watch->callbacks.appeared(type, name);
+            send_disc(watch, name, type);
         }
     }
-yield_cleanup:
     CFRelease(cfpath);
 }
 
@@ -122,7 +142,7 @@ static void start_watch(struct watch_context* watch, rsvc_stop_t stop) {
 
     io_object_t object;
     while ((object = IOIteratorNext(cds))) {
-        yield_disc(watch, object);
+        send_io_object(watch, object);
         IOObjectRelease(object);
     }
 
@@ -134,7 +154,7 @@ static void appeared_callback(DADiskRef disk, void* userdata) {
     struct watch_context* watch = userdata;
     if (watch->enable) {
         io_service_t object = DADiskCopyIOMedia(disk);
-        yield_disc(watch, object);
+        send_io_object(watch, object);
         IOObjectRelease(object);
     }
 }
@@ -143,21 +163,7 @@ static void disappeared_callback(DADiskRef disk, void* userdata) {
     struct watch_context* watch = userdata;
     if (watch->enable) {
         const char* name = DADiskGetBSDName(disk);
-        struct watch_node** curr = &watch->head;
-        while (*curr) {
-            struct watch_node* node = *curr;
-            if (strcmp(name, node->name) == 0) {
-                io_service_t object = DADiskCopyIOMedia(disk);
-                watch->callbacks.disappeared(node->type, node->name);
-                IOObjectRelease(object);
-
-                *curr = node->next;
-                free(node->name);
-                free(node);
-                return;
-            }
-            curr = &node->next;
-        }
+        send_disc(watch, name, RSVC_DISC_TYPE_NONE);
     }
 }
 
@@ -165,7 +171,6 @@ void rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
     struct watch_context build_userdata = {
         .queue = dispatch_queue_create("net.sfiera.ripservice.disc", NULL),
         .enable = false,
-        .head = NULL,
         .callbacks = {
             .appeared = Block_copy(callbacks.appeared),
             .disappeared = Block_copy(callbacks.disappeared),
@@ -186,12 +191,9 @@ void rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
         // we might still be awaiting initialization.  Schedule the
         // deletion for after they finish.
         dispatch_async(userdata->queue, ^{
-            while (userdata->head) {
-                struct watch_node* node = userdata->head;
-                userdata->head = node->next;
+            RSVC_LIST_CLEAR(userdata, ^(struct disc_node* node){
                 free(node->name);
-                free(node);
-            }
+            });
             Block_release(userdata->callbacks.disappeared);
             Block_release(userdata->callbacks.appeared);
             Block_release(userdata->callbacks.initialized);
