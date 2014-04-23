@@ -32,10 +32,15 @@
 ///
 /// ..  type:: enum rsvc_disc_type_t
 typedef enum rsvc_disc_type {
+    /// ..  var:: RSVC_DISC_TYPE_NONE
+    ///
+    ///     Denotes the absence of a disc.
+    RSVC_DISC_TYPE_NONE = 0,
+
     /// ..  var:: RSVC_DISC_TYPE_CD
     ///
     ///     Denotes a :abbr:`CD (Compact Disc)`.  See :doc:`cd.h`.
-    RSVC_DISC_TYPE_CD = 0,
+    RSVC_DISC_TYPE_CD,
 
     /// ..  var:: RSVC_DISC_TYPE_DVD
     ///

@@ -35,6 +35,7 @@ CF_EXPORT void CFLog(int32_t level, CFStringRef format, ...);
 #include "common.h"
 
 const char* rsvc_disc_type_name[] = {
+    [RSVC_DISC_TYPE_NONE]   = "none",
     [RSVC_DISC_TYPE_CD]     = "cd",
     [RSVC_DISC_TYPE_DVD]    = "dvd",
     [RSVC_DISC_TYPE_BD]     = "bd",
