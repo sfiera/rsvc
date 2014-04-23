@@ -30,7 +30,6 @@
 #include <IOKit/storage/IODVDMedia.h>
 #include <IOKit/storage/IOMedia.h>
 #include <sys/param.h>
-CF_EXPORT void CFLog(int32_t level, CFStringRef format, ...);
 
 #include "common.h"
 
