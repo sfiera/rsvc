@@ -160,6 +160,7 @@ void rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
 
 static void da_callback(DADiskRef disk, DADissenterRef dissenter, void *userdata) {
     rsvc_done_t done = userdata;
+    bool called_done = false;
     if (dissenter) {
         CFStringRef cfstr = DADissenterGetStatusString(dissenter);
         int status = DADissenterGetStatus(dissenter);
@@ -168,12 +169,13 @@ static void da_callback(DADiskRef disk, DADissenterRef dissenter, void *userdata
             char* str = malloc(size);
             if (CFStringGetCString(cfstr, str, size, kCFStringEncodingUTF8)) {
                 rsvc_errorf(done, __FILE__, __LINE__, "%s", str);
-            } else {
-                rsvc_errorf(done, __FILE__, __LINE__, "CFStringGetCString");
+                called_done = true;
             }
             free(str);
         }
-        rsvc_errorf(done, __FILE__, __LINE__, "DADissenterGetStatusString: %x", status);
+        if (!called_done) {
+            rsvc_errorf(done, __FILE__, __LINE__, "DADissenterGetStatusString: %x", status);
+        }
     } else {
         done(NULL);
     }
