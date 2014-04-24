@@ -88,6 +88,7 @@ def build(bld):
         features="universal",
         source=[
             "src/rsvc/common.c",
+            "src/rsvc/disc.c",
             "src/rsvc/encoding.c",
             "src/rsvc/flac.c",
             "src/rsvc/format.c",
