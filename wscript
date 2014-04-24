@@ -31,6 +31,7 @@ def configure(cnf):
     if unversioned_sys_platform() != "darwin":
         cnf.check_cc(lib="BlocksRuntime", uselib_store="ripservice/system/blocks")
         cnf.check_cc(lib="dispatch", uselib_store="ripservice/system/dispatch")
+        cnf.check_cc(lib="udev", uselib_store="ripservice/system/udev")
 
 def build(bld):
     common(bld)
@@ -141,6 +142,7 @@ def build(bld):
         use=[
             "ripservice/system/blocks",
             "ripservice/system/dispatch",
+            "ripservice/system/udev",
         ],
     )
 
