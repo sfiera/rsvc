@@ -31,12 +31,6 @@
 
 #include "common.h"
 
-const char* rsvc_disc_type_name[] = {
-    [RSVC_DISC_TYPE_CD]     = "cd",
-    [RSVC_DISC_TYPE_DVD]    = "dvd",
-    [RSVC_DISC_TYPE_BD]     = "bd",
-};
-
 void rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
     __block rsvc_stop_t stop = Block_copy(^(){
         Block_release(stop);
