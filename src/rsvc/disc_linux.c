@@ -214,6 +214,11 @@ void rsvc_disc_eject(const char* path, rsvc_done_t done) {
             rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path);
             return;
         }
+        if (ioctl(fd, CDROM_LOCKDOOR, 0) < 0) {
+            rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path);
+            close(fd);
+            return;
+        }
         if (ioctl(fd, CDROMEJECT) < 0) {
             rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path);
             close(fd);
