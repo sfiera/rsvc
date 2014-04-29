@@ -34,6 +34,7 @@
 #include <unistd.h>
 
 #include "common.h"
+#include "unix.h"
 
 struct rsvc_cd {
     dispatch_queue_t queue;
@@ -68,10 +69,9 @@ struct rsvc_cd_track {
 
 void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
     int fd;
-    if ((fd = open(path, O_RDONLY | O_NONBLOCK, 0, NULL)) < 0) {
-        rsvc_strerrorf(^(rsvc_error_t error){
-            done(NULL, error);
-        }, __FILE__, __LINE__, "%s", path);
+    if (!rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, ^(rsvc_error_t error){
+        done(NULL, error);
+    })) {
         return;
     }
 

@@ -30,6 +30,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/eventfd.h>
 #include <sys/ioctl.h>
 #include <sys/param.h>
@@ -40,8 +41,18 @@
 
 #include "common.h"
 #include "disc.h"
+#include "unix.h"
 
 struct rsvc_watch_context context;
+
+static const char* abbrev_dev(const char* devnode) {
+    const char pfx[] = "/dev/";
+    if ((memcmp(pfx, devnode, strlen(pfx)) == 0)
+        && (strchr(devnode + strlen(pfx), '/') == NULL)) {
+        return devnode + strlen(pfx);
+    }
+    return devnode;
+}
 
 static rsvc_disc_type_t profile_disc_type(int profile) {
     switch (profile) {
@@ -108,8 +119,9 @@ static rsvc_disc_type_t fd_to_disc_type(int fd) {
 }
 
 static rsvc_disc_type_t path_to_disc_type(const char* path) {
-    int fd = open(path, O_RDONLY | O_NONBLOCK);
-    if (fd < 0) {
+    int fd;
+    rsvc_done_t fail = ^(rsvc_error_t error){};
+    if (!rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, fail)) {
         return RSVC_DISC_TYPE_NONE;
     }
     rsvc_disc_type_t type = fd_to_disc_type(fd);
@@ -140,7 +152,7 @@ static void disc_watch(struct rsvc_watch_context* context, rsvc_done_t done) {
 		struct udev_device* dev = udev_device_new_from_syspath(udev, path);
         const char* devnode = udev_device_get_devnode(dev);
         rsvc_disc_type_t type = path_to_disc_type(devnode);
-        rsvc_send_disc(context, devnode, type);
+        rsvc_send_disc(context, abbrev_dev(devnode), type);
 		udev_device_unref(dev);
 	}
 	udev_enumerate_unref(enumerate);
@@ -173,7 +185,7 @@ static void disc_watch(struct rsvc_watch_context* context, rsvc_done_t done) {
                 if (dev) {
                     const char* devnode = udev_device_get_devnode(dev);
                     rsvc_disc_type_t type = path_to_disc_type(devnode);
-                    rsvc_send_disc(context, devnode, type);
+                    rsvc_send_disc(context, abbrev_dev(devnode), type);
                     udev_device_unref(dev);
                 }
             }
@@ -209,9 +221,8 @@ void rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
 void rsvc_disc_eject(const char* path, rsvc_done_t done) {
     dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
     dispatch_async(queue, ^{
-        int fd = open(path, O_RDONLY | O_NONBLOCK);
-        if (fd < 0) {
-            rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path);
+        int fd;
+        if (!rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, done)) {
             return;
         }
         if (ioctl(fd, CDROM_LOCKDOOR, 0) < 0) {

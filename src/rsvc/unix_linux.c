@@ -22,11 +22,28 @@
 
 #include "unix.h"
 
+#include <linux/limits.h>
+#include <string.h>
+#include <sys/errno.h>
 #include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include "common.h"
+
+bool rsvc_opendev(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail) {
+    if (strchr(path, '/')) {
+        return rsvc_open(path, oflag, mode, fd, fail);
+    }
+    char devpath[PATH_MAX] = "/dev/";
+    if (strlen(devpath) + strlen(path) >= PATH_MAX) {
+        errno = ENAMETOOLONG;
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
+        return false;
+    }
+    strcat(devpath, path);
+    return rsvc_open(devpath, oflag, mode, fd, fail);
+}
 
 static bool rsvc_futimes(int fd, int64_t atime_sec, int64_t mtime_sec) {
     struct timeval tv[2] = {};

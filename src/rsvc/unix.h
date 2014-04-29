@@ -26,6 +26,7 @@
 #include <rsvc/common.h>
 
 bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail);
+bool rsvc_opendev(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail);
 bool rsvc_temp(const char* base, mode_t mode, char* path, int* fd, rsvc_done_t fail);
 bool rsvc_rename(const char* src, const char* dst, rsvc_done_t fail);
 bool rsvc_refile(const char* src, const char* dst, rsvc_done_t fail);
