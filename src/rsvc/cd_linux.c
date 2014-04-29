@@ -167,7 +167,6 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
         memcpy(&cd->sessions[0], &build_session, sizeof(build_session));
 
         // Calculate the discid for MusicBrainz.
-        /*
         for (size_t i = 0; i < cd->nsessions; ++i) {
             rsvc_cd_session_t session = &cd->sessions[i];
             int offsets[101] = {};
@@ -182,10 +181,9 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
                 rsvc_errorf(^(rsvc_error_t error){
                     done(NULL, error);
                 }, __FILE__, __LINE__, "%s: discid failure", cd->path);
-                goto create_cleanup;
+                return;
             }
         }
-        */
 
         done(cd, NULL);
     });
@@ -301,7 +299,56 @@ void rsvc_cd_track_isrc(rsvc_cd_track_t track, void (^done)(const char* isrc)) {
     done(NULL);
 }
 
+static bool read_sector(rsvc_cd_t cd, int out, size_t frame, rsvc_done_t fail) {
+    unsigned char buffer[CD_FRAMESIZE_RAW] = {};
+    struct cdrom_read_audio read_audio = {
+        .addr_format = CDROM_LBA,
+        .addr = {
+            .lba = frame,
+        },
+        .nframes = 1,
+        .buf = buffer,
+    };
+
+    if (ioctl(cd->fd, CDROMREADAUDIO, &read_audio) != 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", cd->path);
+        return false;
+    }
+
+    unsigned char* p = buffer;
+    size_t to_write = CD_FRAMESIZE_RAW;
+    while (to_write) {
+        ssize_t written = write(out, p, to_write);
+        if (written <= 0) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", cd->path);
+            return false;
+        } else if (written == 0) {
+            // TODO(sfiera): 0 is not an error, but we must break early.
+            rsvc_errorf(fail, __FILE__, __LINE__, "pipe closed");
+            return false;
+        } else {
+            p += written;
+            to_write -= written;
+        }
+    }
+    return true;
+}
+
 rsvc_stop_t rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done) {
-    rsvc_errorf(done, __FILE__, __LINE__, "unimplemented");
-    return NULL;
+    __block bool stopped = false;
+    rsvc_stop_t stop = ^{
+        stopped = true;
+    };
+
+    dispatch_async(track->cd->queue, ^{
+        for (size_t sector = track->sector_begin; sector != track->sector_end; ++sector) {
+            if (stopped) {
+                rsvc_errorf(done, __FILE__, __LINE__, "cancelled");
+                return;
+            } else if (!read_sector(track->cd, fd, sector, done)) {
+                return;
+            }
+        }
+    });
+    return Block_copy(stop);  // TODO(sfiera): no leak
 }
