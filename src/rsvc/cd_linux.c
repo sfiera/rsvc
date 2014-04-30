@@ -292,7 +292,7 @@ size_t rsvc_cd_track_nsectors(rsvc_cd_track_t track) {
 }
 
 size_t rsvc_cd_track_nsamples(rsvc_cd_track_t track) {
-    return rsvc_cd_track_nsectors(track) * 2536 / 4;
+    return rsvc_cd_track_nsectors(track) * CD_FRAMESIZE_RAW / 4;
 }
 
 void rsvc_cd_track_isrc(rsvc_cd_track_t track, void (^done)(const char* isrc)) {
@@ -355,5 +355,6 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_cancel_t cancel, rsvc
                 return;
             }
         }
+        done(NULL);
     });
 }
