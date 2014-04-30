@@ -18,8 +18,8 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#ifndef SRC_RSVC_CANCEL_H_
-#define SRC_RSVC_CANCEL_H_
+#ifndef RSVC_CANCEL_H_
+#define RSVC_CANCEL_H_
 
 #include "common.h"
 

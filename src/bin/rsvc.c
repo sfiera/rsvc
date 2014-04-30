@@ -35,6 +35,7 @@
 #include <sysexits.h>
 #include <unistd.h>
 
+#include <rsvc/cancel.h>
 #include <rsvc/cd.h>
 #include <rsvc/core-audio.h>
 #include <rsvc/disc.h>
@@ -45,7 +46,6 @@
 #include <rsvc/tag.h>
 #include <rsvc/vorbis.h>
 
-#include "../rsvc/cancel.h"
 #include "../rsvc/group.h"
 #include "../rsvc/list.h"
 #include "../rsvc/options.h"
@@ -638,13 +638,10 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
 
             // Rip the current track.  If that fails, bail.  If it succeeds,
             // start ripping the next track.
-            __block rsvc_cancel_handle_t cancel_handle;
-            rsvc_stop_t stop = rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
-                rsvc_cancel_remove(&rsvc_sigint, cancel_handle);
+            rsvc_cd_track_rip(track, write_pipe, &rsvc_sigint, ^(rsvc_error_t error){
                 close(write_pipe);
                 decode_done(error);
             });
-            cancel_handle = rsvc_cancel_add(&rsvc_sigint, stop);
 
             // Encode the current track.
             rsvc_progress_node_t node = rsvc_progress_start(progress, path);

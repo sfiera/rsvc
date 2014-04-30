@@ -334,11 +334,17 @@ static bool read_sector(rsvc_cd_t cd, int out, size_t frame, rsvc_done_t fail) {
     return true;
 }
 
-rsvc_stop_t rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done) {
+void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_cancel_t cancel, rsvc_done_t done) {
     __block bool stopped = false;
-    rsvc_stop_t stop = ^{
-        stopped = true;
-    };
+    if (cancel) {
+        rsvc_cancel_handle_t cancel_handle = rsvc_cancel_add(cancel, ^{
+            stopped = true;
+        });
+        done = ^(rsvc_error_t error){
+            rsvc_cancel_remove(cancel, cancel_handle);
+            done(error);
+        };
+    }
 
     dispatch_async(track->cd->queue, ^{
         for (size_t sector = track->sector_begin; sector != track->sector_end; ++sector) {
@@ -350,5 +356,4 @@ rsvc_stop_t rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done) {
             }
         }
     });
-    return Block_copy(stop);  // TODO(sfiera): no leak
 }

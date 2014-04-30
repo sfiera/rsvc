@@ -23,6 +23,7 @@
 
 #include <stdlib.h>
 #include <rsvc/common.h>
+#include <rsvc/cancel.h>
 
 typedef struct rsvc_cd* rsvc_cd_t;
 typedef struct rsvc_cd_session* rsvc_cd_session_t;
@@ -237,6 +238,7 @@ void                    rsvc_cd_track_isrc(rsvc_cd_track_t track,
 ///     :returns:       A block that can be invoked to cancel the rip. 
 ///                     Must not be called after the :type:`rsvc_cd_t`
 ///                     containing `track` is destroyed.
-rsvc_stop_t             rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done);
+void                    rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_cancel_t cancel,
+                                          rsvc_done_t done);
 
 #endif  // RSVC_CD_H_
