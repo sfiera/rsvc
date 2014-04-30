@@ -21,46 +21,29 @@
 #include "group.h"
 
 #include <Block.h>
+#include <stdio.h>
 
 #include "common.h"
 #include "list.h"
-
-typedef struct rsvc_group_cancel_node* rsvc_group_cancel_node_t;
-struct rsvc_group_cancel_node {
-    void (^cancel)();
-    rsvc_group_cancel_node_t prev, next;
-};
-
-typedef struct rsvc_group_cancel_list* rsvc_group_cancel_list_t;
-struct rsvc_group_cancel_list {
-    rsvc_group_cancel_node_t head, tail;
-};
 
 struct rsvc_group {
     dispatch_queue_t queue;
     size_t pending;
     rsvc_error_t final_error;
     rsvc_done_t done;
-    struct rsvc_group_cancel_list on_cancel_list;
 };
 
 rsvc_group_t rsvc_group_create(rsvc_done_t done) {
     dispatch_queue_t queue = dispatch_queue_create("org.rsvc.group", NULL);
-    struct rsvc_group initializer = {queue, 1};
-    rsvc_group_t group = memdup(&initializer, sizeof(initializer));
-    rsvc_done_t group_done = ^(rsvc_error_t error){
-        done(group->final_error);
-        rsvc_error_destroy(group->final_error);
-        Block_release(group->done);
+    struct rsvc_group initializer = {
+        .queue = queue,
+        .pending = 1,
+        .done = Block_copy(done),
     };
-    group->done = Block_copy(group_done);
-    return group;
+    return memdup(&initializer, sizeof(initializer));
 }
 
 static void finalize(rsvc_group_t group) {
-    RSVC_LIST_CLEAR(&group->on_cancel_list, ^(rsvc_group_cancel_node_t node){
-        Block_release(node->cancel);
-    });
     group->done(group->final_error);
     Block_release(group->done);
     rsvc_error_destroy(group->final_error);
@@ -72,10 +55,6 @@ static void adopt_error(rsvc_group_t group, rsvc_error_t error) {
         rsvc_error_destroy(error);
     } else {
         group->final_error = error;
-        RSVC_LIST_CLEAR(&group->on_cancel_list, ^(rsvc_group_cancel_node_t node){
-            node->cancel();
-            Block_release(node->cancel);
-        });
     }
 }
 
@@ -104,23 +83,5 @@ void rsvc_group_ready(rsvc_group_t group) {
         if (--group->pending == 0) {
             finalize(group);
         }
-    });
-}
-
-void rsvc_group_on_cancel(rsvc_group_t group, rsvc_stop_t stop) {
-    dispatch_async(group->queue, ^{
-        if (group->final_error) {
-            stop();
-        } else {
-            struct rsvc_group_cancel_node node = {Block_copy(stop)};
-            RSVC_LIST_PUSH(&group->on_cancel_list, memdup(&node, sizeof(node)));
-        }
-    });
-}
-
-void rsvc_group_cancel(rsvc_group_t group, rsvc_error_t error) {
-    error = rsvc_error_clone(error);
-    dispatch_async(group->queue, ^{
-        adopt_error(group, error);
     });
 }

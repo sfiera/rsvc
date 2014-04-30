@@ -88,6 +88,7 @@ def build(bld):
         target="ripservice/librsvc",
         features="universal",
         source=[
+            "src/rsvc/cancel.c",
             "src/rsvc/common.c",
             "src/rsvc/disc.c",
             "src/rsvc/encoding.c",

@@ -45,7 +45,9 @@
 #include <rsvc/tag.h>
 #include <rsvc/vorbis.h>
 
+#include "../rsvc/cancel.h"
 #include "../rsvc/group.h"
+#include "../rsvc/list.h"
 #include "../rsvc/options.h"
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
@@ -571,45 +573,6 @@ static void rsvc_command_rip(rip_options_t options, void (^usage)(), rsvc_done_t
     });
 }
 
-static dispatch_source_t    sigint_source       = NULL;
-static bool                 sigint_received     = false;
-static rsvc_stop_t          sigint_callback     = NULL;
-
-static void set_sigint_callback(rsvc_stop_t stop) {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        if (sigint_received) {
-            stop();
-        } else {
-            if (sigint_callback) {
-                Block_release(sigint_callback);
-            } else if (stop) {
-                if (!sigint_source) {
-                    sigint_source = dispatch_source_create(
-                        DISPATCH_SOURCE_TYPE_SIGNAL, SIGINT, 0, dispatch_get_main_queue());
-                    dispatch_source_set_event_handler(sigint_source, ^{
-                        sigint_received = true;
-                        if (sigint_callback) {
-                            sigint_callback();
-                        }
-                        Block_release(sigint_callback);
-                        sigint_callback = NULL;
-                    });
-                }
-                dispatch_resume(sigint_source);
-                signal(SIGINT, SIG_IGN);
-            }
-
-            if (stop) {
-                sigint_callback = Block_copy(stop);
-            } else {
-                sigint_callback = NULL;
-                signal(SIGINT, SIG_DFL);
-                dispatch_source_cancel(sigint_source);
-            }
-        }
-    });
-}
-
 static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_t options,
                       rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_progress_t progress) {
     if (n == ntracks) {
@@ -675,10 +638,13 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
 
             // Rip the current track.  If that fails, bail.  If it succeeds,
             // start ripping the next track.
-            rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
+            __block rsvc_cancel_handle_t cancel_handle;
+            rsvc_stop_t stop = rsvc_cd_track_rip(track, write_pipe, ^(rsvc_error_t error){
+                rsvc_cancel_remove(&rsvc_sigint, cancel_handle);
                 close(write_pipe);
                 decode_done(error);
             });
+            cancel_handle = rsvc_cancel_add(&rsvc_sigint, stop);
 
             // Encode the current track.
             rsvc_progress_node_t node = rsvc_progress_start(progress, path);
@@ -725,8 +691,8 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
         }
         done(error);
     });
-    set_sigint_callback(^{
-        rsvc_group_cancel(group, NULL);
+    rsvc_cancel_add(&rsvc_sigint, ^{
+        printf("cancelled\n");
     });
 
     rip_track(0, ntracks, group, options, cd, session, progress);
