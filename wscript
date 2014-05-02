@@ -39,7 +39,15 @@ def build(bld):
     bld.program(
         target="ripservice/rsvc",
         features="universal",
-        source="src/bin/rsvc.c",
+        source=[
+            "src/bin/rsvc.c",
+            "src/bin/rsvc_convert.c",
+            "src/bin/rsvc_eject.c",
+            "src/bin/rsvc_ls.c",
+            "src/bin/rsvc_print.c",
+            "src/bin/rsvc_rip.c",
+            "src/bin/rsvc_watch.c",
+        ],
         includes="include",
         cflags=CFLAGS,
         use="ripservice/librsvc",
