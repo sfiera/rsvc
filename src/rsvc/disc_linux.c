@@ -18,6 +18,8 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <rsvc/disc.h>
 
 #include <Block.h>
@@ -219,23 +221,28 @@ void rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
 }
 
 void rsvc_disc_eject(const char* path, rsvc_done_t done) {
+    char* path_copy = strdup(path);
     dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
     dispatch_async(queue, ^{
         int fd;
-        if (!rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, done)) {
+        if (!rsvc_opendev(path_copy, O_RDONLY | O_NONBLOCK, 0, &fd, done)) {
+            free(path_copy);
             return;
         }
         if (ioctl(fd, CDROM_LOCKDOOR, 0) < 0) {
-            rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path);
+            rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path_copy);
+            free(path_copy);
             close(fd);
             return;
         }
         if (ioctl(fd, CDROMEJECT) < 0) {
-            rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path);
+            rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path_copy);
+            free(path_copy);
             close(fd);
             return;
         }
         close(fd);
+        free(path_copy);
         done(NULL);
     });
 }

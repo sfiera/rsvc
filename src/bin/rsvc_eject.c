@@ -26,9 +26,15 @@
 
 void rsvc_command_eject(char* disk, rsvc_done_t done) {
     if (disk == NULL) {
-        rsvc_usage();
-        done(NULL);
+        rsvc_default_disk(^(rsvc_error_t error, char* disk){
+            if (error) {
+                done(error);
+            } else {
+                rsvc_command_eject(disk, done);
+            }
+        });
         return;
     }
+
     rsvc_disc_eject(disk, done);
 }

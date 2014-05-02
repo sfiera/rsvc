@@ -29,6 +29,7 @@
 #include <sysexits.h>
 
 #include <rsvc/core-audio.h>
+#include <rsvc/disc.h>
 #include <rsvc/flac.h>
 #include <rsvc/mp4.h>
 #include <rsvc/vorbis.h>
@@ -65,7 +66,7 @@ static void rsvc_main(int argc, char* const* argv) {
             return false;
         },
         .usage = ^{
-            fprintf(stderr, "usage: %s print DEVICE\n", rsvc_progname);
+            fprintf(stderr, "usage: %s print [DEVICE]\n", rsvc_progname);
         },
         .run = ^(rsvc_done_t done){
             rsvc_command_print(print_disk, done);
@@ -103,7 +104,7 @@ static void rsvc_main(int argc, char* const* argv) {
             return false;
         },
         .usage = ^{
-            fprintf(stderr, "usage: %s eject DEVICE\n", rsvc_progname);
+            fprintf(stderr, "usage: %s eject [DEVICE]\n", rsvc_progname);
         },
         .run = ^(rsvc_done_t done){
             rsvc_command_eject(eject_disk, done);
@@ -144,7 +145,7 @@ static void rsvc_main(int argc, char* const* argv) {
         },
         .usage = ^{
             fprintf(stderr,
-                    "usage: %s rip [OPTIONS] DEVICE\n"
+                    "usage: %s rip [OPTIONS] [DEVICE]\n"
                     "\n"
                     "Options:\n"
                     "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
@@ -194,7 +195,7 @@ static void rsvc_main(int argc, char* const* argv) {
         },
         .usage = ^{
             fprintf(stderr,
-                    "usage: %s convert [OPTIONS] DEVICE\n"
+                    "usage: %s convert [OPTIONS] FILE\n"
                     "\n"
                     "Options:\n"
                     "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
@@ -322,11 +323,11 @@ void rsvc_usage() {
                 "usage: %s COMMAND [OPTIONS]\n"
                 "\n"
                 "Commands:\n"
-                "  print DEVICE          print CD contents\n"
+                "  print [DEVICE]        print CD contents\n"
                 "  ls                    list CDs\n"
                 "  watch                 watch for CDs\n"
-                "  eject DEVICE          eject CD\n"
-                "  rip DEVICE            rip tracks to files\n"
+                "  eject [DEVICE]        eject CD\n"
+                "  rip [DEVICE]          rip tracks to files\n"
                 "  convert FILE          convert files\n"
                 "\n"
                 "Options:\n"
@@ -336,6 +337,36 @@ void rsvc_usage() {
     }
     exit(EX_USAGE);
 };
+
+void rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk)) {
+    __block int ndisks = 0;
+    __block char* disk = NULL;
+    rsvc_disc_watch_callbacks_t callbacks;
+    callbacks.appeared = ^(rsvc_disc_type_t type, const char* path){
+        ++ndisks;
+        if (!disk) {
+            disk = strdup(path);
+        }
+    };
+    callbacks.disappeared = ^(rsvc_disc_type_t type, const char* path){};
+    callbacks.initialized = ^(rsvc_stop_t stop){
+        stop();
+        rsvc_done_t fail = ^(rsvc_error_t error){
+            done(error, NULL);
+        };
+        if (ndisks > 1) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, "%d discs available", ndisks);
+        } else if (ndisks == 0) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, "no discs available");
+        } else {
+            done(NULL, disk);
+        }
+        if (disk) {
+            free(disk);
+        }
+    };
+    rsvc_disc_watch(callbacks);
+}
 
 static bool bitrate_option(struct encode_options* encode, rsvc_option_value_t get_value,
                            rsvc_done_t fail) {

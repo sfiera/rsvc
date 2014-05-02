@@ -42,10 +42,18 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
 static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done);
 
 void rsvc_command_rip(rip_options_t options, rsvc_done_t done) {
-    if (!options->disk) {
-        rsvc_usage();
+    if (options->disk == NULL) {
+        rsvc_default_disk(^(rsvc_error_t error, char* disk){
+            if (error) {
+                done(error);
+            } else {
+                options->disk = disk;
+                rsvc_command_rip(options, done);
+            }
+        });
         return;
     }
+
     if (!validate_encode_options(&options->encode, done)) {
         return;
     }

@@ -32,10 +32,16 @@ static void print_session(rsvc_cd_t cd, size_t n);
 
 void rsvc_command_print(char* disk, rsvc_done_t done) {
     if (disk == NULL) {
-        rsvc_usage();
-        done(NULL);
+        rsvc_default_disk(^(rsvc_error_t error, char* disk){
+            if (error) {
+                done(error);
+            } else {
+                rsvc_command_print(disk, done);
+            }
+        });
         return;
     }
+
     rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
         if (error) {
             done(error);
