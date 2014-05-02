@@ -33,6 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/errno.h>
 #include <sys/param.h>
 #include <unistd.h>
 
@@ -479,12 +480,7 @@ static bool read_sync_unsafe_size(const uint8_t* data, size_t* out, rsvc_done_t 
 static bool read_id3_header(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     rsvc_logf(2, "reading ID3 header");
     uint8_t data[10];
-    ssize_t size = read(tags->fd, data, 10);
-    if (size < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
-        return false;
-    } else if (size < 10) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "unexpected end of file");
+    if (!rsvc_read(tags->path, tags->fd, data, 10, NULL, NULL, fail)) {
         return false;
     }
 
@@ -526,32 +522,27 @@ static bool read_id3_frames(rsvc_id3_tags_t tags, rsvc_done_t fail) {
         free(orig_data);
         fail(error);
     };
-    ssize_t size = read(tags->fd, data, tags->size);
-    if (size < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
-        return false;
-    } else if (size < tags->size) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "unexpected end of file");
+    if (!rsvc_read(tags->path, tags->fd, data, tags->size, NULL, NULL, fail)) {
         return false;
     }
 
-    size_t unsigned_size = size;
-    rsvc_logf(4, "%zu bytes to read", unsigned_size);
-    while (unsigned_size > 0) {
-        if ((unsigned_size < 10) || (*data == '\0')) {
+    size_t size = tags->size;
+    rsvc_logf(4, "%zu bytes to read", size);
+    while (size > 0) {
+        if ((size < 10) || (*data == '\0')) {
             break;
-        } else if (!read_id3_frame(tags, &data, &unsigned_size, fail)) {
+        } else if (!read_id3_frame(tags, &data, &size, fail)) {
             return false;
         }
-        rsvc_logf(4, "%zu bytes remain", unsigned_size);
+        rsvc_logf(4, "%zu bytes remain", size);
     }
-    while (unsigned_size > 0) {
+    while (size > 0) {
         if (*data != '\0') {
             rsvc_errorf(fail, __FILE__, __LINE__, "junk data after last ID3 tag");
             return false;
         }
         ++data;
-        --unsigned_size;
+        --size;
     }
 
     free(orig_data);
@@ -660,31 +651,24 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     // creating a new file.
     int fd;
     char tmp_path[MAXPATHLEN];
-    if (!rsvc_temp(tags->path, 0644, tmp_path, &fd, fail)) {
+    if (!(rsvc_temp(tags->path, 0644, tmp_path, &fd, fail)
+          && rsvc_write(tmp_path, fd, header, 10, NULL, NULL, fail)
+          && rsvc_write(tmp_path, fd, body, body_size, NULL, NULL, fail))) {
         return false;
     }
-    write(fd, header, 10);
-    write(fd, body, body_size);
 
     rsvc_logf(2, "copying MP3 data from %s to %s", tags->path, tmp_path);
     uint8_t buffer[4096];
     while (true) {
-        uint8_t* data = buffer;
-        ssize_t size = read(tags->fd, data, 4096);
-        if (size < 0) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        size_t size;
+        bool eof = false;
+        if (!rsvc_read(tags->path, tags->fd, buffer, 4096, &size, &eof, fail)) {
             return false;
-        } else if (size == 0) {
+        } else if (eof) {
             break;
         }
-        while (size > 0) {
-            ssize_t bytes_written = write(fd, data, size);
-            if (bytes_written <= 0) {
-                rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
-                return false;
-            }
-            data += bytes_written;
-            size -= bytes_written;
+        if (!rsvc_write(tmp_path, fd, buffer, size, NULL, NULL, fail)) {
+            return false;
         }
     }
 

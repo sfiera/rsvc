@@ -688,9 +688,6 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
         }
         done(error);
     });
-    rsvc_cancel_add(&rsvc_sigint, ^{
-        printf("cancelled\n");
-    });
 
     rip_track(0, ntracks, group, options, cd, session, progress);
 }

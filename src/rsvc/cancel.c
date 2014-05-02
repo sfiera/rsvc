@@ -18,11 +18,14 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <rsvc/cancel.h>
 
 #include <Block.h>
 #include <assert.h>
 #include <dispatch/dispatch.h>
+#include <signal.h>
 
 #include "common.h"
 #include "list.h"
@@ -58,6 +61,7 @@ static void enable_sigint() {
     });
     dispatch_resume(sigint_source);
     signal(SIGINT, SIG_IGN);
+    siginterrupt(SIGINT, 1);
 }
 
 static void disable_sigint() {

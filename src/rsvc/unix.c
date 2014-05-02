@@ -223,3 +223,83 @@ bool rsvc_pipe(int* read_pipe, int* write_pipe, rsvc_done_t fail) {
     *write_pipe = pipe_fd[1];
     return true;
 }
+
+bool rsvc_read(const char* name, int fd, void* data, size_t size,
+               size_t* size_out, bool* eof, rsvc_done_t fail) {
+    void* begin = data;
+    void* end = begin + size;
+    while (begin != end) {
+        ssize_t result = read(fd, begin, end - begin);
+        if (result > 0) {
+            begin += result;
+            if (size_out) {
+                break;
+            }
+        } else if (result == 0) {
+            if (eof) {
+                *eof = true;
+                break;
+            }
+            rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", name);
+            return false;
+        } else if (errno != EINTR) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", name);
+        }
+    }
+    if (size_out) {
+        *size_out = begin - data;
+    }
+    return true;
+}
+
+bool rsvc_cread(const char* name, int fd, void* data, size_t count, size_t size,
+                size_t* count_out, size_t* size_inout, bool* eof, rsvc_done_t fail) {
+    void* begin = data;
+    void* end = begin + (count * size);
+    if ((*size_inout > size) && (*size_inout % size)) {
+        size_t mod = *size_inout % 4;
+        size_t base = *size_inout - mod;
+        memcpy(begin, begin + base, mod);
+        begin += mod;
+    }
+
+    if (!rsvc_read(name, fd, begin, end - begin, size_inout, eof, fail)) {
+        return false;
+    } else if (*eof) {
+        size_t mod = *size_inout % size;
+        if (mod) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "%s: %zu extra bytes", name, mod);
+            return false;
+        }
+    }
+    *count_out = *size_inout / size;
+    return true;
+}
+
+bool rsvc_write(const char* name, int fd, const void* data, size_t size,
+                size_t* size_out, bool* eof, rsvc_done_t fail) {
+    const void* begin = data;
+    const void* end = begin + size;
+    while (begin != end) {
+        ssize_t result = write(fd, begin, end - begin);
+        if (result > 0) {
+            begin += result;
+            if (size_out) {
+                break;
+            }
+        } else if (result == 0) {
+            if (eof) {
+                *eof = true;
+                break;
+            }
+            rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", name);
+            return false;
+        } else if (errno != EINTR) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", name);
+        }
+    }
+    if (size_out) {
+        *size_out = begin - data;
+    }
+    return true;
+}

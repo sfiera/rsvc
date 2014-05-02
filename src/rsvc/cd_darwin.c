@@ -353,21 +353,13 @@ static void read_range(
     }
 
     // TODO(sfiera): swap on big-endian, I guess.
-    size_t written = 0;
-    size_t remaining = cd_read.bufferLength;
-    while (remaining > 0) {
-        int result = write(fd, buffer + written, remaining);
-        if (result < 0) {
-            rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
-            return;
-        } else if (result == 0) {
-            // TODO(sfiera): 0 is not an error, but we must break early.
-            rsvc_errorf(done, __FILE__, __LINE__, "pipe closed");
-            return;
-        } else {
-            written += result;
-            remaining -= result;
-        }
+    bool eof = false;
+    if (!rsvc_write("pipe", fd, buffer, cd_read.bufferLength, NULL, &eof, done)) {
+        return;
+    } else if (eof) {
+        // TODO(sfiera): EOF is not an error, but we must break early.
+        rsvc_errorf(done, __FILE__, __LINE__, "pipe closed");
+        return;
     }
 
     begin += cd_read.bufferLength;

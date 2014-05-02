@@ -28,6 +28,7 @@
 #include <linux/cdrom.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/errno.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -315,21 +316,13 @@ static bool read_sector(rsvc_cd_t cd, int out, size_t frame, rsvc_done_t fail) {
         return false;
     }
 
-    unsigned char* p = buffer;
-    size_t to_write = CD_FRAMESIZE_RAW;
-    while (to_write) {
-        ssize_t written = write(out, p, to_write);
-        if (written <= 0) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", cd->path);
-            return false;
-        } else if (written == 0) {
-            // TODO(sfiera): 0 is not an error, but we must break early.
-            rsvc_errorf(fail, __FILE__, __LINE__, "pipe closed");
-            return false;
-        } else {
-            p += written;
-            to_write -= written;
-        }
+    bool eof = false;
+    if (!rsvc_write("pipe", out, buffer, CD_FRAMESIZE_RAW, NULL, &eof, fail)) {
+        return false;
+    } else if (eof) {
+        // TODO(sfiera): 0 is not an error, but we must break early.
+        rsvc_errorf(fail, __FILE__, __LINE__, "pipe closed");
+        return false;
     }
     return true;
 }

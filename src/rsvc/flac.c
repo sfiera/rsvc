@@ -32,11 +32,13 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/errno.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include "common.h"
+#include "unix.h"
 
 typedef FLAC__StreamEncoderWriteStatus write_encode_status_t;
 typedef FLAC__StreamEncoderSeekStatus seek_encode_status_t;
@@ -171,42 +173,31 @@ void rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
             return;
         }
 
-        size_t start = 0;
-        static const int kSamples = 4096;
-        uint8_t buffer[kSamples];
-        while (true) {
-            ssize_t result = read(src_fd, buffer + start, sizeof(buffer) - start);
-            if (result < 0) {
-                cleanup();
-                rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
+        static const int kSamples = 2048;
+        int16_t buffer[kSamples * 2];
+        size_t size_inout = 0;
+        bool eof = false;
+        while (!eof) {
+            size_t nsamples;
+            if (!rsvc_cread("pipe", src_fd, buffer, kSamples, 2 * sizeof(int16_t),
+                            &nsamples, &size_inout, &eof, done)) {
                 return;
-            } else if (result == 0) {
-                break;
-            }
-
-            result += start;
-            size_t remainder = result % 4;
-            result -= remainder;
-            size_t nsamples = result / 4;
-            samples_per_channel_read += nsamples;
-            if (result > 0) {
-                FLAC__int32 samples[2048];
+            } else if (nsamples) {
+                samples_per_channel_read += nsamples;
+                FLAC__int32 samples[kSamples * 2];
                 FLAC__int32* sp = samples;
-                int16_t* buffer16 = (int16_t*)buffer;
-                for (int16_t* p = buffer16; p < buffer16 + (nsamples * 2); ++p) {
+                for (int16_t* p = buffer; p < buffer + (nsamples * 2); ++p) {
                     *(sp++) = *p;
                 }
                 if (!FLAC__stream_encoder_process_interleaved(encoder, samples, nsamples)) {
                     FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
                     const char* message = FLAC__StreamEncoderStateString[state];
                     cleanup();
-                    rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
+                    rsvc_errorf(done, __FILE__, __LINE__, "pipe: %s", message);
                     return;
                 }
-                memcpy(buffer, buffer + result, remainder);
+                progress(samples_per_channel_read * 1.0 / samples_per_channel);
             }
-            start = remainder;
-            progress(samples_per_channel_read * 1.0 / samples_per_channel);
         }
         if (!FLAC__stream_encoder_finish(encoder)) {
             FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
@@ -440,16 +431,18 @@ static read_decode_status_t flac_decode_read(const FLAC__StreamDecoder* encoder,
                                              FLAC__byte bytes[], size_t* nbytes, void* userdata) {
     flac_decode_userdata_t u = (flac_decode_userdata_t)userdata;
     void* data = bytes;
-    ssize_t bytes_read = read(u->read_fd, data, *nbytes);
-    if (bytes_read < 0) {
-        rsvc_strerrorf(u->done, __FILE__, __LINE__, NULL);
-        u->called_done = true;
-        return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
-    } else if (bytes_read == 0) {
-        return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
-    } else {
-        *nbytes = bytes_read;
-        return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
+    while (true) {
+        ssize_t bytes_read = read(u->read_fd, data, *nbytes);
+        if (bytes_read > 0) {
+            *nbytes = bytes_read;
+            return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
+        } else if (bytes_read == 0) {
+            return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
+        } else if (errno != EINTR) {
+            rsvc_strerrorf(u->done, __FILE__, __LINE__, NULL);
+            u->called_done = true;
+            return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
+        }
     }
 }
 

@@ -33,6 +33,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <vorbis/vorbisenc.h>
+#include <sys/errno.h>
 #include <sys/param.h>
 
 #include "common.h"
@@ -100,40 +101,34 @@ void rsvc_vorbis_encode(
                 if (result == 0) {
                     break;
                 }
-                write(dst_fd, og.header, og.header_len);
-                write(dst_fd, og.body, og.body_len);
+                if (!(rsvc_write(NULL, dst_fd, og.header, og.header_len, NULL, NULL, done) &&
+                      rsvc_write(NULL, dst_fd, og.body, og.body_len, NULL, NULL, done))) {
+                    // TODO(sfiera): cleanup?
+                    return;
+                }
             }
         }
 
         bool eos = false;
-        size_t start = 0;
-        uint8_t in[1024];
+        int16_t in[1024 * 2];
+        size_t size_inout = 0;
         while (!eos) {
-            ssize_t size = read(src_fd, in, sizeof(in));
-            if (size < 0) {
-                rsvc_strerrorf(done, __FILE__, __LINE__, "pipe");
+            bool eof = false;
+            size_t nsamples;
+            if (!rsvc_cread("pipe", src_fd, in, 1024, 2 * sizeof(int16_t),
+                            &nsamples, &size_inout, &eof, done)) {
                 return;
-            } else if (size == 0) {
-                vorbis_analysis_wrote(&vd, 0);
-            } else {
-                size += start;
-                size_t remainder = size % 4;
-                size -= remainder;
-                size_t nsamples = size / 4;
-                start = remainder;
-                if (nsamples == 0) {
-                    continue;
-                }
+            } else if (nsamples) {
                 samples_per_channel_read += nsamples;
                 float** out = vorbis_analysis_buffer(&vd, sizeof(in));
                 float* channels[] = {out[0], out[1]};
-                int16_t* in16 = (int16_t*)in;
-                for (int16_t* p = in16; p < in16 + (nsamples * 2); p += 2) {
+                for (int16_t* p = in; p < in + (nsamples * 2); p += 2) {
                     *(channels[0]++) = p[0] / 32768.f;
                     *(channels[1]++) = p[1] / 32768.f;
                 }
-                vorbis_analysis_wrote(&vd, size / 4);
-                memcpy(in, in + size, start);
+                vorbis_analysis_wrote(&vd, nsamples);
+            } else if (eof) {
+                vorbis_analysis_wrote(&vd, 0);
             }
 
             while (vorbis_analysis_blockout(&vd, &vb) == 1) {
@@ -146,8 +141,10 @@ void rsvc_vorbis_encode(
                         if (result == 0) {
                             break;
                         }
-                        write(dst_fd, og.header, og.header_len);
-                        write(dst_fd, og.body, og.body_len);
+                        if (!(rsvc_write(NULL, dst_fd, og.header, og.header_len, NULL, NULL, done) &&
+                              rsvc_write(NULL, dst_fd, og.body, og.body_len, NULL, NULL, done))) {
+                            return;  // TODO(sfiera): cleanup?
+                        }
                         if (ogg_page_eos(&og)) {
                             eos = true;
                         }
@@ -305,13 +302,17 @@ static void rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
             if (result == 0) {
                 break;
             }
-            write(fd, og.header, og.header_len);
-            write(fd, og.body, og.body_len);
+            if (!(rsvc_write(NULL, fd, og.header, og.header_len, NULL, NULL, done) &&
+                  rsvc_write(NULL, fd, og.body, og.body_len, NULL, NULL, done))) {
+                return;  // TODO(sfiera): cleanup?
+            }
         }
 
         for (rsvc_ogg_page_node_t curr = self->pages.head; curr; curr = curr->next) {
-            write(fd, curr->page.header, curr->page.header_len);
-            write(fd, curr->page.body, curr->page.body_len);
+            if (!(rsvc_write(NULL, fd, curr->page.header, curr->page.header_len, NULL, NULL, done) &&
+                  rsvc_write(NULL, fd, curr->page.body, curr->page.body_len, NULL, NULL, done))) {
+                return;
+            }
         }
         if (rsvc_refile(tmp_path, self->path, done)) {
             done(NULL);
@@ -347,10 +348,12 @@ static struct rsvc_tags_methods vorbis_vptr = {
 static int read_ogg_page(int fd, ogg_sync_state* oy, ogg_page* og, rsvc_done_t fail) {
     while (true) {
         char* data = ogg_sync_buffer(oy, 4096);
-        ssize_t size = read(fd, data, 4096);
-        if (size < 0) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        size_t size;
+        bool eof = false;
+        if (!rsvc_read(NULL, fd, data, 4096, &size, &eof, fail)) {
             return -1;
+        } else if (eof) {
+            return 0;
         }
         ogg_sync_wrote(oy, size);
         const int status = ogg_sync_pageout(oy, og);
@@ -359,9 +362,6 @@ static int read_ogg_page(int fd, ogg_sync_state* oy, ogg_page* og, rsvc_done_t f
         } else if (status < 0) {
             rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg page");
             return status;
-        }
-        if (size == 0) {
-            return 0;
         }
     }
 }

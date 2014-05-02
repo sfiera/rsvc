@@ -43,4 +43,11 @@ void rsvc_dirname(const char* path, void (^block)(const char* parent));
 
 bool rsvc_pipe(int* read_pipe, int* write_pipe, rsvc_done_t fail);
 
+bool rsvc_read(const char* name, int fd, void* data, size_t size,
+               size_t* size_out, bool* eof, rsvc_done_t fail);
+bool rsvc_cread(const char* name, int fd, void* data, size_t count, size_t size,
+                size_t* count_out, size_t* size_inout, bool* eof, rsvc_done_t fail);
+bool rsvc_write(const char* name, int fd, const void* data, size_t size,
+                size_t* size_out, bool* eof, rsvc_done_t fail);
+
 #endif  // SRC_RSVC_POSIX_H_
