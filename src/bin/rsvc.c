@@ -38,6 +38,7 @@ const char*                 rsvc_progname;
 rsvc_option_callbacks_t     callbacks;
 rsvc_command_t              command = NULL;
 
+static void print_usage();
 static bool bitrate_option(struct encode_options* encode, rsvc_option_value_t get_value,
                            rsvc_done_t fail);
 static bool format_option(struct encode_options* encode, rsvc_option_value_t get_value,
@@ -151,6 +152,7 @@ static void rsvc_main(int argc, char* const* argv) {
                     "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
                     "  -e, --eject             eject CD after ripping\n"
                     "  -f, --format FMT        output format (default: flac or vorbis)\n"
+                    "  -h, --help              show this help page\n"
                     "  -p, --path PATH         format string for output (default %%k)\n"
                     "\n"
                     "Formats:\n",
@@ -218,9 +220,11 @@ static void rsvc_main(int argc, char* const* argv) {
         },
     };
 
-    callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_t get_value,
-                                    rsvc_done_t fail){
-        if (command) {
+    callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+        if (opt == 'h') {
+            print_usage();
+            exit(0);
+        } else if (command) {
             if (command->short_option) {
                 return command->short_option(opt, get_value, fail);
             } else {
@@ -240,9 +244,10 @@ static void rsvc_main(int argc, char* const* argv) {
         }
     };
 
-    callbacks.long_option = ^bool (char* opt, rsvc_option_value_t get_value,
-                                   rsvc_done_t fail){
-        if (command) {
+    callbacks.long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+        if (strcmp(opt, "help") == 0) {
+            return callbacks.short_option('h', get_value, fail);
+        } else if (command) {
             if (command && command->long_option) {
                 return command->long_option(opt, get_value, fail);
             } else {
@@ -315,7 +320,7 @@ static void rsvc_main(int argc, char* const* argv) {
     dispatch_main();
 }
 
-void rsvc_usage() {
+static void print_usage() {
     if (command) {
         command->usage();
     } else {
@@ -331,10 +336,15 @@ void rsvc_usage() {
                 "  convert FILE          convert files\n"
                 "\n"
                 "Options:\n"
+                "  -h, --help            show this help page\n"
                 "  -v, --verbose         more verbose logging\n"
                 "  -V, --version         show version and exit\n",
                 rsvc_progname);
     }
+}
+
+void rsvc_usage() {
+    print_usage();
     exit(EX_USAGE);
 };
 
