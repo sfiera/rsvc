@@ -300,7 +300,7 @@ void rsvc_cd_track_isrc(rsvc_cd_track_t track, void (^done)(const char* isrc)) {
     done(NULL);
 }
 
-static bool read_sector(rsvc_cd_t cd, int out, size_t frame, rsvc_done_t fail) {
+static bool read_frame(rsvc_cd_t cd, int out, size_t frame, rsvc_done_t fail) {
     unsigned char buffer[CD_FRAMESIZE_RAW] = {};
     struct cdrom_read_audio read_audio = {
         .addr_format = CDROM_LBA,
@@ -311,27 +311,44 @@ static bool read_sector(rsvc_cd_t cd, int out, size_t frame, rsvc_done_t fail) {
         .buf = buffer,
     };
 
+    bool eof = false;
     if (ioctl(cd->fd, CDROMREADAUDIO, &read_audio) != 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", cd->path);
         return false;
-    }
-
-    bool eof = false;
-    if (!rsvc_write("pipe", out, buffer, CD_FRAMESIZE_RAW, NULL, &eof, fail)) {
+    } else if (!rsvc_write("pipe", out, buffer, CD_FRAMESIZE_RAW, NULL, &eof, fail)) {
         return false;
     } else if (eof) {
         // TODO(sfiera): 0 is not an error, but we must break early.
         rsvc_errorf(fail, __FILE__, __LINE__, "pipe closed");
         return false;
+    } else {
+        return true;
     }
-    return true;
+}
+
+static void read_range(rsvc_cd_t cd, int out, size_t begin, size_t end, bool* cancelled,
+                       rsvc_done_t done) {
+    if (begin == end) {
+        done(NULL);
+        return;
+    } else if (*cancelled) {
+        rsvc_errorf(done, __FILE__, __LINE__, "cancelled");
+        return;
+    } else if (read_frame(cd, out, begin, done)) {
+        dispatch_async(cd->queue, ^{
+            read_range(cd, out, begin + 1, end, cancelled, done);
+        });
+    }
 }
 
 void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_cancel_t cancel, rsvc_done_t done) {
+    rsvc_cd_t cd = track->cd;
     __block bool stopped = false;
     if (cancel) {
         rsvc_cancel_handle_t cancel_handle = rsvc_cancel_add(cancel, ^{
-            stopped = true;
+            dispatch_async(cd->queue, ^{
+                stopped = true;
+            });
         });
         done = ^(rsvc_error_t error){
             rsvc_cancel_remove(cancel, cancel_handle);
@@ -339,15 +356,7 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_cancel_t cancel, rsvc
         };
     }
 
-    dispatch_async(track->cd->queue, ^{
-        for (size_t sector = track->sector_begin; sector != track->sector_end; ++sector) {
-            if (stopped) {
-                rsvc_errorf(done, __FILE__, __LINE__, "cancelled");
-                return;
-            } else if (!read_sector(track->cd, fd, sector, done)) {
-                return;
-            }
-        }
-        done(NULL);
+    dispatch_async(cd->queue, ^{
+        read_range(cd, fd, track->sector_begin, track->sector_end, &stopped, done);
     });
 }
