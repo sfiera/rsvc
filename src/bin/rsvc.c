@@ -177,6 +177,7 @@ static void rsvc_main(int argc, char* const* argv) {
               case 'b': return bitrate_option(&convert_options.encode, get_value, fail);
               case 'f': return format_option(&convert_options.encode, get_value, fail);
               case 'r': return rsvc_boolean_option(&convert_options.recursive);
+              case 'u': return rsvc_boolean_option(&convert_options.update);
               default:  return rsvc_illegal_short_option(opt, fail);
             }
         },
@@ -185,6 +186,7 @@ static void rsvc_main(int argc, char* const* argv) {
                 {"bitrate",     'b'},
                 {"format",      'f'},
                 {"recursive",   'r'},
+                {"update",      'u'},
                 {NULL}
             }, callbacks.short_option, opt, get_value, fail);
         },
@@ -207,6 +209,7 @@ static void rsvc_main(int argc, char* const* argv) {
                     "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
                     "  -f, --format FMT        output format (default: flac or vorbis)\n"
                     "  -r, --recursive         convert folder recursively\n"
+                    "  -u, --update            skip files that are newer than the source\n"
                     "\n"
                     "Formats:\n",
                     rsvc_progname);

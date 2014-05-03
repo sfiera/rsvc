@@ -57,20 +57,61 @@ void rsvc_command_convert(convert_options_t options, rsvc_done_t done) {
         return;
     } else if (options->recursive) {
         convert_recursive(options, progress, done);
-        return;
     } else {
         convert(options, progress, done);
     }
 }
 
 static void convert(convert_options_t options, rsvc_progress_t progress, rsvc_done_t done) {
+    // Pick the output file name.  If it was explicitly specified, use
+    // that; otherwise, generate it by changing the extension on the
+    // input file name.
+    if (!options->output) {
+        char new_path[MAXPATHLEN];
+        if (!change_extension(options->input, options->encode.format->extension, new_path, done)) {
+            return;
+        }
+        options->output = new_path;
+    }
+
+    // If the output file exists, stat it and check that it is different
+    // from the input file.  It could be the same if the user passed the
+    // same argument twice at the command-line (`rsvc convert a.flac
+    // a.flac`) or when using an implicit filename with formats that use
+    // the same extension (`rsvc convert a.m4a -falac`).
+    //
+    // Then, if --update was passed, skip if the output is newer.
+    struct stat st_input, st_output;
+    if ((stat(options->input, &st_input) == 0)
+        && (stat(options->output, &st_output) == 0)) {
+        if ((st_input.st_dev == st_output.st_dev)
+            && (st_input.st_ino == st_output.st_ino)) {
+            rsvc_errorf(done, __FILE__, __LINE__, "%s and %s are the same file",
+                        options->input, options->output);
+            return;
+        }
+        if (options->update && (st_input.st_mtime < st_output.st_mtime)) {
+            done(NULL);
+            return;
+        }
+    }
+
+    convert_options_t options_copy = memdup(options, sizeof(*options));
+    options_copy->input = strdup(options_copy->input);
+    options_copy->output = strdup(options_copy->output);
+    done = ^(rsvc_error_t error){
+        free(options_copy->output);
+        free(options_copy->input);
+        free(options_copy);
+        done(error);
+    };
+
     int read_pipe, write_pipe;
     if (!rsvc_pipe(&read_pipe, &write_pipe, done)) {
         return;
     }
 
     rsvc_group_t group = rsvc_group_create(done);
-    convert_options_t options_copy = memdup(options, sizeof(*options));
     convert_read(options_copy, write_pipe, rsvc_group_add(group),
                  ^(bool ok, size_t samples_per_channel){
         if (ok) {
@@ -96,11 +137,6 @@ static void build_path(char* out, const char* a, const char* b, const char* c) {
 }
 
 static void convert_recursive(convert_options_t options, rsvc_progress_t progress, rsvc_done_t done) {
-    if (!options->output) {
-        rsvc_errorf(done, __FILE__, __LINE__, "-r requires output path");
-        return;
-    }
-
     rsvc_group_t group = rsvc_group_create(done);
     rsvc_done_t walk_done = rsvc_group_add(group);
     dispatch_semaphore_t sema = dispatch_semaphore_create(4);
@@ -119,9 +155,10 @@ static void convert_recursive(convert_options_t options, rsvc_progress_t progres
             return false;
         }
         struct convert_options inner_options = {
-            .input = strdup(input),
-            .output = strdup(output),
+            .input = input,
+            .output = output,
             .recursive = false,
+            .update = options->update,
             .makedirs = true,
             .encode = options->encode,
         };
@@ -132,11 +169,6 @@ static void convert_recursive(convert_options_t options, rsvc_progress_t progres
         dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
         rsvc_done_t convert_done = rsvc_group_add(group);
         convert(&inner_options, progress, ^(rsvc_error_t error){
-            if (error) {
-                rsvc_logf(1, "err: %s", error->message);
-            }
-            free(inner_options.input);
-            free(inner_options.output);
             convert_done(error);
             dispatch_semaphore_signal(sema);
             dispatch_release(sema);
@@ -155,7 +187,13 @@ static bool validate_convert_options(convert_options_t options, rsvc_done_t fail
     } else if (!options->input) {
         rsvc_usage(fail);
         return false;
+    } else if (!options->output) {
+        if (options->recursive) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "-r requires output path");
+            return false;
+        }
     }
+
     return true;
 }
 
@@ -192,41 +230,9 @@ static void convert_write(convert_options_t options, size_t samples_per_channel,
         done(error);
     };
 
-    // Pick the output file name.  If it was explicitly specified, use
-    // that; otherwise, generate it by changing the extension on the
-    // input file name.
-    int write_fd;
-    char* new_path;
-    if (options->output) {
-        new_path = strdup(options->output);
-    } else {
-        if (!change_extension(options->input, options->encode.format->extension, path, done)) {
-            return;
-        }
-        new_path = strdup(path);
-    }
-    done = ^(rsvc_error_t error){
-        rsvc_prefix_error(new_path, error, done);
-        free(new_path);
-    };
-
-    // If the output file exists, stat it and check that it is different
-    // from the input file.  It could be the same if the user passed the
-    // same argument twice at the command-line (`rsvc convert a.flac
-    // a.flac`) or when using an implicit filename with formats that use
-    // the same extension (`rsvc convert a.m4a -falac`).
-    struct stat st_input, st_output;
-    if ((stat(options->input, &st_input) == 0)
-        && (stat(new_path, &st_output) == 0)
-        && (st_input.st_dev == st_output.st_dev)
-        && (st_input.st_ino == st_output.st_ino)) {
-        rsvc_errorf(done, __FILE__, __LINE__, "%s is the same file", options->input);
-        return;
-    }
-
     if (options->makedirs) {
         __block bool cancel = false;
-        rsvc_dirname(new_path, ^(const char* parent){
+        rsvc_dirname(options->output, ^(const char* parent){
             if (!rsvc_makedirs(parent, 0755, done)) {
                 cancel = true;
             }
@@ -237,11 +243,11 @@ static void convert_write(convert_options_t options, size_t samples_per_channel,
     }
 
     // Open a temporary file next to the output path.
-    char* tmp_path;
-    if (!rsvc_temp(new_path, 0644, path, &write_fd, done)) {
+    int write_fd;
+    if (!rsvc_temp(options->output, 0644, path, &write_fd, done)) {
         return;
     }
-    tmp_path = strdup(path);
+    char* tmp_path = strdup(path);
     done = ^(rsvc_error_t error){
         close(write_fd);
         free(tmp_path);
@@ -250,15 +256,15 @@ static void convert_write(convert_options_t options, size_t samples_per_channel,
 
     // Start the encoder.  When it's done, copy over tags, and then move
     // the temporary file to the final location.
-    encode_file(&options->encode, read_fd, write_fd, new_path, samples_per_channel, progress,
-                ^(rsvc_error_t error){
+    encode_file(&options->encode, read_fd, write_fd, options->output, samples_per_channel,
+                progress, ^(rsvc_error_t error){
         if (error) {
             done(error);
         } else {
             copy_tags(options->input, read_fd, tmp_path, write_fd, ^(rsvc_error_t error){
                 if (error) {
                     done(error);
-                } else if (rsvc_mv(tmp_path, new_path, done)) {
+                } else if (rsvc_mv(tmp_path, options->output, done)) {
                     done(NULL);
                 }
             });

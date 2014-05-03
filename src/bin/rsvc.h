@@ -69,6 +69,7 @@ struct convert_options {
     char* input;
     char* output;
     bool recursive;
+    bool update;
     bool makedirs;
     struct encode_options encode;
 };
