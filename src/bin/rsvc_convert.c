@@ -18,10 +18,12 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
+#define _BSD_SOURCE 200809L
 #define _POSIX_C_SOURCE 200809L
 
 #include "rsvc.h"
 
+#include <fts.h>
 #include <rsvc/tag.h>
 #include <string.h>
 #include <sys/param.h>
@@ -33,36 +35,117 @@
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
 
+static void convert(convert_options_t options, rsvc_progress_t progress, rsvc_done_t done);
+static void convert_recursive(convert_options_t options, rsvc_progress_t progress, rsvc_done_t done);
 static bool validate_convert_options(convert_options_t options, rsvc_done_t fail);
 static void convert_read(convert_options_t options, int write_fd, rsvc_done_t done,
                          void (^start)(bool ok, size_t samples_per_channel));
 static void convert_write(convert_options_t options, size_t samples_per_channel, int read_fd,
-                          rsvc_done_t done);
+                          rsvc_progress_t progress, rsvc_done_t done);
 static void decode_file(const char* path, int read_fd, int write_fd,
                         rsvc_decode_metadata_f start, rsvc_done_t done);
 static void encode_file(struct encode_options* opts, int read_fd, int write_fd, const char* path,
-                        size_t samples_per_channel, rsvc_done_t done);
+                        size_t samples_per_channel, rsvc_progress_t progress, rsvc_done_t done);
 static bool change_extension(const char* path, const char* extension, char* new_path,
                              rsvc_done_t fail);
 static void copy_tags(const char* read_path, int read_fd, const char* write_path, int write_fd,
                       rsvc_done_t done);
 
 void rsvc_command_convert(convert_options_t options, rsvc_done_t done) {
+    rsvc_progress_t progress = rsvc_progress_create();
+    if (!validate_convert_options(options, done)) {
+        return;
+    } else if (options->recursive) {
+        convert_recursive(options, progress, done);
+        return;
+    } else {
+        convert(options, progress, done);
+    }
+}
+
+static void convert(convert_options_t options, rsvc_progress_t progress, rsvc_done_t done) {
     int read_pipe, write_pipe;
-    if (!(validate_convert_options(options, done)
-          && rsvc_pipe(&read_pipe, &write_pipe, done))) {
+    if (!rsvc_pipe(&read_pipe, &write_pipe, done)) {
         return;
     }
 
     rsvc_group_t group = rsvc_group_create(done);
-    convert_read(options, write_pipe, rsvc_group_add(group),
+    convert_options_t options_copy = memdup(options, sizeof(*options));
+    convert_read(options_copy, write_pipe, rsvc_group_add(group),
                  ^(bool ok, size_t samples_per_channel){
         if (ok) {
-            convert_write(options, samples_per_channel, read_pipe, rsvc_group_add(group));
+            convert_write(options_copy, samples_per_channel, read_pipe, progress, rsvc_group_add(group));
         } else {
             close(read_pipe);
         }
     });
+    rsvc_group_ready(group);
+}
+
+static void build_path(char* out, const char* a, const char* b, const char* c) {
+    out[0] = '\0';
+    strcat(out, a);
+    if (b) {
+        strcat(out, "/");
+        strcat(out, b);
+    }
+    if (c) {
+        strcat(out, "/");
+        strcat(out, c);
+    }
+}
+
+static void convert_recursive(convert_options_t options, rsvc_progress_t progress, rsvc_done_t done) {
+    if (!options->output) {
+        rsvc_errorf(done, __FILE__, __LINE__, "-r requires output path");
+        return;
+    }
+
+    rsvc_group_t group = rsvc_group_create(done);
+    rsvc_done_t walk_done = rsvc_group_add(group);
+    dispatch_semaphore_t sema = dispatch_semaphore_create(4);
+
+    if (rsvc_walk(options->input, FTS_NOCHDIR, walk_done,
+                  ^bool(unsigned short info, const char* dirname, const char* basename,
+                        struct stat* st, rsvc_done_t fail){
+        if (info != FTS_F) {
+            return true;
+        }
+
+        char input[MAXPATHLEN], output[MAXPATHLEN];
+        build_path(input, options->input, dirname, basename);
+        build_path(output, options->output, dirname, basename);
+        if (!change_extension(output, options->encode.format->extension, output, fail)) {
+            return false;
+        }
+        struct convert_options inner_options = {
+            .input = strdup(input),
+            .output = strdup(output),
+            .recursive = false,
+            .makedirs = true,
+            .encode = options->encode,
+        };
+        rsvc_logf(2, "- %s", inner_options.input);
+        rsvc_logf(2, "+ %s", inner_options.output);
+
+        dispatch_retain(sema);
+        dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+        rsvc_done_t convert_done = rsvc_group_add(group);
+        convert(&inner_options, progress, ^(rsvc_error_t error){
+            if (error) {
+                rsvc_logf(1, "err: %s", error->message);
+            }
+            free(inner_options.input);
+            free(inner_options.output);
+            convert_done(error);
+            dispatch_semaphore_signal(sema);
+            dispatch_release(sema);
+        });
+        return true;
+    })) {
+        walk_done(NULL);
+    }
+    dispatch_release(sema);
     rsvc_group_ready(group);
 }
 
@@ -102,7 +185,7 @@ static void convert_read(convert_options_t options, int write_fd, rsvc_done_t do
 }
 
 static void convert_write(convert_options_t options, size_t samples_per_channel, int read_fd,
-                          rsvc_done_t done) {
+                          rsvc_progress_t progress, rsvc_done_t done) {
     char path[MAXPATHLEN];
     done = ^(rsvc_error_t error){
         close(read_fd);
@@ -141,6 +224,18 @@ static void convert_write(convert_options_t options, size_t samples_per_channel,
         return;
     }
 
+    if (options->makedirs) {
+        __block bool cancel = false;
+        rsvc_dirname(new_path, ^(const char* parent){
+            if (!rsvc_makedirs(parent, 0755, done)) {
+                cancel = true;
+            }
+        });
+        if (cancel) {
+            return;
+        }
+    }
+
     // Open a temporary file next to the output path.
     char* tmp_path;
     if (!rsvc_temp(new_path, 0644, path, &write_fd, done)) {
@@ -155,7 +250,7 @@ static void convert_write(convert_options_t options, size_t samples_per_channel,
 
     // Start the encoder.  When it's done, copy over tags, and then move
     // the temporary file to the final location.
-    encode_file(&options->encode, read_fd, write_fd, new_path, samples_per_channel,
+    encode_file(&options->encode, read_fd, write_fd, new_path, samples_per_channel, progress,
                 ^(rsvc_error_t error){
         if (error) {
             done(error);
@@ -181,8 +276,7 @@ static void decode_file(const char* path, int read_fd, int write_fd,
 }
 
 static void encode_file(struct encode_options* opts, int read_fd, int write_fd, const char* path,
-                        size_t samples_per_channel, rsvc_done_t done) {
-    rsvc_progress_t progress = rsvc_progress_create();
+                        size_t samples_per_channel, rsvc_progress_t progress, rsvc_done_t done) {
     rsvc_progress_node_t node = rsvc_progress_start(progress, path);
     struct rsvc_encode_options encode_options = {
         .bitrate                = opts->bitrate,
@@ -191,7 +285,10 @@ static void encode_file(struct encode_options* opts, int read_fd, int write_fd, 
             rsvc_progress_update(node, fraction);
         },
     };
-    opts->format->encode(read_fd, write_fd, &encode_options, done);
+    opts->format->encode(read_fd, write_fd, &encode_options, ^(rsvc_error_t error){
+        rsvc_progress_done(node);
+        done(error);
+    });
 }
 
 static bool change_extension(const char* path, const char* extension, char* new_path,
@@ -210,7 +307,9 @@ static bool change_extension(const char* path, const char* extension, char* new_
     }
 
     char* p = new_path;
-    memcpy(p, path, end - path);
+    if (new_path != path) {
+        memcpy(p, path, end - path);
+    }
     p += (end - path);
     *(p++) = '.';
     strcpy(p, extension);

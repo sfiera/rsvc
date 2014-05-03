@@ -176,13 +176,15 @@ static void rsvc_main(int argc, char* const* argv) {
             switch (opt) {
               case 'b': return bitrate_option(&convert_options.encode, get_value, fail);
               case 'f': return format_option(&convert_options.encode, get_value, fail);
+              case 'r': return rsvc_boolean_option(&convert_options.recursive);
               default:  return rsvc_illegal_short_option(opt, fail);
             }
         },
         .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
             return rsvc_long_option((rsvc_long_option_names){
-                {"bitrate",  'b'},
-                {"format",   'f'},
+                {"bitrate",     'b'},
+                {"format",      'f'},
+                {"recursive",   'r'},
                 {NULL}
             }, callbacks.short_option, opt, get_value, fail);
         },
@@ -204,6 +206,7 @@ static void rsvc_main(int argc, char* const* argv) {
                     "Options:\n"
                     "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
                     "  -f, --format FMT        output format (default: flac or vorbis)\n"
+                    "  -r, --recursive         convert folder recursively\n"
                     "\n"
                     "Formats:\n",
                     rsvc_progname);
@@ -309,13 +312,15 @@ static void rsvc_main(int argc, char* const* argv) {
         exit(rsvc_exit);
     };
 
-    if (!rsvc_options(argc, argv, &callbacks, done)) {
-        // pass
-    } else if (!command) {
-        rsvc_usage(done);
-    } else {
-        command->run(done);
-    }
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        if (!rsvc_options(argc, argv, &callbacks, done)) {
+            // pass
+        } else if (!command) {
+            rsvc_usage(done);
+        } else {
+            command->run(done);
+        }
+    });
 
     dispatch_main();
 }

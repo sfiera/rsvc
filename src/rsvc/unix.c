@@ -25,13 +25,15 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <fts.h>
 #include <rsvc/common.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
 #include <sys/param.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail) {
@@ -153,6 +155,52 @@ bool rsvc_rmdir(const char* path, rsvc_done_t fail) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
         return false;
     }
+    return true;
+}
+
+static int compare_names(const FTSENT** x, const FTSENT** y) {
+    return strcmp((*x)->fts_name, (*y)->fts_name);
+}
+
+bool rsvc_walk(char* path, int options, rsvc_done_t fail,
+               bool (^callback)(unsigned short info, const char* dirname, const char* basename,
+                                struct stat* st, rsvc_done_t fail)) {
+    char* const path_argv[] = {path, NULL};
+    const int pathlen = strlen(path);
+    FTS* fts = fts_open(path_argv, options, compare_names);
+    if (!fts) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
+        return false;
+    }
+    FTSENT* ftsent;
+    while ((ftsent = fts_read(fts))) {
+        char path[MAXPATHLEN];
+        const char* dirname = NULL;
+        const char* basename = NULL;
+        if (ftsent->fts_level > 0) {
+            basename = ftsent->fts_name;
+        }
+        if (ftsent->fts_level > 1) {
+            int size = ftsent->fts_parent->fts_pathlen - pathlen;
+            const char* data = ftsent->fts_path + pathlen;
+            int slashes = strspn(data, "/");
+            size -= slashes;
+            data += slashes;
+            memcpy(path, data, size);
+            path[size] = '\0';
+            dirname = path;
+        }
+
+        rsvc_logf(3, "rsvc_walk: %hu %s %s", ftsent->fts_info, dirname, basename);
+        if (!callback(ftsent->fts_info, dirname, basename, ftsent->fts_statp, fail)) {
+            fts_close(fts);
+            return false;
+        }
+    }
+    if (errno != 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
+    }
+    fts_close(fts);
     return true;
 }
 

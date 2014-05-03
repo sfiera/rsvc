@@ -68,6 +68,8 @@ typedef struct convert_options* convert_options_t;
 struct convert_options {
     char* input;
     char* output;
+    bool recursive;
+    bool makedirs;
     struct encode_options encode;
 };
 void rsvc_command_convert(convert_options_t options, rsvc_done_t done);

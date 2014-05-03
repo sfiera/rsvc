@@ -24,6 +24,7 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <rsvc/common.h>
+#include <sys/stat.h>
 
 bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail);
 bool rsvc_opendev(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail);
@@ -33,6 +34,10 @@ bool rsvc_refile(const char* src, const char* dst, rsvc_done_t fail);
 bool rsvc_rm(const char* path, rsvc_done_t fail);
 bool rsvc_mkdir(const char* path, mode_t mode, rsvc_done_t fail);
 bool rsvc_rmdir(const char* path, rsvc_done_t fail);
+
+bool rsvc_walk(char* path, int options, rsvc_done_t fail,
+               bool (^callback)(unsigned short info, const char* dirname, const char* basename,
+                                struct stat* st, rsvc_done_t fail));
 
 bool rsvc_cp(const char* src, const char* dst, rsvc_done_t fail);
 bool rsvc_mv(const char* src, const char* dst, rsvc_done_t fail);
