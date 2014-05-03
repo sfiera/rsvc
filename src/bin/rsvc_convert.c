@@ -67,7 +67,7 @@ void rsvc_command_convert(convert_options_t options, rsvc_done_t done) {
 static bool validate_convert_options(convert_options_t options, rsvc_done_t fail) {
     if (!validate_encode_options(&options->encode, fail)) {
         return false;
-    } else if (!options->file) {
+    } else if (!options->input) {
         rsvc_usage(fail);
         return false;
     }
@@ -82,7 +82,7 @@ static void convert_read(convert_options_t options, int write_fd, rsvc_done_t do
     };
 
     int read_fd;
-    if (!rsvc_open(options->file, O_RDONLY, 0644, &read_fd, done)) {
+    if (!rsvc_open(options->input, O_RDONLY, 0644, &read_fd, done)) {
         return;
     }
     __block bool got_metadata = false;
@@ -90,12 +90,12 @@ static void convert_read(convert_options_t options, int write_fd, rsvc_done_t do
         got_metadata = true;
         start(true, samples_per_channel);
     };
-    decode_file(options->file, read_fd, write_fd, metadata, ^(rsvc_error_t error){
+    decode_file(options->input, read_fd, write_fd, metadata, ^(rsvc_error_t error){
         close(read_fd);
         if (!got_metadata) {
             start(false, -1);
         }
-        rsvc_prefix_error(options->file, error, done);
+        rsvc_prefix_error(options->input, error, done);
     });
 }
 
@@ -107,33 +107,42 @@ static void convert_write(convert_options_t options, size_t samples_per_channel,
     };
 
     int write_fd;
-    char new_path[MAXPATHLEN], tmp_path[MAXPATHLEN];
-    if (!(change_extension(options->file, options->encode.format->extension, new_path, done) &&
-          rsvc_temp(new_path, 0644, tmp_path, &write_fd, done))) {
-        return;
+    char* new_path;
+    char* tmp_path;
+    if (options->output) {
+        new_path = strdup(options->output);
+        char tmp_path_storage[MAXPATHLEN];
+        if (!rsvc_temp(new_path, 0644, tmp_path_storage, &write_fd, done)) {
+            return;
+        }
+        tmp_path = strdup(tmp_path_storage);
+    } else {
+        char new_path_storage[MAXPATHLEN], tmp_path_storage[MAXPATHLEN];
+        if (!(change_extension(options->input, options->encode.format->extension, new_path_storage, done) &&
+              rsvc_temp(new_path_storage, 0644, tmp_path_storage, &write_fd, done))) {
+            return;
+        }
+        new_path = strdup(new_path_storage);
+        tmp_path = strdup(tmp_path_storage);
     }
 
-    char* new_path_copy = strdup(new_path);
-    char* tmp_path_copy = strdup(tmp_path);
     done = ^(rsvc_error_t error){
-        free(new_path_copy);
-        free(tmp_path_copy);
+        free(new_path);
+        free(tmp_path);
         close(write_fd);
-        rsvc_prefix_error(new_path_copy, error, done);
+        rsvc_prefix_error(new_path, error, done);
     };
 
-    encode_file(&options->encode, read_fd, write_fd, new_path_copy, samples_per_channel,
+    encode_file(&options->encode, read_fd, write_fd, new_path, samples_per_channel,
                 ^(rsvc_error_t error){
         if (error) {
             done(error);
         } else {
-            copy_tags(options->file, read_fd, tmp_path_copy, write_fd, ^(rsvc_error_t error){
+            copy_tags(options->input, read_fd, tmp_path, write_fd, ^(rsvc_error_t error){
                 if (error) {
                     done(error);
-                } else {
-                    if (rsvc_mv(tmp_path_copy, new_path_copy, done)) {
-                        done(NULL);
-                    }
+                } else if (rsvc_mv(tmp_path, new_path, done)) {
+                    done(NULL);
                 }
             });
         }

@@ -187,17 +187,19 @@ static void rsvc_main(int argc, char* const* argv) {
             }, callbacks.short_option, opt, get_value, fail);
         },
         .argument = ^bool (char* arg, rsvc_done_t fail) {
-            if (!convert_options.file) {
-                convert_options.file = arg;
-                return true;
+            if (!convert_options.input) {
+                convert_options.input = arg;
+            } else if (!convert_options.output) {
+                convert_options.output = arg;
             } else {
                 rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
                 return false;
             }
+            return true;
         },
         .usage = ^{
             fprintf(stderr,
-                    "usage: %s convert [OPTIONS] FILE\n"
+                    "usage: %s convert [OPTIONS] IN [OUT]\n"
                     "\n"
                     "Options:\n"
                     "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
@@ -332,7 +334,7 @@ void rsvc_usage(rsvc_done_t done) {
                 "  watch                 watch for CDs\n"
                 "  eject [DEVICE]        eject CD\n"
                 "  rip [DEVICE]          rip tracks to files\n"
-                "  convert FILE          convert files\n"
+                "  convert IN [OUT]      convert files\n"
                 "\n"
                 "Options:\n"
                 "  -h, --help            show this help page\n"
