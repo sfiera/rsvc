@@ -98,3 +98,12 @@ void rsvc_progress_done(rsvc_progress_t item) {
         progress_show();
     });
 }
+
+void rsvc_printf(const char* format, ...) {
+    progress_hide();
+    va_list vl;
+    va_start(vl, format);
+    vprintf(format, vl);
+    va_end(vl);
+    progress_show();
+}

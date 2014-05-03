@@ -28,5 +28,6 @@ typedef struct rsvc_progress* rsvc_progress_t;
 rsvc_progress_t rsvc_progress_start(const char* name);
 void rsvc_progress_update(rsvc_progress_t item, double fraction);
 void rsvc_progress_done(rsvc_progress_t node);
+void rsvc_printf(const char* format, ...);
 
 #endif  // RSVC_PROGRESS_H_

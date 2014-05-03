@@ -277,6 +277,7 @@ static void decode_file(convert_options_t options, int read_fd, int write_fd,
     rsvc_format_t format;
     if (!rsvc_format_detect(options->input, read_fd, RSVC_FORMAT_DECODE, &format, ^(rsvc_error_t error){
         if (options->skip_unknown) {
+            rsvc_printf(" skip   %s\n", options->output);
             done(NULL);
         } else {
             done(error);
