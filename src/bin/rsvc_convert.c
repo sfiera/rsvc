@@ -23,9 +23,11 @@
 #include "rsvc.h"
 
 #include <rsvc/tag.h>
-#include <unistd.h>
-#include <sys/param.h>
 #include <string.h>
+#include <sys/param.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "../rsvc/group.h"
 #include "../rsvc/progress.h"
@@ -101,38 +103,58 @@ static void convert_read(convert_options_t options, int write_fd, rsvc_done_t do
 
 static void convert_write(convert_options_t options, size_t samples_per_channel, int read_fd,
                           rsvc_done_t done) {
+    char path[MAXPATHLEN];
     done = ^(rsvc_error_t error){
         close(read_fd);
         done(error);
     };
 
+    // Pick the output file name.  If it was explicitly specified, use
+    // that; otherwise, generate it by changing the extension on the
+    // input file name.
     int write_fd;
     char* new_path;
-    char* tmp_path;
     if (options->output) {
         new_path = strdup(options->output);
-        char tmp_path_storage[MAXPATHLEN];
-        if (!rsvc_temp(new_path, 0644, tmp_path_storage, &write_fd, done)) {
-            return;
-        }
-        tmp_path = strdup(tmp_path_storage);
     } else {
-        char new_path_storage[MAXPATHLEN], tmp_path_storage[MAXPATHLEN];
-        if (!(change_extension(options->input, options->encode.format->extension, new_path_storage, done) &&
-              rsvc_temp(new_path_storage, 0644, tmp_path_storage, &write_fd, done))) {
+        if (!change_extension(options->input, options->encode.format->extension, path, done)) {
             return;
         }
-        new_path = strdup(new_path_storage);
-        tmp_path = strdup(tmp_path_storage);
+        new_path = strdup(path);
     }
-
     done = ^(rsvc_error_t error){
-        free(new_path);
-        free(tmp_path);
-        close(write_fd);
         rsvc_prefix_error(new_path, error, done);
+        free(new_path);
     };
 
+    // If the output file exists, stat it and check that it is different
+    // from the input file.  It could be the same if the user passed the
+    // same argument twice at the command-line (`rsvc convert a.flac
+    // a.flac`) or when using an implicit filename with formats that use
+    // the same extension (`rsvc convert a.m4a -falac`).
+    struct stat st_input, st_output;
+    if ((stat(options->input, &st_input) == 0)
+        && (stat(new_path, &st_output) == 0)
+        && (st_input.st_dev == st_output.st_dev)
+        && (st_input.st_ino == st_output.st_ino)) {
+        rsvc_errorf(done, __FILE__, __LINE__, "%s is the same file", options->input);
+        return;
+    }
+
+    // Open a temporary file next to the output path.
+    char* tmp_path;
+    if (!rsvc_temp(new_path, 0644, path, &write_fd, done)) {
+        return;
+    }
+    tmp_path = strdup(path);
+    done = ^(rsvc_error_t error){
+        close(write_fd);
+        free(tmp_path);
+        done(error);
+    };
+
+    // Start the encoder.  When it's done, copy over tags, and then move
+    // the temporary file to the final location.
     encode_file(&options->encode, read_fd, write_fd, new_path, samples_per_channel,
                 ^(rsvc_error_t error){
         if (error) {
