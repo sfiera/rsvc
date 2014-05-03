@@ -42,7 +42,7 @@ static void convert_read(convert_options_t options, int write_fd, rsvc_done_t do
                          void (^start)(bool ok, size_t samples_per_channel));
 static void convert_write(convert_options_t options, size_t samples_per_channel, int read_fd,
                           rsvc_progress_t progress, rsvc_done_t done);
-static void decode_file(const char* path, int read_fd, int write_fd,
+static void decode_file(convert_options_t options, int read_fd, int write_fd,
                         rsvc_decode_metadata_f start, rsvc_done_t done);
 static void encode_file(struct encode_options* opts, int read_fd, int write_fd, const char* path,
                         size_t samples_per_channel, rsvc_progress_t progress, rsvc_done_t done);
@@ -159,6 +159,7 @@ static void convert_recursive(convert_options_t options, rsvc_progress_t progres
             .output = output,
             .recursive = false,
             .update = options->update,
+            .skip_unknown = true,
             .makedirs = true,
             .encode = options->encode,
         };
@@ -213,7 +214,7 @@ static void convert_read(convert_options_t options, int write_fd, rsvc_done_t do
         got_metadata = true;
         start(true, samples_per_channel);
     };
-    decode_file(options->input, read_fd, write_fd, metadata, ^(rsvc_error_t error){
+    decode_file(options, read_fd, write_fd, metadata, ^(rsvc_error_t error){
         close(read_fd);
         if (!got_metadata) {
             start(false, -1);
@@ -272,10 +273,16 @@ static void convert_write(convert_options_t options, size_t samples_per_channel,
     });
 }
 
-static void decode_file(const char* path, int read_fd, int write_fd,
+static void decode_file(convert_options_t options, int read_fd, int write_fd,
                         rsvc_decode_metadata_f start, rsvc_done_t done) {
     rsvc_format_t format;
-    if (!rsvc_format_detect(path, read_fd, RSVC_FORMAT_DECODE, &format, done)) {
+    if (!rsvc_format_detect(options->input, read_fd, RSVC_FORMAT_DECODE, &format, ^(rsvc_error_t error){
+        if (options->skip_unknown) {
+            done(NULL);
+        } else {
+            done(error);
+        }
+    })) {
         return;
     }
     format->decode(read_fd, write_fd, start, done);
