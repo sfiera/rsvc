@@ -37,8 +37,8 @@
 const char*                 rsvc_progname;
 rsvc_option_callbacks_t     callbacks;
 rsvc_command_t              command = NULL;
+int                         rsvc_exit = EX_OK;
 
-static void print_usage();
 static bool bitrate_option(struct encode_options* encode, rsvc_option_value_t get_value,
                            rsvc_done_t fail);
 static bool format_option(struct encode_options* encode, rsvc_option_value_t get_value,
@@ -222,7 +222,7 @@ static void rsvc_main(int argc, char* const* argv) {
 
     callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
         if (opt == 'h') {
-            print_usage();
+            rsvc_usage(^(rsvc_error_t ignore){});
             exit(0);
         } else if (command) {
             if (command->short_option) {
@@ -300,27 +300,26 @@ static void rsvc_main(int argc, char* const* argv) {
                 fprintf(stderr, "%s: %s (%s:%d)\n",
                         rsvc_progname, error->message, error->file, error->lineno);
             }
-            exit(1);
-        } else {
-            exit(EX_OK);
+            if (rsvc_exit == 0) {
+                rsvc_exit = 1;
+            }
         }
+        exit(rsvc_exit);
     };
 
     if (!rsvc_options(argc, argv, &callbacks, done)) {
-        exit(1);
-    }
-
-    if (command) {
-        command->run(done);
+        // pass
+    } else if (!command) {
+        rsvc_usage(done);
     } else {
-        rsvc_usage();
-        exit(1);
+        command->run(done);
     }
 
     dispatch_main();
 }
 
-static void print_usage() {
+void rsvc_usage(rsvc_done_t done) {
+    rsvc_exit = EX_USAGE;
     if (command) {
         command->usage();
     } else {
@@ -341,11 +340,7 @@ static void print_usage() {
                 "  -V, --version         show version and exit\n",
                 rsvc_progname);
     }
-}
-
-void rsvc_usage() {
-    print_usage();
-    exit(EX_USAGE);
+    done(NULL);
 };
 
 void rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk)) {

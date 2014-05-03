@@ -67,9 +67,8 @@ void rsvc_command_convert(convert_options_t options, rsvc_done_t done) {
 static bool validate_convert_options(convert_options_t options, rsvc_done_t fail) {
     if (!validate_encode_options(&options->encode, fail)) {
         return false;
-    }
-    if (!options->file) {
-        rsvc_usage();
+    } else if (!options->file) {
+        rsvc_usage(fail);
         return false;
     }
     return true;

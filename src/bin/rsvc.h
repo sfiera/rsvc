@@ -71,7 +71,7 @@ struct convert_options {
 };
 void rsvc_command_convert(convert_options_t options, rsvc_done_t done);
 
-void rsvc_usage();
+void rsvc_usage(rsvc_done_t done);
 void rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk));
 
 #endif  // SRC_BIN_RSVC_H_
