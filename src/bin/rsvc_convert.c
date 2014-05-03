@@ -90,6 +90,7 @@ static void convert(convert_options_t options, rsvc_done_t done) {
             return;
         }
         if (options->update && (st_input.st_mtime < st_output.st_mtime)) {
+            rsvc_printf(" skip   %s\n", options->output);
             done(NULL);
             return;
         }

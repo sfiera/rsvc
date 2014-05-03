@@ -25,12 +25,15 @@
 #include <dispatch/dispatch.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
 
 #include "common.h"
 #include "list.h"
 
 struct rsvc_progress {
     char* name;
+    int namelen;
     int percent;
     rsvc_progress_t prev, next;
 };
@@ -49,14 +52,23 @@ static void progress_hide() {
 
 // main queue only.
 static void progress_show() {
+    struct winsize sz;
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &sz) != 0) {
+        sz.ws_col = 80;
+    }
     for (rsvc_progress_t curr = progress.head; curr; curr = curr->next) {
-        printf("%4d%%   %s\n", curr->percent, curr->name);
+        if ((curr->namelen + 9) >= sz.ws_col) {
+            printf("%4d%%   ...%s\n", curr->percent, curr->name + (curr->namelen - sz.ws_col + 12));
+        } else {
+            printf("%4d%%   %s\n", curr->percent, curr->name);
+        }
     }
 }
 
 rsvc_progress_t rsvc_progress_start(const char* name) {
     struct rsvc_progress item_data = {
         .name = strdup(name),
+        .namelen = strlen(name),
         .percent = 0,
     };
     rsvc_progress_t item = memdup(&item_data, sizeof(item_data));
@@ -100,10 +112,15 @@ void rsvc_progress_done(rsvc_progress_t item) {
 }
 
 void rsvc_printf(const char* format, ...) {
-    progress_hide();
+    char* str;
     va_list vl;
     va_start(vl, format);
-    vprintf(format, vl);
+    rsvc_vasprintf(&str, format, vl);
     va_end(vl);
-    progress_show();
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        progress_hide();
+        printf("%s", str);
+        progress_show();
+        free(str);
+    });
 }
