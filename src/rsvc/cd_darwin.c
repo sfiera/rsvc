@@ -32,6 +32,8 @@
 #include <unistd.h>
 #include <util.h>
 
+#include "unix.h"
+
 struct rsvc_cd {
     dispatch_queue_t queue;
 
@@ -325,9 +327,9 @@ void rsvc_cd_track_isrc(rsvc_cd_track_t track, void (^done)(const char* isrc)) {
 }
 
 static void read_range(
-        rsvc_cd_track_t track, int fd, bool (^stopped)(),
+        rsvc_cd_track_t track, int fd, bool* stopped,
         size_t begin, size_t end, rsvc_done_t done) {
-    if (stopped()) {
+    if (*stopped) {
         rsvc_errorf(done, __FILE__, __LINE__, "cancelled");
         return;
     }
@@ -372,22 +374,25 @@ static void read_range(
     }
 }
 
-rsvc_stop_t rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done) {
+void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_cancel_t cancel, rsvc_done_t done) {
     // Ensure that the done callback does not run in cd->queue.
     done = ^(rsvc_error_t error){
         rsvc_error_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
                          error, done);
     };
 
-    __block bool is_stopped = false;
-    rsvc_stop_t stop = ^{
-        dispatch_async(track->cd->queue, ^{
-            is_stopped = true;
+    __block bool stopped = false;
+    if (cancel) {
+        rsvc_cancel_handle_t handle = rsvc_cancel_add(cancel, ^{
+            dispatch_async(track->cd->queue, ^{
+                stopped = true;
+            });
         });
-    };
-    bool (^stopped)() = ^bool{
-        return is_stopped;
-    };
+        done = ^(rsvc_error_t error){
+            rsvc_cancel_remove(cancel, handle);
+            done(error);
+        };
+    }
 
     dispatch_async(track->cd->queue, ^{
         uint16_t speed = kCDSpeedMax;
@@ -395,8 +400,6 @@ rsvc_stop_t rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done) {
 
         size_t begin = track->sector_begin * kCDSectorSizeCDDA;
         size_t end = track->sector_end * kCDSectorSizeCDDA;
-        read_range(track, fd, stopped, begin, end, done);
+        read_range(track, fd, &stopped, begin, end, done);
     });
-
-    return Block_copy(stop);
 }
