@@ -36,7 +36,7 @@
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
 static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_t options,
-                      rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_progress_t progress);
+                      rsvc_cd_t cd, rsvc_cd_session_t session);
 static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
                      void (^done)(rsvc_error_t error, rsvc_tags_t tags));
 static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done);
@@ -80,21 +80,19 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
     printf("Ripping…\n");
     rsvc_cd_session_t session = rsvc_cd_session(cd, 0);
     const size_t ntracks = rsvc_cd_session_ntracks(session);
-    rsvc_progress_t progress = rsvc_progress_create();
 
     rsvc_group_t group = rsvc_group_create(^(rsvc_error_t error){
-        rsvc_progress_destroy(progress);
         if (!error) {
             printf("all rips done.\n");
         }
         done(error);
     });
 
-    rip_track(0, ntracks, group, options, cd, session, progress);
+    rip_track(0, ntracks, group, options, cd, session);
 }
 
 static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_t options,
-                      rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_progress_t progress) {
+                      rsvc_cd_t cd, rsvc_cd_session_t session) {
     if (n == ntracks) {
         rsvc_group_ready(group);
         return;
@@ -105,7 +103,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
     size_t track_number = rsvc_cd_track_number(track);
     if (rsvc_cd_track_type(track) == RSVC_CD_TRACK_DATA) {
         printf("skipping track %zu/%zu\n", track_number, ntracks);
-        rip_track(n + 1, ntracks, group, options, cd, session, progress);
+        rip_track(n + 1, ntracks, group, options, cd, session);
         return;
     }
 
@@ -116,7 +114,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             rip_done(error);
         } else {
             rip_done(error);
-            rip_track(n + 1, ntracks, group, options, cd, session, progress);
+            rip_track(n + 1, ntracks, group, options, cd, session);
         }
     };
 
@@ -164,23 +162,22 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             });
 
             // Encode the current track.
-            rsvc_progress_node_t node = rsvc_progress_start(progress, path);
+            rsvc_progress_t progress = rsvc_progress_start(path);
             size_t nsamples = rsvc_cd_track_nsamples(track);
-            void (^progress)(double) = ^(double fraction){
-                rsvc_progress_update(node, fraction);
-            };
 
             struct rsvc_encode_options encode_options = {
                 .bitrate                = options->encode.bitrate,
                 .samples_per_channel    = nsamples,
-                .progress               = progress,
+                .progress               = ^(double fraction){
+                    rsvc_progress_update(progress, fraction);
+                },
             };
             char* path_copy = strdup(path);
             encode_done = ^(rsvc_error_t error){
                 close(file);
                 close(read_pipe);
                 rsvc_tags_destroy(tags);
-                rsvc_progress_done(node);
+                rsvc_progress_done(progress);
                 free(path_copy);
                 encode_done(error);
             };

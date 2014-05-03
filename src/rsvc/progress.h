@@ -24,13 +24,9 @@
 #include <stdlib.h>
 
 typedef struct rsvc_progress* rsvc_progress_t;
-typedef struct rsvc_progress_node* rsvc_progress_node_t;
 
-rsvc_progress_t rsvc_progress_create();
-void rsvc_progress_destroy(rsvc_progress_t progress);
-
-rsvc_progress_node_t rsvc_progress_start(rsvc_progress_t progress, const char* name);
-void rsvc_progress_update(rsvc_progress_node_t node, double fraction);
-void rsvc_progress_done(rsvc_progress_node_t node);
+rsvc_progress_t rsvc_progress_start(const char* name);
+void rsvc_progress_update(rsvc_progress_t item, double fraction);
+void rsvc_progress_done(rsvc_progress_t node);
 
 #endif  // RSVC_PROGRESS_H_

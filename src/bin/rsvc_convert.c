@@ -35,34 +35,33 @@
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
 
-static void convert(convert_options_t options, rsvc_progress_t progress, rsvc_done_t done);
-static void convert_recursive(convert_options_t options, rsvc_progress_t progress, rsvc_done_t done);
+static void convert(convert_options_t options, rsvc_done_t done);
+static void convert_recursive(convert_options_t options, rsvc_done_t done);
 static bool validate_convert_options(convert_options_t options, rsvc_done_t fail);
 static void convert_read(convert_options_t options, int write_fd, rsvc_done_t done,
                          void (^start)(bool ok, size_t samples_per_channel));
 static void convert_write(convert_options_t options, size_t samples_per_channel, int read_fd,
-                          rsvc_progress_t progress, rsvc_done_t done);
+                          rsvc_done_t done);
 static void decode_file(convert_options_t options, int read_fd, int write_fd,
                         rsvc_decode_metadata_f start, rsvc_done_t done);
 static void encode_file(struct encode_options* opts, int read_fd, int write_fd, const char* path,
-                        size_t samples_per_channel, rsvc_progress_t progress, rsvc_done_t done);
+                        size_t samples_per_channel, rsvc_done_t done);
 static bool change_extension(const char* path, const char* extension, char* new_path,
                              rsvc_done_t fail);
 static void copy_tags(const char* read_path, int read_fd, const char* write_path, int write_fd,
                       rsvc_done_t done);
 
 void rsvc_command_convert(convert_options_t options, rsvc_done_t done) {
-    rsvc_progress_t progress = rsvc_progress_create();
     if (!validate_convert_options(options, done)) {
         return;
     } else if (options->recursive) {
-        convert_recursive(options, progress, done);
+        convert_recursive(options, done);
     } else {
-        convert(options, progress, done);
+        convert(options, done);
     }
 }
 
-static void convert(convert_options_t options, rsvc_progress_t progress, rsvc_done_t done) {
+static void convert(convert_options_t options, rsvc_done_t done) {
     // Pick the output file name.  If it was explicitly specified, use
     // that; otherwise, generate it by changing the extension on the
     // input file name.
@@ -115,7 +114,7 @@ static void convert(convert_options_t options, rsvc_progress_t progress, rsvc_do
     convert_read(options_copy, write_pipe, rsvc_group_add(group),
                  ^(bool ok, size_t samples_per_channel){
         if (ok) {
-            convert_write(options_copy, samples_per_channel, read_pipe, progress, rsvc_group_add(group));
+            convert_write(options_copy, samples_per_channel, read_pipe, rsvc_group_add(group));
         } else {
             close(read_pipe);
         }
@@ -136,7 +135,7 @@ static void build_path(char* out, const char* a, const char* b, const char* c) {
     }
 }
 
-static void convert_recursive(convert_options_t options, rsvc_progress_t progress, rsvc_done_t done) {
+static void convert_recursive(convert_options_t options, rsvc_done_t done) {
     rsvc_group_t group = rsvc_group_create(done);
     rsvc_done_t walk_done = rsvc_group_add(group);
     dispatch_semaphore_t sema = dispatch_semaphore_create(4);
@@ -169,7 +168,7 @@ static void convert_recursive(convert_options_t options, rsvc_progress_t progres
         dispatch_retain(sema);
         dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
         rsvc_done_t convert_done = rsvc_group_add(group);
-        convert(&inner_options, progress, ^(rsvc_error_t error){
+        convert(&inner_options, ^(rsvc_error_t error){
             convert_done(error);
             dispatch_semaphore_signal(sema);
             dispatch_release(sema);
@@ -224,7 +223,7 @@ static void convert_read(convert_options_t options, int write_fd, rsvc_done_t do
 }
 
 static void convert_write(convert_options_t options, size_t samples_per_channel, int read_fd,
-                          rsvc_progress_t progress, rsvc_done_t done) {
+                          rsvc_done_t done) {
     char path[MAXPATHLEN];
     done = ^(rsvc_error_t error){
         close(read_fd);
@@ -258,7 +257,7 @@ static void convert_write(convert_options_t options, size_t samples_per_channel,
     // Start the encoder.  When it's done, copy over tags, and then move
     // the temporary file to the final location.
     encode_file(&options->encode, read_fd, write_fd, options->output, samples_per_channel,
-                progress, ^(rsvc_error_t error){
+                ^(rsvc_error_t error){
         if (error) {
             done(error);
         } else {
@@ -289,8 +288,8 @@ static void decode_file(convert_options_t options, int read_fd, int write_fd,
 }
 
 static void encode_file(struct encode_options* opts, int read_fd, int write_fd, const char* path,
-                        size_t samples_per_channel, rsvc_progress_t progress, rsvc_done_t done) {
-    rsvc_progress_node_t node = rsvc_progress_start(progress, path);
+                        size_t samples_per_channel, rsvc_done_t done) {
+    rsvc_progress_t node = rsvc_progress_start(path);
     struct rsvc_encode_options encode_options = {
         .bitrate                = opts->bitrate,
         .samples_per_channel    = samples_per_channel,
