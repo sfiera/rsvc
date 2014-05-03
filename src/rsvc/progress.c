@@ -75,9 +75,13 @@ void rsvc_progress_update(rsvc_progress_t item, double fraction) {
         if (item->percent == percent) {
             return;
         }
-        progress_hide();
+        int line_delta = 0;
         item->percent = percent;
-        progress_show();
+        for (rsvc_progress_t curr = item; curr; curr = curr->next) {
+            line_delta++;
+        }
+        printf("\033[s\033[%dA%4d%%\033[u", line_delta, item->percent);
+        fflush(stdout);
     });
 }
 
