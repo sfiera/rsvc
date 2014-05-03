@@ -360,9 +360,9 @@ void rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk)) {
             done(error, NULL);
         };
         if (ndisks > 1) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, "%d discs available", ndisks);
+            rsvc_errorf(fail, __FILE__, __LINE__, "%d discs available", ndisks);
         } else if (ndisks == 0) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, "no discs available");
+            rsvc_errorf(fail, __FILE__, __LINE__, "no discs available");
         } else {
             done(NULL, disk);
         }
