@@ -47,6 +47,7 @@ static void finalize(rsvc_group_t group) {
     group->done(group->final_error);
     Block_release(group->done);
     rsvc_error_destroy(group->final_error);
+    dispatch_release(group->queue);
     free(group);
 }
 
