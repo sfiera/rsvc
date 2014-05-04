@@ -292,10 +292,10 @@ static void rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
 
         ogg_packet header_comm;
         vorbis_commentheader_out(&self->vc, &header_comm);
-
         ogg_stream_packetin(&os, &self->header);
         ogg_stream_packetin(&os, &header_comm);
         ogg_stream_packetin(&os, &self->header_code);
+        ogg_packet_clear(&header_comm);
 
         while (true) {
             int result = ogg_stream_flush(&os, &og);
@@ -334,6 +334,7 @@ static void rsvc_vorbis_tags_clear(rsvc_tags_t tags) {
 static void rsvc_vorbis_tags_destroy(rsvc_tags_t tags) {
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
     rsvc_vorbis_tags_clear(tags);
+    free(self->path);
     free(self);
 }
 
