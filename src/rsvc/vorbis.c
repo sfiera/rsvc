@@ -408,7 +408,6 @@ void rsvc_vorbis_open_tags(const char* path, int flags,
         ogg_packet                  op;
 
         ogg_sync_init(&oy);
-        ogg_stream_reset(&os);  // Init after first page.  For now, just make sure it's zeroed out.
         vorbis_info_init(&vi);
         vorbis_comment_init(&tags.vc);
 
