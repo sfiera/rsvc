@@ -67,7 +67,10 @@ void rsvc_command_rip(rip_options_t options, rsvc_done_t done);
 typedef struct convert_options* convert_options_t;
 struct convert_options {
     char* input;
+    int input_fd;
     char* output;
+    int output_fd;
+
     bool recursive;
     bool update;
     bool skip_unknown;
