@@ -30,6 +30,8 @@
 #include <rsvc/id3.h>
 #include <stdbool.h>
 #include <string.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "progress.h"
 #include "unix.h"
@@ -40,6 +42,7 @@ struct mad_userdata {
     unsigned char data[4096];
     unsigned char* end;
     size_t end_position;
+    size_t sample_count;
     rsvc_done_t fail;
 };
 
@@ -85,6 +88,12 @@ static int16_t mad_scale(mad_fixed_t sample) {
     return sample >> (MAD_F_FRACBITS + 1 - 16);
 }
 
+static enum mad_flow mad_count(void* v, struct mad_header const* header, struct mad_pcm* pcm) {
+    struct mad_userdata* userdata = v;
+    userdata->sample_count += pcm->length;
+    return MAD_FLOW_CONTINUE;
+}
+
 static enum mad_flow mad_output(void* v, struct mad_header const* header, struct mad_pcm* pcm) {
     struct mad_userdata* userdata = v;
     int16_t data[2 * 1152];
@@ -114,30 +123,63 @@ static enum mad_flow mad_error(void* v, struct mad_stream* stream, struct mad_fr
     }
 }
 
+bool mad_count_samples(struct mad_userdata* userdata) {
+    struct mad_decoder decoder;
+    mad_decoder_init(&decoder, userdata,
+                     mad_input,
+                     NULL,  // header
+                     NULL,  // filter
+                     mad_count,
+                     mad_error,
+                     NULL  // message
+                     );
+    int result = mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
+    mad_decoder_finish(&decoder);
+    return result == 0;
+}
+
+bool mad_decode(struct mad_userdata* userdata) {
+    struct mad_decoder decoder;
+    mad_decoder_init(&decoder, userdata,
+                     mad_input,
+                     NULL,  // header
+                     NULL,  // filter
+                     mad_output,
+                     mad_error,
+                     NULL  // message
+                     );
+    int result = mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
+    mad_decoder_finish(&decoder);
+    return result == 0;
+}
+
 void rsvc_mad_decode(int src_fd, int dst_fd,
                      rsvc_decode_metadata_f metadata, rsvc_done_t done) {
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         if (!rsvc_id3_skip_tags(src_fd, done)) {
             return;
         }
-        struct mad_decoder decoder;
+        off_t offset = lseek(src_fd, 0, SEEK_CUR);
+        if (offset < 0) {
+            rsvc_strerrorf(done, __FILE__, __LINE__, NULL);
+            return;
+        }
         struct mad_userdata userdata = {
             .src_fd = src_fd,
             .dst_fd = dst_fd,
             .fail = done,
         };
-        mad_decoder_init(&decoder, &userdata,
-                         mad_input,
-                         NULL,  // header
-                         NULL,  // filter
-                         mad_output,
-                         mad_error,
-                         NULL  // message
-                         );
-        metadata(-1, -1);
-        int result = mad_decoder_run(&decoder, MAD_DECODER_MODE_SYNC);
-        mad_decoder_finish(&decoder);
-        if (result == 0) {
+        if (!mad_count_samples(&userdata)) {
+            return;
+        }
+        metadata(-1, userdata.sample_count);
+
+        if (lseek(src_fd, offset, SEEK_SET) < 0) {
+            rsvc_strerrorf(done, __FILE__, __LINE__, NULL);
+            return;
+        }
+        userdata.end_position = 0;
+        if (mad_decode(&userdata)) {
             done(NULL);
         }
     });
