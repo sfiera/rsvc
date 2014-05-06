@@ -106,7 +106,6 @@ static enum mad_flow mad_error(void* v, struct mad_stream* stream, struct mad_fr
     struct mad_userdata* userdata = v;
     size_t position = userdata->end_position - (userdata->end - stream->this_frame);
     if (MAD_RECOVERABLE(stream->error)) {
-        rsvc_printf("decoding error: %s at %08lx\n", mad_stream_errorstr(stream), position);
         return MAD_FLOW_CONTINUE;
     } else {
         rsvc_errorf(userdata->fail, __FILE__, __LINE__,
