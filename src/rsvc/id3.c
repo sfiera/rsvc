@@ -409,6 +409,7 @@ void rsvc_id3_format_register() {
         .magic = "ID3",
         .magic_size = 3,
         .extension = "mp3",
+        .lossless = false,
         .open_tags = rsvc_id3_open_tags,
     };
     rsvc_format_register(&id3);
@@ -1006,5 +1007,27 @@ static void id3_passthru_write(id3_frame_node_t node, uint8_t* data) {
 static bool id3_discard_read(id3_frame_list_t frames, id3_frame_spec_t spec,
                              uint8_t* data, size_t size, rsvc_done_t fail) {
     // do nothing
+    return true;
+}
+
+bool rsvc_id3_skip_tags(int fd, rsvc_done_t fail) {
+    struct rsvc_id3_tags tags = {
+        .super = {
+            .vptr   = &id3_vptr,
+            .flags  = 0,
+        },
+        .path = "",
+        .fd = fd,
+    };
+    if (!read_id3_header(&tags, ^(rsvc_error_t error){ /* ignore */ })) {
+        return true;
+    }
+
+    if (tags.version[0]) {
+        if (lseek(tags.fd, tags.size, SEEK_CUR) < 0) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+            return false;
+        }
+    }
     return true;
 }

@@ -104,6 +104,7 @@ def build(bld):
             "src/rsvc/format.c",
             "src/rsvc/group.c",
             "src/rsvc/id3.c",
+            "src/rsvc/mad.c",
             "src/rsvc/mp4.c",
             "src/rsvc/musicbrainz.c",
             "src/rsvc/options.c",

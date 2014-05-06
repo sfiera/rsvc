@@ -1,7 +1,7 @@
 //
 // This file is part of Rip Service.
 //
-// Copyright (C) 2012 Chris Pickel <sfiera@sfzmail.com>
+// Copyright (C) 2014 Chris Pickel <sfiera@sfzmail.com>
 //
 // Rip Service is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -18,15 +18,12 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#ifndef RSVC_ID3_H_
-#define RSVC_ID3_H_
+#ifndef RSVC_MAD_H_
+#define RSVC_MAD_H_
 
-#include <rsvc/tag.h>
+/// MP3
+/// ====
 
-void                    rsvc_id3_open_tags(const char* path, int flags,
-                                           void (^done)(rsvc_tags_t, rsvc_error_t));
-bool                    rsvc_id3_skip_tags(int fd, rsvc_done_t fail);
+void                    rsvc_mad_format_register();
 
-void                    rsvc_id3_format_register();
-
-#endif  // RSVC_ID3_H_
+#endif  // RSVC_MAD_H_
