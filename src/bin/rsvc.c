@@ -231,46 +231,36 @@ static void rsvc_main(int argc, char* const* argv) {
     };
 
     callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
-        if (opt == 'h') {
+        switch (opt) {
+          case 'h':
             rsvc_usage(^(rsvc_error_t ignore){});
             exit(0);
-        } else if (command) {
-            if (command->short_option) {
+          case 'v':
+            ++rsvc_verbosity;
+            return true;
+          case 'V':
+            fprintf(stderr, "rsvc %s\n", RSVC_VERSION);
+            exit(0);
+          default:
+            if (command && command->short_option) {
                 return command->short_option(opt, get_value, fail);
-            } else {
-                return rsvc_illegal_short_option(opt, fail);
             }
-        } else {
-            switch (opt) {
-              case 'v':
-                ++rsvc_verbosity;
-                return true;
-              case 'V':
-                fprintf(stderr, "rsvc %s\n", RSVC_VERSION);
-                exit(0);
-              default:
-                return rsvc_illegal_short_option(opt, fail);
-            }
+            break;
         }
+        return rsvc_illegal_short_option(opt, fail);
     };
 
     callbacks.long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
         if (strcmp(opt, "help") == 0) {
             return callbacks.short_option('h', get_value, fail);
-        } else if (command) {
-            if (command && command->long_option) {
-                return command->long_option(opt, get_value, fail);
-            } else {
-                return rsvc_illegal_long_option(opt, fail);
-            }
+        } else if (strcmp(opt, "verbose") == 0) {
+            return callbacks.short_option('v', get_value, fail);
+        } else if (strcmp(opt, "version") == 0) {
+            return callbacks.short_option('V', get_value, fail);
+        } else if (command && command->long_option) {
+            return command->long_option(opt, get_value, fail);
         } else {
-            if (strcmp(opt, "verbose") == 0) {
-                return callbacks.short_option('v', get_value, fail);
-            } else if (strcmp(opt, "version") == 0) {
-                return callbacks.short_option('V', get_value, fail);
-            } else {
-                return rsvc_illegal_long_option(opt, fail);
-            }
+            return rsvc_illegal_long_option(opt, fail);
         }
     };
 
