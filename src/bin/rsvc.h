@@ -33,6 +33,7 @@ typedef struct rip_options* rip_options_t;
 extern const char* rsvc_progname;
 extern rsvc_option_callbacks_t callbacks;
 extern rsvc_command_t command;
+extern int rsvc_jobs;
 
 struct rsvc_command {
     const char* name;

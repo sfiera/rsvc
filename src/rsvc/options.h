@@ -92,6 +92,7 @@ bool rsvc_long_option(
 bool rsvc_illegal_short_option(int32_t opt, rsvc_done_t fail);
 bool rsvc_illegal_long_option(const char* opt, rsvc_done_t fail);
 bool rsvc_string_option(char** string, rsvc_option_value_t get_value, rsvc_done_t fail);
+bool rsvc_integer_option(int* integer, rsvc_option_value_t get_value, rsvc_done_t fail);
 bool rsvc_boolean_option(bool* boolean);
 
 #endif  // RSVC_OPTIONS_H_

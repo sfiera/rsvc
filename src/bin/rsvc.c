@@ -39,7 +39,9 @@ const char*                 rsvc_progname;
 rsvc_option_callbacks_t     callbacks;
 rsvc_command_t              command = NULL;
 int                         rsvc_exit = EX_OK;
+int                         rsvc_jobs = -1;
 
+static int rsvc_jobs_default();
 static bool bitrate_option(struct encode_options* encode, rsvc_option_value_t get_value,
                            rsvc_done_t fail);
 static bool format_option(struct encode_options* encode, rsvc_option_value_t get_value,
@@ -48,6 +50,7 @@ static bool format_option(struct encode_options* encode, rsvc_option_value_t get
 static bool read_si_number(const char* in, int64_t* out);
 
 static void rsvc_main(int argc, char* const* argv) {
+    rsvc_jobs = rsvc_jobs_default();
 #ifdef __APPLE__
     rsvc_core_audio_format_register();
 #endif
@@ -235,6 +238,8 @@ static void rsvc_main(int argc, char* const* argv) {
           case 'h':
             rsvc_usage(^(rsvc_error_t ignore){});
             exit(0);
+          case 'j':
+            return rsvc_integer_option(&rsvc_jobs, get_value, fail);
           case 'v':
             ++rsvc_verbosity;
             return true;
@@ -253,6 +258,8 @@ static void rsvc_main(int argc, char* const* argv) {
     callbacks.long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
         if (strcmp(opt, "help") == 0) {
             return callbacks.short_option('h', get_value, fail);
+        } else if (strcmp(opt, "jobs") == 0) {
+            return callbacks.short_option('j', get_value, fail);
         } else if (strcmp(opt, "verbose") == 0) {
             return callbacks.short_option('v', get_value, fail);
         } else if (strcmp(opt, "version") == 0) {
@@ -338,12 +345,17 @@ void rsvc_usage(rsvc_done_t done) {
                 "\n"
                 "Options:\n"
                 "  -h, --help            show this help page\n"
+                "  -j, --jobs=N          allow N jobs at once (default: %d)\n"
                 "  -v, --verbose         more verbose logging\n"
                 "  -V, --version         show version and exit\n",
-                rsvc_progname);
+                rsvc_progname, rsvc_jobs_default());
     }
     done(NULL);
 };
+
+static int rsvc_jobs_default() {
+    return 4;
+}
 
 void rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk)) {
     __block int ndisks = 0;

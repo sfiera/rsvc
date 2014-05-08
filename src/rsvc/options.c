@@ -144,6 +144,21 @@ bool rsvc_string_option(char** string, rsvc_option_value_t get_value, rsvc_done_
     return true;
 }
 
+bool rsvc_integer_option(int* integer, rsvc_option_value_t get_value, rsvc_done_t fail) {
+    char* value;
+    if (!get_value(&value, fail)) {
+        return false;
+    }
+    char* end;
+    int result = strtol(value, &end, 10);
+    if (*end) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "an integer is required");
+        return false;
+    }
+    *integer = result;
+    return true;
+}
+
 bool rsvc_boolean_option(bool* boolean) {
     *boolean = true;
     return true;

@@ -173,7 +173,7 @@ static void build_path(char* out, const char* a, const char* b, const char* c) {
 static void convert_recursive(convert_options_t options, rsvc_done_t done) {
     rsvc_group_t group = rsvc_group_create(done);
     rsvc_done_t walk_done = rsvc_group_add(group);
-    dispatch_semaphore_t sema = dispatch_semaphore_create(4);
+    dispatch_semaphore_t sema = dispatch_semaphore_create(rsvc_jobs);
 
     if (rsvc_walk(options->input, FTS_NOCHDIR, walk_done,
                   ^bool(unsigned short info, const char* dirname, const char* basename,
