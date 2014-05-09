@@ -281,6 +281,10 @@ static void rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
         if (!rsvc_temp(self->path, 0644, tmp_path, &fd, done)) {
             return;
         }
+        done = ^(rsvc_error_t error){
+            close(fd);
+            done(error);
+        };
 
         ogg_page                    og;
         __block ogg_stream_state    os;
