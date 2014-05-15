@@ -25,6 +25,7 @@
 #include <Block.h>
 #include <FLAC/metadata.h>
 #include <FLAC/stream_encoder.h>
+#include <ctype.h>
 #include <dispatch/dispatch.h>
 #include <rsvc/common.h>
 #include <rsvc/format.h>
@@ -300,6 +301,9 @@ static bool rsvc_flac_tags_each(rsvc_tags_t tags,
                 self->comments->comments[i], &name, &value)) {
             // TODO(sfiera): report failure.
             continue;
+        }
+        for (char* cp = name; *cp; ++cp) {
+            *cp = toupper(*cp);
         }
         block(name, value, ^{
             loop = false;
