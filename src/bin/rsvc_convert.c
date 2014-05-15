@@ -135,6 +135,7 @@ static void convert(convert_options_t options, rsvc_done_t done) {
     char* tmp_path = strdup(path_storage);
     done = ^(rsvc_error_t error){
         close(options->output_fd);
+        unlink(tmp_path);
         free(tmp_path);
         done(error);
     };
