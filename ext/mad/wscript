@@ -24,7 +24,35 @@ def configure(cnf):
     else:
         cnf.check_cc(lib="mad", uselib_store="mad/libmad", mandatory=False)
         cnf.env.bundled_mad = "LIB_mad/libmad" not in cnf.env
-    assert not cnf.env.bundled_mad  # don't support bundled yet.
 
 def build(bld):
     common(bld)
+
+    if bld.env.bundled_mad:
+        bld.stlib(
+            target="mad/libmad",
+            features="universal",
+            source=[
+                "libmad-0.15.1b/bit.c",
+                "libmad-0.15.1b/decoder.c",
+                "libmad-0.15.1b/fixed.c",
+                "libmad-0.15.1b/frame.c",
+                "libmad-0.15.1b/huffman.c",
+                "libmad-0.15.1b/layer12.c",
+                "libmad-0.15.1b/layer3.c",
+                "libmad-0.15.1b/minimad.c",
+                "libmad-0.15.1b/stream.c",
+                "libmad-0.15.1b/synth.c",
+                "libmad-0.15.1b/timer.c",
+                "libmad-0.15.1b/version.c",
+            ],
+            includes="libmad-0.15.1b",
+            export_includes="libmad-0.15.1b",
+            defines="FPM_DEFAULT",
+        )
+
+        bld.platform(
+            target="mad/libmad",
+            platform="darwin",
+            includes="darwin",
+        )
