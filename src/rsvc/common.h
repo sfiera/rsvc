@@ -27,6 +27,7 @@ void                    rsvc_prefix_error(const char* prefix, rsvc_error_t error
                                           rsvc_done_t done);
 
 int                     rsvc_vasprintf(char** value, const char* format, va_list ap);
+void                    rsvc_main_sync(void (^block)());
 
 #define memdup rsvc_memdup
 void* memdup(const void* data, size_t size);

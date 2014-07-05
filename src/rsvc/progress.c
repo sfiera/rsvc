@@ -117,7 +117,7 @@ void rsvc_printf(const char* format, ...) {
     va_start(vl, format);
     rsvc_vasprintf(&str, format, vl);
     va_end(vl);
-    dispatch_sync(dispatch_get_main_queue(), ^{
+    rsvc_main_sync(^{
         progress_hide();
         printf("%s", str);
         progress_show();

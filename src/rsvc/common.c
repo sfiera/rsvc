@@ -129,11 +129,6 @@ void rsvc_error_async(dispatch_queue_t queue, rsvc_error_t error, rsvc_done_t do
 
 int rsvc_verbosity = 0;
 void rsvc_logf(int level, const char* format, ...) {
-    static dispatch_queue_t log_queue;
-    static dispatch_once_t log_queue_init;
-    dispatch_once(&log_queue_init, ^{
-        log_queue = dispatch_queue_create("net.sfiera.ripservice.log", NULL);
-    });
     if (level <= rsvc_verbosity) {
         time_t t;
         time(&t);
@@ -149,8 +144,18 @@ void rsvc_logf(int level, const char* format, ...) {
         rsvc_vasprintf(&message, format, vl);
         va_end(vl);
 
-        fprintf(stderr, "%s log: %s\n", time, message);
+        rsvc_main_sync(^{
+            fprintf(stderr, "%s log: %s\n", time, message);
+        });
         free(message);
+    }
+}
+
+void rsvc_main_sync(void (^block)()) {
+    if (dispatch_get_current_queue() == dispatch_get_main_queue()) {
+        block();
+    } else {
+        dispatch_sync(dispatch_get_main_queue(), block);
     }
 }
 
