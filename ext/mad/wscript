@@ -40,7 +40,6 @@ def build(bld):
                 "libmad-0.15.1b/huffman.c",
                 "libmad-0.15.1b/layer12.c",
                 "libmad-0.15.1b/layer3.c",
-                "libmad-0.15.1b/minimad.c",
                 "libmad-0.15.1b/stream.c",
                 "libmad-0.15.1b/synth.c",
                 "libmad-0.15.1b/timer.c",
@@ -48,11 +47,20 @@ def build(bld):
             ],
             includes="libmad-0.15.1b",
             export_includes="libmad-0.15.1b",
-            defines="FPM_DEFAULT",
+            cflags="-fasm",
+            defines=[
+                "ASO_ZEROCHECK",
+                "FPM_64BIT",
+                "HAVE_CONFIG_H",
+            ]
         )
 
         bld.platform(
             target="mad/libmad",
             platform="darwin",
-            includes="darwin",
+            includes=[
+                "darwin",
+                "darwin/include",
+            ],
+            export_includes="darwin/include",
         )
