@@ -73,6 +73,9 @@ static bool     id3_text_remove(
                         id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail);
 static size_t   id3_text_size(id3_frame_node_t node);
 static void     id3_text_write(id3_frame_node_t node, uint8_t* data);
+static bool     id3_bool_add(
+                        id3_frame_list_t frames, id3_frame_spec_t spec,
+                        const char* value, rsvc_done_t fail);
 static void     id3_sequence_yield(
                         id3_frame_node_t node,
                         void (^block)(const char* name, const char* value));
@@ -111,6 +114,15 @@ static struct id3_frame_type id3_text = {
     .read       = id3_text_read,
     .yield      = id3_text_yield,
     .add        = id3_text_add,
+    .remove     = id3_text_remove,
+    .size       = id3_text_size,
+    .write      = id3_text_write,
+};
+
+static struct id3_frame_type id3_bool = {
+    .read       = id3_text_read,
+    .yield      = id3_text_yield,
+    .add        = id3_bool_add,
     .remove     = id3_text_remove,
     .size       = id3_text_size,
     .write      = id3_text_write,
@@ -250,6 +262,9 @@ static struct id3_frame_spec {
     {NULL,                  "USER",     &id3_passthru,  &id3_passthru},
     {NULL,                  "PRIV",     &id3_passthru,  &id3_passthru},
     {NULL,                  "TSIZ",     &id3_passthru,  &id3_passthru},
+
+    // Unofficial frames
+    {"COMPILATION",         "TCMP",     &id3_bool,      &id3_bool},
 };
 
 #define ID3_FRAME_SPECS_SIZE (sizeof(id3_frame_specs) / sizeof(id3_frame_specs[0]))
@@ -856,6 +871,16 @@ static size_t id3_text_size(id3_frame_node_t node) {
 static void id3_text_write(id3_frame_node_t node, uint8_t* data) {
     *(data++) = 0x03;
     memcpy(data, node->data, node->size);
+}
+
+static bool id3_bool_add(
+        id3_frame_list_t frames, id3_frame_spec_t spec,
+        const char* value, rsvc_done_t fail) {
+    if ((strlen(value) != 1) || (strspn(value, "01") != 1)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "ID3 %s tag must be 0 or 1", spec->vorbis_name);
+        return false;
+    }
+    return id3_text_add(frames, spec, value, fail);
 }
 
 static void sequence_split(const char* text,
