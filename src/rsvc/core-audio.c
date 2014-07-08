@@ -92,13 +92,14 @@ static void core_audio_encode(
         int container_id, int codec_id, rsvc_done_t done) {
     int32_t bitrate                     = options->bitrate;
     size_t samples_per_channel          = options->samples_per_channel;
+    size_t channels                     = options->channels;
     rsvc_encode_progress_t progress     = options->progress;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         OSStatus err;
         AudioStreamBasicDescription asbd_out = {
             .mFormatID          = codec_id,
             .mSampleRate        = 44100.0,
-            .mChannelsPerFrame  = 2,
+            .mChannelsPerFrame  = channels,
         };
         if (codec_id == kAudioFormatAppleLossless) {
             asbd_out.mFormatFlags       = kAppleLosslessFormatFlag_16BitSourceData;
@@ -135,10 +136,10 @@ static void core_audio_encode(
                                 | kAudioFormatFlagIsPacked,
             .mBitsPerChannel    = 16,
             .mSampleRate        = 44100.0,
-            .mChannelsPerFrame  = 2,
+            .mChannelsPerFrame  = channels,
             .mFramesPerPacket   = 1,
-            .mBytesPerPacket    = 4,
-            .mBytesPerFrame     = 4,
+            .mBytesPerPacket    = 2 * channels,
+            .mBytesPerFrame     = 2 * channels,
         };
         err = ExtAudioFileSetProperty(
                 file_ref, kExtAudioFileProperty_ClientDataFormat, sizeof(asbd_in), &asbd_in);
@@ -199,17 +200,17 @@ static void core_audio_encode(
             ssize_t result = read(src_fd, buffer + start, sizeof(buffer) - start);
             if (result > 0) {
                 result += start;
-                size_t remainder = result % 4;
+                size_t remainder = result % (2 * channels);
                 result -= remainder;
-                size_t nsamples = result / 4;
+                size_t nsamples = result / (2 * channels);
                 samples_per_channel_read += nsamples;
                 if (result > 0) {
                     AudioBufferList buffer_list = {
                         .mNumberBuffers = 1,
                         .mBuffers = {{
                             .mData = buffer,
-                            .mNumberChannels = 2,
-                            .mDataByteSize = nsamples * 4,
+                            .mNumberChannels = channels,
+                            .mDataByteSize = nsamples * channels * 2,
                         }},
                     };
                     err = ExtAudioFileWrite(file_ref, nsamples, &buffer_list);

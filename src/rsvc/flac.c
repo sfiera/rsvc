@@ -111,6 +111,7 @@ static void                    flac_decode_error(const FLAC__StreamDecoder* deco
 
 void rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done) {
     size_t samples_per_channel          = options->samples_per_channel;
+    size_t channels                     = options->channels;
     rsvc_encode_progress_t progress     = options->progress;
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -130,7 +131,7 @@ void rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
 
         if (!(FLAC__stream_encoder_set_verify(encoder, true) &&
               FLAC__stream_encoder_set_compression_level(encoder, 8) &&
-              FLAC__stream_encoder_set_channels(encoder, 2) &&
+              FLAC__stream_encoder_set_channels(encoder, channels) &&
               FLAC__stream_encoder_set_bits_per_sample(encoder, 16) &&
               FLAC__stream_encoder_set_sample_rate(encoder, 44100) &&
               FLAC__stream_encoder_set_total_samples_estimate(encoder, samples_per_channel))) {
@@ -428,6 +429,7 @@ static void flac_decode_metadata(const FLAC__StreamDecoder* decoder,
     flac_decode_userdata_t u = (flac_decode_userdata_t)userdata;
     u->metadata(
             metadata->data.stream_info.bits_per_sample * metadata->data.stream_info.sample_rate,
+            metadata->data.stream_info.channels,
             metadata->data.stream_info.total_samples);
 }
 

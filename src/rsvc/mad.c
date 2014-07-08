@@ -172,7 +172,7 @@ void rsvc_mad_decode(int src_fd, int dst_fd,
         if (!mad_count_samples(&userdata)) {
             return;
         }
-        metadata(-1, userdata.sample_count);
+        metadata(-1, 2, userdata.sample_count);
 
         if (lseek(src_fd, offset, SEEK_SET) < 0) {
             rsvc_strerrorf(done, __FILE__, __LINE__, NULL);
