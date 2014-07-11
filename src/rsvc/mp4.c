@@ -315,6 +315,34 @@ static bool add_disc_total(MP4FileHandle* file, mp4_tag_t tag, const char* value
     return set_trkn_or_disc(file, tag, default_data, sizeof(default_data), NULL, &total, fail);
 }
 
+struct media_kind {
+    const char* name;
+    uint8_t value;
+};
+static struct media_kind kMediaKinds[] = {
+    {"Home Video",  0},
+    {"Music",       1},
+    {"Audiobook",   2},
+    {"Music Video", 6},
+    {"Movie",       9},
+    {"Short Film",  9},
+    {"TV Show",     10},
+    {"Booklet",     11},
+    {"Ringtone",    14},
+    {NULL}
+};
+
+static bool add_media_kind(MP4FileHandle* file, mp4_tag_t tag, const char* value,
+                           rsvc_done_t fail) {
+    for (struct media_kind* mk = kMediaKinds; mk->name; ++mk) {
+        if (strcmp(mk->name, value) == 0) {
+            return add_binary_tag(file, tag, &mk->value, 1, MP4_ITMF_BT_INTEGER, fail);
+        }
+    }
+    rsvc_errorf(fail, __FILE__, __LINE__, "invalid mp4 %s %s", tag->vorbis_name, value);
+    return false;
+}
+
 static bool delete_tag(MP4FileHandle* file, mp4_tag_t tag,
                        rsvc_done_t fail) {
     MP4ItmfItemList* items = MP4ItmfGetItems(file);
@@ -406,6 +434,11 @@ static struct mp4_tag_type mp4_disctotal = {
     .remove = remove_disc_total,
 };
 
+static struct mp4_tag_type mp4_media_kind = {
+    .add = add_media_kind,
+    .remove = delete_tag,
+};
+
 static struct mp4_tag mp4_tags[] = {
     {"TITLE",               &mp4_string,        "\251nam"},
     {"TITLESORT",           &mp4_string,        "sonm"},
@@ -447,6 +480,8 @@ static struct mp4_tag mp4_tags[] = {
     {"ISRC",                &mp4_isrc,          "----",     "ISRC"},
     {"MCN",                 &mp4_string,        "----",     "MCN"},
     {"MUSICBRAINZ_DISCID",  &mp4_string,        "----",     "MusicBrainz Disc Id"},
+
+    {"MEDIAKIND",           &mp4_media_kind,    "stik"},
 
     {},
 };
@@ -566,10 +601,19 @@ static bool rsvc_mp4_tags_each(rsvc_tags_t tags,
                     for (int i = 0; i < data->valueSize; ++i) {
                         number = ((number & 0x0fffffffffffffffLL) << 8) | data->value[i];
                     }
+                    if (tag->type == &mp4_media_kind) {
+                        for (struct media_kind* mk = kMediaKinds; mk->name; ++mk) {
+                            if (mk->value == number) {
+                                block(tag->vorbis_name, mk->name, stop);
+                                goto skip;
+                            }
+                        }
+                    }
                     char value[16];
                     sprintf(value, "%lld", (long long)number);
                     block(tag->vorbis_name, value, stop);
                 }
+skip:
                 break;
 
                 case MP4_ITMF_BT_HTML:
