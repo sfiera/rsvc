@@ -167,6 +167,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
 
             struct rsvc_encode_options encode_options = {
                 .bitrate                = options->encode.bitrate,
+                .channels               = 2,
                 .samples_per_channel    = nsamples,
                 .progress               = ^(double fraction){
                     rsvc_progress_update(progress, fraction);
