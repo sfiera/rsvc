@@ -452,17 +452,22 @@ static read_decode_status_t flac_decode_read(const FLAC__StreamDecoder* encoder,
     }
 }
 
+// TODO(sfiera): support 24-bit better.
+// This function simply clips samples larger than 16 bits.  It should
+// instead do dithering and ideally noise-shaping.  Or we should allow
+// 24-bit samples through the pipe.
 static write_decode_status_t flac_decode_write(const FLAC__StreamDecoder* decoder,
                                                const FLAC__Frame* frame,
                                                const FLAC__int32* const* data,
                                                void* userdata) {
     flac_decode_userdata_t u = (flac_decode_userdata_t)userdata;
+    int shift = frame->header.bits_per_sample - 16;
     size_t size = frame->header.channels * frame->header.blocksize * sizeof(int16_t);
     int16_t* s16 = malloc(size);
     int16_t* p = s16;
     for (int i = 0; i < frame->header.blocksize; ++i) {
         for (int c = 0; c < frame->header.channels; ++c) {
-            *(p++) = data[c][i];
+            *(p++) = data[c][i] >> shift;
         }
     }
     while (size > 0) {
