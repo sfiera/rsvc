@@ -161,6 +161,7 @@ struct ops {
 };
 typedef struct ops* ops_t;
 
+static void print_tags(rsvc_tags_t tags);
 static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done);
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done);
 
@@ -305,14 +306,34 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
                 printf("%s:\n", path);
             }
             if (ops->list_mode) {
-                rsvc_tags_each(tags, ^(const char* name, const char* value,
-                                       rsvc_stop_t stop){
-                    printf("%s=%s\n", name, value);
-                });
+                print_tags(tags);
             }
             rsvc_tags_destroy(tags);
             done(NULL);
         });
+    });
+}
+
+static void print_tags(rsvc_tags_t tags) {
+    rsvc_tags_each(tags, ^(const char* name, const char* value,
+                           rsvc_stop_t stop){
+        printf("%s=", name);
+        while (*value) {
+            size_t size = strcspn(value, "\\\n");
+            fwrite(value, sizeof(char), size, stdout);
+            value += size;
+            size = strspn(value, "\\");
+            if (size && ((value[size] == '\n') || (!value[size]))) {
+                fwrite(value, sizeof(char), size, stdout);
+            }
+            fwrite(value, sizeof(char), size, stdout);
+            value += size;
+            if (*value == '\n') {
+                printf("\\\n");
+                value += 1;
+            }
+        }
+        printf("\n");
     });
 }
 
