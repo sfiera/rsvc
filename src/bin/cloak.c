@@ -250,23 +250,17 @@ static const char* get_extension(const char* path) {
     }
 }
 
-static bool any_actions(ops_t ops) {
-    return ops->remove_all_tags
-        || ops->remove_tags.nstrings
-        || ops->add_tag_names.nstrings
-        || ops->auto_mode
-        || ops->list_mode
-        || ops->move_mode;
-}
-
 static int ops_mode(ops_t ops) {
     if (ops->remove_all_tags
             || ops->remove_tags.nstrings
             || ops->add_tag_names.nstrings
             || ops->auto_mode) {
         return RSVC_TAG_RDWR;
-    } else {
+    } else if (ops->list_mode
+            || ops->move_mode) {
         return RSVC_TAG_RDONLY;
+    } else {
+        return -1;
     }
 }
 
@@ -719,7 +713,7 @@ static bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail) {
     if (files->nstrings == 0) {
         rsvc_errorf(fail, __FILE__, __LINE__, "no input files");
         return false;
-    } else if (!any_actions(ops)) {
+    } else if (ops_mode(ops) < 0) {
         rsvc_errorf(fail, __FILE__, __LINE__, "no actions");
         return false;
     }
