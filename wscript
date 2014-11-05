@@ -124,6 +124,7 @@ def build(bld):
             "mad/libmad",
             "libmusicbrainz/libmusicbrainz",
             "vorbis/libvorbis",
+            "ogg/libogg",
         ],
     )
 
