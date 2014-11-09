@@ -759,24 +759,31 @@ static void id3_frame_addf(
     va_end(vl2);
 }
 
-static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
-                          uint8_t* data, size_t size, rsvc_done_t fail) {
-    if (size < 2) {
+static bool read_encoding(uint8_t** data, size_t* size, uint8_t max_encoding,
+                          rsvc_decode_text_f* decode, rsvc_done_t fail) {
+    if (*size < 1) {
         rsvc_errorf(fail, __FILE__, __LINE__, "unexpected end of frame");
         return false;
     }
 
-    uint8_t encoding = *(data++); --size;
-    rsvc_decode_text_f decode;
-    switch (encoding) {
-        case 0x00: decode = rsvc_decode_latin1; break;
-        case 0x01: decode = rsvc_decode_utf16bom; break;
-        case 0x02: decode = rsvc_decode_utf16be; break;
-        case 0x03: decode = rsvc_decode_utf8; break;
-        default: {
-            rsvc_errorf(fail, __FILE__, __LINE__, "unknown encoding");
-            return false;
+    uint8_t encoding = *((*data)++); --(*size);
+    if (encoding <= max_encoding) {
+        switch (encoding) {
+            case 0x00: *decode = rsvc_decode_latin1; return true;
+            case 0x01: *decode = rsvc_decode_utf16bom; return true;
+            case 0x02: *decode = rsvc_decode_utf16be; return true;
+            case 0x03: *decode = rsvc_decode_utf8; return true;
         }
+    }
+    rsvc_errorf(fail, __FILE__, __LINE__, "unknown encoding");
+    return false;
+}
+
+static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
+                          uint8_t* data, size_t size, rsvc_done_t fail) {
+    rsvc_decode_text_f decode;
+    if (!read_encoding(&data, &size, 0x03, &decode, fail)) {
+        return false;
     }
 
     __block bool result = false;
@@ -800,23 +807,13 @@ static bool id3_text_read(id3_frame_list_t frames, id3_frame_spec_t spec,
 
 static bool id3_text_read_2_3(id3_frame_list_t frames, id3_frame_spec_t spec,
                               uint8_t* data, size_t size, rsvc_done_t fail) {
-    if (size < 1) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "unexpected end of frame");
-        return false;
-    }
     if (!get_vorbis_frame_spec(spec->vorbis_name, &spec, fail)) {
         return false;
     }
 
-    uint8_t encoding = *(data++); --size;
     rsvc_decode_text_f decode;
-    switch (encoding) {
-        case 0x00: decode = rsvc_decode_latin1; break;
-        case 0x01: decode = rsvc_decode_utf16bom; break;
-        default: {
-            rsvc_errorf(fail, __FILE__, __LINE__, "unknown encoding");
-            return false;
-        }
+    if (!read_encoding(&data, &size, 0x01, &decode, fail)) {
+        return false;
     }
 
     __block bool result = false;
