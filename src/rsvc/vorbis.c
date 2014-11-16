@@ -515,6 +515,7 @@ void rsvc_vorbis_open_tags(const char* path, int flags,
 void rsvc_vorbis_format_register() {
     struct rsvc_format vorbis = {
         .name = "vorbis",
+        .mime = "application/ogg",
         .magic = "OggS",
         .magic_size = 4,
         .extension = "ogv",

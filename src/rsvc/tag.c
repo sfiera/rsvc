@@ -113,6 +113,17 @@ bool rsvc_tags_each(rsvc_tags_t tags,
     return tags->vptr->each(tags, block);
 }
 
+bool rsvc_tags_image_each(
+        rsvc_tags_t tags,
+        void (^block)(
+            rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop)) {
+    if (tags->vptr->image_each) {
+        return tags->vptr->image_each(tags, block);
+    } else {
+        return true;
+    }
+}
+
 const char* rsvc_tag_code_get(int code) {
     switch (code) {
 #define RSVC_TAG_CASE(NAME) case RSVC_CODE_ ## NAME: return RSVC_ ## NAME

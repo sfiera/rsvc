@@ -25,12 +25,16 @@
 #include <stdbool.h>
 #include <rsvc/common.h>
 
+typedef struct rsvc_format* rsvc_format_t;
 typedef struct rsvc_tags* rsvc_tags_t;
 struct rsvc_tags_methods {
     bool (*remove)(rsvc_tags_t tags, const char* name, rsvc_done_t fail);
     bool (*add)(rsvc_tags_t tags, const char* name, const char* value, rsvc_done_t fail);
     bool (*each)(rsvc_tags_t tags,
                  void (^block)(const char* name, const char* value, rsvc_stop_t stop));
+    bool (*image_each)(rsvc_tags_t tags,
+                       void (^block)(rsvc_format_t format, const uint8_t* data, size_t size,
+                                     rsvc_stop_t stop));
     void (*save)(rsvc_tags_t tags, rsvc_done_t done);
     void (*destroy)(rsvc_tags_t tags);
 };
@@ -127,6 +131,10 @@ bool                    rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
 ///     description of the iterator interface.
 bool                    rsvc_tags_each(rsvc_tags_t tags,
                                        void (^block)(const char*, const char*, rsvc_stop_t));
+bool                    rsvc_tags_image_each(rsvc_tags_t tags,
+                                             void (^block)(rsvc_format_t format,
+                                                           const uint8_t* data, size_t size,
+                                                           rsvc_stop_t stop));
 
 /// ..  function:: void rsvc_tags_strf(const char* format, rsvc_tags_t tags, const char* extension, void (^done)(rsvc_error_t error, char* path))
 ///

@@ -55,6 +55,7 @@ void rsvc_format_register(rsvc_format_t format) {
     struct rsvc_format_node node = {
         .format = {
             .name       = strdup(format->name),
+            .mime       = strdup(format->mime),
             .magic      = maybe_strdup(format->magic),
             .magic_size = format->magic_size,
             .extension  = maybe_strdup(format->extension),
@@ -80,6 +81,20 @@ rsvc_format_t rsvc_format_named(const char* name, int flags) {
             return;
         }
         if (strcmp(format->name, name) == 0) {
+            result = format;
+            stop();
+        }
+    });
+    return result;
+}
+
+rsvc_format_t rsvc_format_with_mime(const char* mime, int flags) {
+    __block rsvc_format_t result = NULL;
+    rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+        if (!check_flags(flags, format)) {
+            return;
+        }
+        if (strcmp(format->mime, mime) == 0) {
             result = format;
             stop();
         }

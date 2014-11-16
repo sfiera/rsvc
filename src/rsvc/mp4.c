@@ -723,6 +723,7 @@ void rsvc_mp4_open_tags(const char* path, int flags,
 void rsvc_mp4_format_register() {
     struct rsvc_format m4a = {
         .name = "mp4",
+        .mime = "audio/mp4",
         .magic = "????ftypM4A ",
         .magic_size = 12,
         .extension = "m4a",
@@ -730,6 +731,7 @@ void rsvc_mp4_format_register() {
     };
     struct rsvc_format m4v = {
         .name = "mp4",
+        .mime = "audio/mp4",
         .magic = "????ftypM4V ",
         .magic_size = 12,
         .extension = "m4a",
@@ -737,6 +739,7 @@ void rsvc_mp4_format_register() {
     };
     struct rsvc_format mp42 = {
         .name = "mp4",
+        .mime = "audio/mp4",
         .magic = "????ftypmp42",
         .magic_size = 12,
         .extension = "m4v",

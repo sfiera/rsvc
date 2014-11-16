@@ -51,6 +51,9 @@ typedef bool (*id3_read_t)(id3_frame_list_t frames, id3_frame_spec_t spec,
                            uint8_t* data, size_t size, rsvc_done_t fail);
 typedef void (*id3_yield_t)(id3_frame_node_t node,
                             void (^block)(const char* name, const char* value));
+typedef void (*id3_image_yield_t)(
+                        id3_frame_node_t,
+                        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size));
 typedef bool (*id3_add_t)(id3_frame_list_t frames, id3_frame_spec_t spec,
                           const char* value, rsvc_done_t fail);
 typedef bool (*id3_remove_t)(id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail);
@@ -89,6 +92,14 @@ static bool     id3_sequence_total_add(
                         const char* value, rsvc_done_t fail);
 static bool     id3_sequence_total_remove(
                         id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail);
+static bool     id3_image_read(
+                        id3_frame_list_t frames, id3_frame_spec_t spec,
+                        uint8_t* data, size_t size, rsvc_done_t fail);
+static void     id3_image_yield(
+                        id3_frame_node_t,
+                        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size));
+static size_t   id3_image_size(id3_frame_node_t node);
+static void     id3_image_write(id3_frame_node_t node, uint8_t* data);
 static bool     id3_passthru_read(
                         id3_frame_list_t frames, id3_frame_spec_t spec,
                         uint8_t* data, size_t size, rsvc_done_t fail);
@@ -104,6 +115,7 @@ static bool     id3_discard_read(
 struct id3_frame_type {
     id3_read_t          read;
     id3_yield_t         yield;
+    id3_image_yield_t   image_yield;
     id3_add_t           add;
     id3_remove_t        remove;
     id3_size_t          size;
@@ -144,6 +156,14 @@ static struct id3_frame_type id3_sequence_total = {
     .remove     = id3_sequence_total_remove,
     .size       = id3_text_size,
     .write      = id3_text_write,
+};
+
+static struct id3_frame_type id3_image = {
+    .read       = id3_image_read,
+    .yield      = id3_passthru_yield,
+    .image_yield= id3_image_yield,
+    .size       = id3_image_size,
+    .write      = id3_image_write,
 };
 
 static struct id3_frame_type id3_2_3_text = {
@@ -254,7 +274,7 @@ static struct id3_frame_spec {
     {NULL,                  "WXXX",     &id3_passthru,  &id3_passthru},
 
     // 4.14. Attached picture.
-    {NULL,                  "APIC",     &id3_passthru,  &id3_passthru},
+    {NULL,                  "APIC",     &id3_image,   &id3_image},
 
     // Various ignored frames.
     {NULL,                  "USLT",     &id3_passthru,  &id3_passthru},
@@ -387,6 +407,25 @@ static bool rsvc_id3_tags_each(
     return loop;
 }
 
+static bool rsvc_id3_tags_image_each(
+        rsvc_tags_t tags,
+        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop)) {
+    rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
+    __block bool loop = true;
+    for (id3_frame_node_t curr = self->frames.head; curr && loop; curr = curr->next) {
+        if (!curr->spec->id3_2_4_type->image_yield) {
+            continue;
+        }
+        curr->spec->id3_2_4_type->image_yield(
+                curr, ^(rsvc_format_t format, const uint8_t* data, size_t size){
+            block(format, data, size, ^{
+                loop = false;
+            });
+        });
+    }
+    return loop;
+}
+
 static void rsvc_id3_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -414,6 +453,7 @@ static struct rsvc_tags_methods id3_vptr = {
     .remove     = rsvc_id3_tags_remove,
     .add        = rsvc_id3_tags_add,
     .each       = rsvc_id3_tags_each,
+    .image_each = rsvc_id3_tags_image_each,
     .save       = rsvc_id3_tags_save,
     .destroy    = rsvc_id3_tags_destroy,
 };
@@ -421,6 +461,7 @@ static struct rsvc_tags_methods id3_vptr = {
 void rsvc_id3_format_register() {
     struct rsvc_format id3 = {
         .name = "id3",
+        .mime = "audio/mpeg",
         .magic = "ID3",
         .magic_size = 3,
         .extension = "mp3",
@@ -1005,6 +1046,134 @@ static bool id3_sequence_total_add(
 static bool id3_sequence_total_remove(
         id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail) {
     return id3_sequence_both_remove(frames, NULL, false, spec, true, fail);
+}
+
+static void decode_nul_terminated(
+        uint8_t* data, size_t size, rsvc_decode_text_f decode,
+        void (^done)(const char* text, uint8_t* data, size_t size, rsvc_error_t error)) {
+    uint8_t* end = data + size;
+    if ((decode == rsvc_decode_latin1) || (decode == rsvc_decode_utf8)) {
+        uint8_t* zero = memchr(data, '\0', size);
+        if (zero) {
+            uint8_t* start = zero + 1;
+            decode(data, start - data, ^(const char* text, size_t size, rsvc_error_t error){
+                done(text, start, end - start, error);
+            });
+            return;
+        }
+    } else {
+        uint16_t* data16 = (void*)data;
+        size_t size16 = size / 2;
+        for (size_t i = 0; i < size16; ++i) {
+            if (!data16[i]) {
+                uint8_t* zero = (void*)(data16 + i);
+                uint8_t* start = zero + 2;
+                decode(data, start - data, ^(const char* text, size_t size, rsvc_error_t error){
+                    done(text, start, end - start, error);
+                });
+                return;
+            }
+        }
+    }
+    rsvc_errorf(^(rsvc_error_t error){
+        done(NULL, NULL, 0, error);
+    }, __FILE__, __LINE__, "mussing null terminator");
+}
+
+struct id3_image_data {
+    uint8_t type;
+    size_t mime_type_end;
+    size_t description_end;
+    size_t payload_end;
+    uint8_t data[];
+};
+
+static bool id3_image_add(
+        id3_frame_list_t frames, id3_frame_spec_t spec, uint8_t image_type,
+        const char* mime_type, const char* description, uint8_t* data, size_t size,
+        rsvc_done_t fail) {
+    size_t mime_type_size = strlen(mime_type);
+    size_t description_size = strlen(description);
+    size_t total_size
+        = sizeof(struct id3_image_data)
+        + mime_type_size + 1
+        + description_size + 1
+        + size;
+    id3_frame_node_t node = id3_frame_create(frames, spec, total_size);
+
+    struct id3_image_data* d = (void*)node->data;
+    d->type = image_type;
+    size_t i = 0;
+    memcpy(d->data + i, mime_type, mime_type_size + 1);
+    d->mime_type_end = (i += mime_type_size + 1);
+    memcpy(d->data + i, description, description_size + 1);
+    d->description_end = (i += description_size + 1);
+    memcpy(d->data + i, data, size);
+    d->payload_end = (i += size);
+    return true;
+};
+
+static bool id3_image_read(
+        id3_frame_list_t frames, id3_frame_spec_t spec,
+        uint8_t* data, size_t size, rsvc_done_t fail) {
+    uint8_t* end = data + size;
+    rsvc_decode_text_f decode;
+    if (!read_encoding(&data, &size, 0x03, &decode, fail)) {
+        return false;
+    }
+
+    uint8_t* zero = memchr(data, '\0', end - data);
+    if (!zero) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "missing null terminator on APIC MIME type");
+        return false;
+    }
+    const char* mime_type = (void*)data;
+    data = zero + 1;
+
+    uint8_t image_type = *(data++);
+
+    __block bool result = false;
+    decode_nul_terminated(
+            data, end - data, decode,
+            ^(const char* description, uint8_t* data, size_t size, rsvc_error_t error){
+        if (error) {
+            fail(error);
+            return;
+        }
+        rsvc_logf(
+            3, "read image %d %s (%s, %zu bytes)",
+            image_type, description, mime_type, size);
+        result = id3_image_add(
+            frames, spec, image_type, mime_type, description, data, size, fail);
+    });
+    return result;
+}
+
+static void id3_image_yield(
+        id3_frame_node_t node,
+        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size)) {
+    struct id3_image_data* d = (void*)node->data;
+    rsvc_format_t format = rsvc_format_with_mime((const char*)d->data, 0);
+    if (format) {
+        block(format, d->data + d->description_end, d->payload_end - d->description_end);
+    }
+}
+
+static size_t id3_image_size(id3_frame_node_t node) {
+    struct id3_image_data* d = (void*)node->data;
+    return 2 + d->payload_end;
+}
+
+static void id3_image_write(id3_frame_node_t node, uint8_t* data) {
+    struct id3_image_data* d = (void*)node->data;
+    rsvc_logf(
+        3, "write image %d %s (%s, %zu bytes)",
+        d->type, d->data + d->mime_type_end, d->data, d->payload_end - d->description_end);
+    *(data++) = 0x03;
+    memcpy(data, d->data, d->mime_type_end);
+    data += d->mime_type_end;
+    *(data++) = d->type;
+    memcpy(data, d->data + d->mime_type_end, d->payload_end - d->mime_type_end);
 }
 
 static bool id3_passthru_read(id3_frame_list_t frames, id3_frame_spec_t spec,

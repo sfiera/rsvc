@@ -34,9 +34,9 @@
 typedef void (*rsvc_open_tags_f)(const char* path, int flags,
                                  void (^done)(rsvc_tags_t, rsvc_error_t));
 
-typedef struct rsvc_format* rsvc_format_t;
 struct rsvc_format {
     const char*         name;
+    const char*         mime;
 
     size_t              magic_size;
     const char*         magic;
@@ -57,6 +57,7 @@ enum rsvc_format_detect_flags {
 void                    rsvc_format_register(rsvc_format_t format);
 
 rsvc_format_t           rsvc_format_named(const char* name, int flags);
+rsvc_format_t           rsvc_format_with_mime(const char* mime, int flags);
 bool                    rsvc_format_detect(const char* path, int fd, int flags,
                                            rsvc_format_t* format, rsvc_done_t fail);
 bool                    rsvc_formats_each(void (^block)(rsvc_format_t format, rsvc_stop_t stop));

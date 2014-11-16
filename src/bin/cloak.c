@@ -39,8 +39,10 @@
 #include <rsvc/flac.h>
 #include <rsvc/format.h>
 #include <rsvc/id3.h>
+#include <rsvc/jpeg.h>
 #include <rsvc/mp4.h>
 #include <rsvc/musicbrainz.h>
+#include <rsvc/png.h>
 #include <rsvc/vorbis.h>
 
 #include "../rsvc/options.h"
@@ -55,6 +57,7 @@ enum short_flag {
     VERSION         = 'V',
 
     LIST            = 'l',
+    LIST_IMAGES     = 'L',
     REMOVE          = 'r',
     REMOVE_ALL      = 'R',
     ADD             = 'x',
@@ -91,6 +94,7 @@ rsvc_long_option_names kLongFlags = {
     {"version",         VERSION},
 
     {"list",            LIST},
+    {"list-images",     LIST_IMAGES},
     {"remove",          REMOVE},
     {"remove-all",      REMOVE_ALL},
     {"add",             ADD},
@@ -155,6 +159,7 @@ struct ops {
 
     bool            dry_run;
     list_mode_t     list_mode;
+    list_mode_t     list_images_mode;
 
     bool            move_mode;
     char*           move_format;
@@ -162,6 +167,7 @@ struct ops {
 typedef struct ops* ops_t;
 
 static void print_tags(rsvc_tags_t tags);
+static void print_images(rsvc_tags_t tags);
 static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done);
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done);
 
@@ -190,6 +196,8 @@ static void cloak_main(int argc, char* const* argv) {
     rsvc_vorbis_format_register();
     rsvc_mp4_format_register();
     rsvc_id3_format_register();
+    rsvc_png_format_register();
+    rsvc_jpeg_format_register();
 
     __block rsvc_option_callbacks_t callbacks;
 
@@ -207,6 +215,7 @@ static void cloak_main(int argc, char* const* argv) {
           case VERBOSE:     return verbosity_option();
           case VERSION:     return version_option();
           case LIST:        return list_option(&ops.list_mode);
+          case LIST_IMAGES: return list_option(&ops.list_images_mode);
           case ADD:         return tag_option(&ops, get_value, ADD, fail);
           case SET:         return tag_option(&ops, get_value, SET, fail);
           case REMOVE:      return tag_option(&ops, get_value, REMOVE, fail);
@@ -235,6 +244,9 @@ static void cloak_main(int argc, char* const* argv) {
     if ((files.nstrings > 1) && (ops.list_mode == LIST_MODE_SHORT)) {
         ops.list_mode = LIST_MODE_LONG;
     }
+    if ((files.nstrings > 1) && (ops.list_images_mode == LIST_MODE_SHORT)) {
+        ops.list_images_mode = LIST_MODE_LONG;
+    }
     tag_files(files.nstrings, files.strings, &ops, fail);
 
     dispatch_main();
@@ -257,6 +269,7 @@ static int ops_mode(ops_t ops) {
             || ops->auto_mode) {
         return RSVC_TAG_RDWR;
     } else if (ops->list_mode
+            || ops->list_images_mode
             || ops->move_mode) {
         return RSVC_TAG_RDONLY;
     } else {
@@ -296,11 +309,13 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
                 done(error);
                 return;
             }
-            if (ops->list_mode == LIST_MODE_LONG) {
+            if ((ops->list_mode == LIST_MODE_LONG) || (ops->list_images_mode == LIST_MODE_LONG)) {
                 printf("%s:\n", path);
             }
             if (ops->list_mode) {
                 print_tags(tags);
+            } else if (ops->list_images_mode) {
+                print_images(tags);
             }
             rsvc_tags_destroy(tags);
             done(NULL);
@@ -328,6 +343,13 @@ static void print_tags(rsvc_tags_t tags) {
             }
         }
         printf("\n");
+    });
+}
+
+static void print_images(rsvc_tags_t tags) {
+    rsvc_tags_image_each(tags, ^(
+                rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop){
+        printf("%zu-byte %s image\n", size, format->name);
     });
 }
 
@@ -606,6 +628,7 @@ static bool help_option(const char* progname) {
             "\n"
             "  Basic:\n"
             "    -l, --list              list all tags\n"
+            "    -L, --list-images       list all images\n"
             "    -r, --remove NAME       remove all tags with name NAME\n"
             "    -R, --remove-all        remove all tags\n"
             "    -x, --add NAME=VALUE    add VALUE to the tag with name NAME\n"
@@ -715,6 +738,9 @@ static bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail) {
         return false;
     } else if (ops_mode(ops) < 0) {
         rsvc_errorf(fail, __FILE__, __LINE__, "no actions");
+        return false;
+    } else if (ops->list_mode && ops->list_images_mode) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "can't list both tags and images");
         return false;
     }
     return true;
