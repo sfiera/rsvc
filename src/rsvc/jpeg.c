@@ -27,6 +27,7 @@ void rsvc_jpeg_format_register() {
         .magic = "??????JFIF",
         .magic_size = 8,
         .extension = "jpg",
+        .image = true,
     };
     rsvc_format_register(&jpeg);
 }

@@ -27,6 +27,7 @@ void rsvc_png_format_register() {
         .magic = "\211PNG\015\012\032\012",
         .magic_size = 8,
         .extension = "png",
+        .image = true,
     };
     rsvc_format_register(&png);
 }

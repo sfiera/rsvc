@@ -63,6 +63,7 @@ void rsvc_format_register(rsvc_format_t format) {
             .open_tags  = format->open_tags,
             .encode     = format->encode,
             .decode     = format->decode,
+            .image      = format->image,
         },
     };
     RSVC_LIST_PUSH(&formats, memdup(&node, sizeof(node)));
@@ -71,7 +72,8 @@ void rsvc_format_register(rsvc_format_t format) {
 static bool check_flags(int flags, rsvc_format_t format) {
     return ((flags & RSVC_FORMAT_OPEN_TAGS)  ? !!format->open_tags  : true)
         && ((flags & RSVC_FORMAT_ENCODE)     ? !!format->encode     : true)
-        && ((flags & RSVC_FORMAT_DECODE)     ? !!format->decode     : true);
+        && ((flags & RSVC_FORMAT_DECODE)     ? !!format->decode     : true)
+        && ((flags & RSVC_FORMAT_IMAGE)      ? !!format->image      : true);
 }
 
 rsvc_format_t rsvc_format_named(const char* name, int flags) {

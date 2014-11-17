@@ -108,6 +108,37 @@ bool rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
     return result;
 }
 
+bool rsvc_tags_image_clear(rsvc_tags_t tags, rsvc_done_t fail) {
+    if (!tags->vptr->image_remove) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "unsupported format");
+        return false;
+    } else if (!check_tags_writable(tags, fail)) {
+        return false;
+    }
+    return tags->vptr->image_remove(tags, NULL, fail);
+}
+
+bool rsvc_tags_image_remove(rsvc_tags_t tags, size_t index, rsvc_done_t fail) {
+    if (!tags->vptr->image_remove) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "unsupported format");
+        return false;
+    } else if (!check_tags_writable(tags, fail)) {
+        return false;
+    }
+    return tags->vptr->image_remove(tags, &index, fail);
+}
+
+bool rsvc_tags_image_add(
+        rsvc_tags_t tags, const char* path, rsvc_format_t format, int fd, rsvc_done_t fail) {
+    if (!tags->vptr->image_add) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "unsupported format");
+        return false;
+    } else if (!check_tags_writable(tags, fail)) {
+        return false;
+    }
+    return tags->vptr->image_add(tags, path, format, fd, fail);
+}
+
 bool rsvc_tags_each(rsvc_tags_t tags,
                     void (^block)(const char*, const char*, rsvc_stop_t)) {
     return tags->vptr->each(tags, block);

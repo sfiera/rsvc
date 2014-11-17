@@ -34,7 +34,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/errno.h>
+#include <sys/mman.h>
 #include <sys/param.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "common.h"
@@ -92,6 +94,10 @@ static bool     id3_sequence_total_add(
                         const char* value, rsvc_done_t fail);
 static bool     id3_sequence_total_remove(
                         id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail);
+static bool     id3_image_add(
+                        id3_frame_list_t frames, id3_frame_spec_t spec, uint8_t image_type,
+                        const char* mime_type, const char* description,
+                        const uint8_t* data, size_t size, rsvc_done_t fail);
 static bool     id3_image_read(
                         id3_frame_list_t frames, id3_frame_spec_t spec,
                         uint8_t* data, size_t size, rsvc_done_t fail);
@@ -426,6 +432,50 @@ static bool rsvc_id3_tags_image_each(
     return loop;
 }
 
+static bool rsvc_id3_tags_image_remove(
+        rsvc_tags_t tags, size_t* index, rsvc_done_t fail) {
+    if (index) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "not implemented");
+        return false;
+    }
+
+    static const uint8_t tag[] = "APIC";
+    id3_frame_spec_t spec;
+    if (!get_id3_frame_spec(4, tag, &spec, fail)) {
+        return false;
+    }
+
+    rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
+    while (true) {
+        id3_frame_node_t match = find_by_spec(&self->frames, spec);
+        if (match) {
+            RSVC_LIST_ERASE(&self->frames, match);
+        } else {
+            return true;
+        }
+    }
+}
+
+static bool rsvc_id3_tags_image_add(
+        rsvc_tags_t tags, const char* path, rsvc_format_t format, int fd, rsvc_done_t fail) {
+    rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
+    static const uint8_t tag[] = "APIC";
+    id3_frame_spec_t spec;
+    if (!get_id3_frame_spec(4, tag, &spec, fail)) {
+        return false;
+    }
+    struct stat st;
+    uint8_t* data;
+    if (!((fstat(fd, &st) == 0)
+          && ((data = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0)) != MAP_FAILED))) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
+        return false;
+    }
+    static const char description[] = "";
+    return id3_image_add(
+            &self->frames, spec, 0x03, format->mime, description, data, st.st_size, fail);
+}
+
 static void rsvc_id3_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -450,12 +500,14 @@ static void rsvc_id3_tags_destroy(rsvc_tags_t tags) {
 }
 
 static struct rsvc_tags_methods id3_vptr = {
-    .remove     = rsvc_id3_tags_remove,
-    .add        = rsvc_id3_tags_add,
-    .each       = rsvc_id3_tags_each,
-    .image_each = rsvc_id3_tags_image_each,
-    .save       = rsvc_id3_tags_save,
-    .destroy    = rsvc_id3_tags_destroy,
+    .remove         = rsvc_id3_tags_remove,
+    .add            = rsvc_id3_tags_add,
+    .each           = rsvc_id3_tags_each,
+    .image_each     = rsvc_id3_tags_image_each,
+    .image_remove   = rsvc_id3_tags_image_remove,
+    .image_add      = rsvc_id3_tags_image_add,
+    .save           = rsvc_id3_tags_save,
+    .destroy        = rsvc_id3_tags_destroy,
 };
 
 void rsvc_id3_format_register() {
@@ -1090,7 +1142,7 @@ struct id3_image_data {
 
 static bool id3_image_add(
         id3_frame_list_t frames, id3_frame_spec_t spec, uint8_t image_type,
-        const char* mime_type, const char* description, uint8_t* data, size_t size,
+        const char* mime_type, const char* description, const uint8_t* data, size_t size,
         rsvc_done_t fail) {
     size_t mime_type_size = strlen(mime_type);
     size_t description_size = strlen(description);

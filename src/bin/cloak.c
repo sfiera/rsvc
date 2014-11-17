@@ -45,6 +45,8 @@
 #include <rsvc/png.h>
 #include <rsvc/vorbis.h>
 
+#include "../rsvc/common.h"
+#include "../rsvc/list.h"
 #include "../rsvc/options.h"
 #include "../rsvc/unix.h"
 
@@ -62,6 +64,8 @@ enum short_flag {
     REMOVE_ALL      = 'R',
     ADD             = 'x',
     SET             = 's',
+    IMAGE           = 'i',
+    ADD_IMAGE       = 'I',
 
     ARTIST          = 'a',
     ALBUM           = 'A',
@@ -99,6 +103,8 @@ rsvc_long_option_names kLongFlags = {
     {"remove-all",      REMOVE_ALL},
     {"add",             ADD},
     {"set",             SET},
+    {"image",           IMAGE},
+    {"add-image",       ADD_IMAGE},
 
     {"artist",          RSVC_CODE_ARTIST},
     {"album",           RSVC_CODE_ALBUM},
@@ -148,12 +154,26 @@ static void add_string(string_list_t* list, const char* string) {
     list->strings = new_strings;
 }
 
+struct add_image_node {
+    const char* path;
+    int fd;
+    rsvc_format_t format;
+    struct add_image_node *prev, *next;
+};
+
+struct add_image_list {
+    struct add_image_node *head, *tail;
+};
+
 struct ops {
     bool            remove_all_tags;
     string_list_t   remove_tags;
 
     string_list_t   add_tag_names;
     string_list_t   add_tag_values;
+
+    bool            remove_all_images;
+    struct add_image_list   add_images;
 
     bool            auto_mode;
 
@@ -177,6 +197,8 @@ static bool version_option();
 static bool list_option(list_mode_t* list_mode);
 static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
                        rsvc_done_t fail);
+static bool image_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
+                         rsvc_done_t fail);
 static bool path_option(ops_t ops, rsvc_option_value_t get_value, rsvc_done_t fail);
 static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_t get_value, rsvc_done_t fail);
 static bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail);
@@ -218,6 +240,8 @@ static void cloak_main(int argc, char* const* argv) {
           case LIST_IMAGES: return list_option(&ops.list_images_mode);
           case ADD:         return tag_option(&ops, get_value, ADD, fail);
           case SET:         return tag_option(&ops, get_value, SET, fail);
+          case IMAGE:       return image_option(&ops, get_value, IMAGE, fail);
+          case ADD_IMAGE:   return image_option(&ops, get_value, ADD_IMAGE, fail);
           case REMOVE:      return tag_option(&ops, get_value, REMOVE, fail);
           case REMOVE_ALL:  return rsvc_boolean_option(&ops.remove_all_tags);
           case AUTO:        return rsvc_boolean_option(&ops.auto_mode);
@@ -266,6 +290,8 @@ static int ops_mode(ops_t ops) {
     if (ops->remove_all_tags
             || ops->remove_tags.nstrings
             || ops->add_tag_names.nstrings
+            || ops->remove_all_images
+            || ops->add_images.head
             || ops->auto_mode) {
         return RSVC_TAG_RDWR;
     } else if (ops->list_mode
@@ -532,11 +558,25 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
             }
         }
     }
+    if (ops->remove_all_images) {
+        if (!rsvc_tags_image_clear(tags, done)) {
+            return;
+        }
+    }
 
     for (size_t i = 0; i < ops->add_tag_names.nstrings; ++i) {
         const char* name = ops->add_tag_names.strings[i];
         const char* value = ops->add_tag_values.strings[i];
         if (!rsvc_tags_add(tags, done, name, value)) {
+            return;
+        }
+    }
+
+    for (struct add_image_node* curr = ops->add_images.head; curr; curr = curr->next) {
+        const char* path = curr->path;
+        int fd = curr->fd;
+        rsvc_format_t format = curr->format;
+        if (!rsvc_tags_image_add(tags, path, format, fd, done)) {
             return;
         }
     }
@@ -633,6 +673,8 @@ static bool help_option(const char* progname) {
             "    -R, --remove-all        remove all tags\n"
             "    -x, --add NAME=VALUE    add VALUE to the tag with name NAME\n"
             "    -s, --set NAME=VALUE    set the tag with name NAME to VALUE\n"
+            "    -i, --image PNG|JPG     set the embedded image by path\n"
+            "    -I, --add-image IMAGE   add an embedded image by path\n"
             "\n"
             "  Shorthand:\n"
             "    -a, --artist ARTIST     set the artist name\n"
@@ -704,6 +746,25 @@ static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag
     add_string(&ops->add_tag_values, tag_value);
     free(tag_name);
     free(tag_value);
+    return true;
+}
+
+static bool image_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
+                         rsvc_done_t fail) {
+    char* path;
+    int fd;
+    rsvc_format_t format;
+    if (!(get_value(&path, fail)
+          && rsvc_open(path, O_RDONLY, 0644, &fd, fail)
+          && rsvc_format_detect(path, fd, RSVC_FORMAT_IMAGE, &format, fail))) {
+        return false;
+    }
+    if (flag == IMAGE) {
+        ops->remove_all_images = true;
+    }
+    struct add_image_node node = {path, fd, format};
+    struct add_image_node* copy = memdup(&node, sizeof(node));
+    RSVC_LIST_PUSH(&ops->add_images, copy);
     return true;
 }
 
