@@ -155,6 +155,14 @@ bool rsvc_tags_image_each(
     }
 }
 
+size_t rsvc_tags_image_size(rsvc_tags_t tags) {
+    __block size_t size = 0;
+    rsvc_tags_image_each(tags, ^(rsvc_format_t f, const uint8_t* d, size_t s, rsvc_stop_t stop) {
+        ++size;
+    });
+    return size;
+}
+
 const char* rsvc_tag_code_get(int code) {
     switch (code) {
 #define RSVC_TAG_CASE(NAME) case RSVC_CODE_ ## NAME: return RSVC_ ## NAME

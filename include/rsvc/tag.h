@@ -145,6 +145,7 @@ bool                    rsvc_tags_image_each(rsvc_tags_t tags,
                                              void (^block)(rsvc_format_t format,
                                                            const uint8_t* data, size_t size,
                                                            rsvc_stop_t stop));
+size_t                  rsvc_tags_image_size(rsvc_tags_t tags);
 
 /// ..  function:: void rsvc_tags_strf(const char* format, rsvc_tags_t tags, const char* extension, void (^done)(rsvc_error_t error, char* path))
 ///

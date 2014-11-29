@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/param.h>
 #include <sys/stat.h>
 #include <sysexits.h>
 #include <unistd.h>
@@ -53,80 +54,90 @@
 #define DEFAULT_PATH "./%b/%A/%d%k%t"
 
 enum short_flag {
-    HELP            = 'h',
-    DRY_RUN         = 'n',
-    VERBOSE         = 'v',
-    VERSION         = 'V',
+    HELP                = 'h',
+    DRY_RUN             = 'n',
+    VERBOSE             = 'v',
+    VERSION             = 'V',
 
-    LIST            = 'l',
-    LIST_IMAGES     = 'L',
-    REMOVE          = 'r',
-    REMOVE_ALL      = 'R',
-    ADD             = 'x',
-    SET             = 's',
-    IMAGE           = 'i',
-    ADD_IMAGE       = 'I',
+    LIST                = 'l',
+    LIST_IMAGES         = 'L',
+    REMOVE              = 'r',
+    REMOVE_ALL          = 'R',
+    ADD                 = 'x',
+    SET                 = 's',
 
-    ARTIST          = 'a',
-    ALBUM           = 'A',
-    ALBUM_ARTIST    = 'b',
-    TITLE           = 't',
-    GENRE           = 'g',
-    GROUPING        = 'G',
-    DATE            = 'y',
-    TRACK           = 'k',
-    TRACK_TOTAL     = 'K',
-    DISC            = 'd',
-    DISC_TOTAL      = 'D',
+    ARTIST              = 'a',
+    ALBUM               = 'A',
+    ALBUM_ARTIST        = 'b',
+    TITLE               = 't',
+    GENRE               = 'g',
+    GROUPING            = 'G',
+    DATE                = 'y',
+    TRACK               = 'k',
+    TRACK_TOTAL         = 'K',
+    DISC                = 'd',
+    DISC_TOTAL          = 'D',
 
-    SHOW            = 'S',
-    EPISODE         = 'e',
-    EPISODE_TOTAL   = 'E',
-    SEASON          = 'c',
-    SEASON_TOTAL    = 'C',
+    SHOW                = 'S',
+    EPISODE             = 'e',
+    EPISODE_TOTAL       = 'E',
+    SEASON              = 'c',
+    SEASON_TOTAL        = 'C',
 
-    AUTO            = -1,
+    IMAGE               = 'i',
+    WRITE_IMAGE         = 'o',
+    SELECT_IMAGE        = 'I',
+    REMOVE_IMAGE        = -1,
+    REMOVE_ALL_IMAGES   = -2,
+    ADD_IMAGE           = -3,
 
-    MOVE            = 'm',
-    PATH            = 'p',
+    AUTO                = -4,
+
+    MOVE                = 'm',
+    PATH                = 'p',
 };
 
 rsvc_long_option_names kLongFlags = {
-    {"help",            HELP},
-    {"dry-run",         DRY_RUN},
-    {"verbose",         VERBOSE},
-    {"version",         VERSION},
+    {"help",                HELP},
+    {"dry-run",             DRY_RUN},
+    {"verbose",             VERBOSE},
+    {"version",             VERSION},
 
-    {"list",            LIST},
-    {"list-images",     LIST_IMAGES},
-    {"remove",          REMOVE},
-    {"remove-all",      REMOVE_ALL},
-    {"add",             ADD},
-    {"set",             SET},
-    {"image",           IMAGE},
-    {"add-image",       ADD_IMAGE},
+    {"list",                LIST},
+    {"list-images",         LIST_IMAGES},
+    {"remove",              REMOVE},
+    {"remove-all",          REMOVE_ALL},
+    {"add",                 ADD},
+    {"set",                 SET},
 
-    {"artist",          RSVC_CODE_ARTIST},
-    {"album",           RSVC_CODE_ALBUM},
-    {"albumartist",     RSVC_CODE_ALBUMARTIST},
-    {"title",           RSVC_CODE_TITLE},
-    {"genre",           RSVC_CODE_GENRE},
-    {"grouping",        RSVC_CODE_GROUPING},
-    {"date",            RSVC_CODE_DATE},
-    {"tracknumber",     RSVC_CODE_TRACKNUMBER},
-    {"tracktotal",      RSVC_CODE_TRACKTOTAL},
-    {"discnumber",      RSVC_CODE_DISCNUMBER},
-    {"disctotal",       RSVC_CODE_DISCTOTAL},
-    {"show",            RSVC_CODE_SHOW},
-    {"episodenumber",   RSVC_CODE_EPISODENUMBER},
-    {"episodetotal",    RSVC_CODE_EPISODETOTAL},
-    {"seasonnumber",    RSVC_CODE_SEASONNUMBER},
-    {"seasontotal",     RSVC_CODE_SEASONTOTAL},
+    {"artist",              RSVC_CODE_ARTIST},
+    {"album",               RSVC_CODE_ALBUM},
+    {"albumartist",         RSVC_CODE_ALBUMARTIST},
+    {"title",               RSVC_CODE_TITLE},
+    {"genre",               RSVC_CODE_GENRE},
+    {"grouping",            RSVC_CODE_GROUPING},
+    {"date",                RSVC_CODE_DATE},
+    {"tracknumber",         RSVC_CODE_TRACKNUMBER},
+    {"tracktotal",          RSVC_CODE_TRACKTOTAL},
+    {"discnumber",          RSVC_CODE_DISCNUMBER},
+    {"disctotal",           RSVC_CODE_DISCTOTAL},
+    {"show",                RSVC_CODE_SHOW},
+    {"episodenumber",       RSVC_CODE_EPISODENUMBER},
+    {"episodetotal",        RSVC_CODE_EPISODETOTAL},
+    {"seasonnumber",        RSVC_CODE_SEASONNUMBER},
+    {"seasontotal",         RSVC_CODE_SEASONTOTAL},
 
-    {"auto",            AUTO},
+    {"image",               IMAGE},
+    {"write-image",         WRITE_IMAGE},
+    {"select-image",        SELECT_IMAGE},
+    {"remove-image",        REMOVE_IMAGE},
+    {"remove-all-images",   REMOVE_ALL_IMAGES},
+    {"add-image",           ADD_IMAGE},
 
-    {"move",            MOVE},
-    {"path",            PATH},
+    {"auto",                AUTO},
+
+    {"move",                MOVE},
+    {"path",                PATH},
 
     {NULL},
 };
@@ -165,6 +176,23 @@ struct add_image_list {
     struct add_image_node *head, *tail;
 };
 
+struct remove_image_list {
+    struct remove_image_node {
+        int index;
+        struct remove_image_node *prev, *next;
+    } *head, *tail;
+};
+
+struct write_image_list {
+    struct write_image_node {
+        int index;
+        const char* path;
+        char temp_path[MAXPATHLEN];
+        int fd;
+        struct write_image_node *prev, *next;
+    } *head, *tail;
+};
+
 struct ops {
     bool            remove_all_tags;
     string_list_t   remove_tags;
@@ -172,8 +200,11 @@ struct ops {
     string_list_t   add_tag_names;
     string_list_t   add_tag_values;
 
+    int             image_index;
     bool            remove_all_images;
-    struct add_image_list   add_images;
+    struct add_image_list       add_images;
+    struct remove_image_list    remove_images;
+    struct write_image_list     write_images;
 
     bool            auto_mode;
 
@@ -232,22 +263,26 @@ static void cloak_main(int argc, char* const* argv) {
 
     callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
         switch (opt) {
-          case HELP:        return help_option(progname);
-          case DRY_RUN:     return rsvc_boolean_option(&ops.dry_run);
-          case VERBOSE:     return verbosity_option();
-          case VERSION:     return version_option();
-          case LIST:        return list_option(&ops.list_mode);
-          case LIST_IMAGES: return list_option(&ops.list_images_mode);
-          case ADD:         return tag_option(&ops, get_value, ADD, fail);
-          case SET:         return tag_option(&ops, get_value, SET, fail);
-          case IMAGE:       return image_option(&ops, get_value, IMAGE, fail);
-          case ADD_IMAGE:   return image_option(&ops, get_value, ADD_IMAGE, fail);
-          case REMOVE:      return tag_option(&ops, get_value, REMOVE, fail);
-          case REMOVE_ALL:  return rsvc_boolean_option(&ops.remove_all_tags);
-          case AUTO:        return rsvc_boolean_option(&ops.auto_mode);
-          case MOVE:        return rsvc_boolean_option(&ops.move_mode);
-          case PATH:        return path_option(&ops, get_value, fail);
-          default:          return shorthand_option(&ops, opt, get_value, fail);
+          case HELP:                return help_option(progname);
+          case DRY_RUN:             return rsvc_boolean_option(&ops.dry_run);
+          case VERBOSE:             return verbosity_option();
+          case VERSION:             return version_option();
+          case LIST:                return list_option(&ops.list_mode);
+          case LIST_IMAGES:         return list_option(&ops.list_images_mode);
+          case ADD:                 return tag_option(&ops, get_value, opt, fail);
+          case SET:                 return tag_option(&ops, get_value, opt, fail);
+          case REMOVE:              return tag_option(&ops, get_value, opt, fail);
+          case REMOVE_ALL:          return rsvc_boolean_option(&ops.remove_all_tags);
+          case IMAGE:               return image_option(&ops, get_value, opt, fail);
+          case WRITE_IMAGE:         return image_option(&ops, get_value, opt, fail);
+          case SELECT_IMAGE:        return rsvc_integer_option(&ops.image_index, get_value, fail);
+          case REMOVE_IMAGE:        return image_option(&ops, get_value, opt, fail);
+          case REMOVE_ALL_IMAGES:   return rsvc_boolean_option(&ops.remove_all_images);
+          case ADD_IMAGE:           return image_option(&ops, get_value, opt, fail);
+          case AUTO:                return rsvc_boolean_option(&ops.auto_mode);
+          case MOVE:                return rsvc_boolean_option(&ops.move_mode);
+          case PATH:                return path_option(&ops, get_value, fail);
+          default:                  return shorthand_option(&ops, opt, get_value, fail);
         }
     };
 
@@ -292,10 +327,12 @@ static int ops_mode(ops_t ops) {
             || ops->add_tag_names.nstrings
             || ops->remove_all_images
             || ops->add_images.head
+            || ops->remove_images.head
             || ops->auto_mode) {
         return RSVC_TAG_RDWR;
     } else if (ops->list_mode
             || ops->list_images_mode
+            || ops->write_images.head
             || ops->move_mode) {
         return RSVC_TAG_RDONLY;
     } else {
@@ -558,9 +595,16 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
             }
         }
     }
+
     if (ops->remove_all_images) {
         if (!rsvc_tags_image_clear(tags, done)) {
             return;
+        }
+    } else {
+        for (struct remove_image_node* curr = ops->remove_images.head; curr; curr = curr->next) {
+            if (!rsvc_tags_image_remove(tags, curr->index, done)) {
+                return;
+            }
         }
     }
 
@@ -568,6 +612,39 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
         const char* name = ops->add_tag_names.strings[i];
         const char* value = ops->add_tag_values.strings[i];
         if (!rsvc_tags_add(tags, done, name, value)) {
+            return;
+        }
+    }
+
+    for (struct write_image_node* curr = ops->write_images.head; curr; curr = curr->next) {
+        const int index = curr->index;
+        rsvc_logf(1, "writing image %d to %s", index, curr->temp_path);
+        if ((index < 0) || (rsvc_tags_image_size(tags) <= index)) {
+            rsvc_errorf(done, __FILE__, __LINE__, "bad index: %d", index);
+            return;
+        }
+
+        __block int i = 0;
+        __block bool success = false;
+        rsvc_tags_image_each(tags, ^(
+                    rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop){
+            if (index == i++) {
+                char path[MAXPATHLEN + 10];  // space for extra dot and extension.
+                strcpy(path, curr->path);
+                if (!path[0]) {
+                    strcpy(path, "cover");
+                }
+                if (!get_extension(path)) {
+                    strcat(path, ".");
+                    strcat(path, format->extension);
+                }
+                success =
+                    rsvc_write(curr->path, curr->fd, data, size, NULL, NULL, done)
+                    && rsvc_rename(curr->temp_path, path, done);
+                stop();
+            }
+        });
+        if (!success) {
             return;
         }
     }
@@ -673,8 +750,6 @@ static bool help_option(const char* progname) {
             "    -R, --remove-all        remove all tags\n"
             "    -x, --add NAME=VALUE    add VALUE to the tag with name NAME\n"
             "    -s, --set NAME=VALUE    set the tag with name NAME to VALUE\n"
-            "    -i, --image PNG|JPG     set the embedded image by path\n"
-            "    -I, --add-image IMAGE   add an embedded image by path\n"
             "\n"
             "  Shorthand:\n"
             "    -a, --artist ARTIST     set the artist name\n"
@@ -693,6 +768,14 @@ static bool help_option(const char* progname) {
             "    -E, --episode-total NUM set the episode total\n"
             "    -c, --season NUM        set the season number\n"
             "    -C, --season-total NUM  set the season total\n"
+            "\n"
+            "  Image:\n"
+            "    -i, --image PNG|JPG     set the embedded image by path\n"
+            "    -o, --write-image PATH  write the embedded image to a path\n"
+            "    -I, --select-image N    select an image for --{write,remove}-image\n"
+            "        --remove-image      remove the embedded image\n"
+            "        --remove-all-images remove all embedded images\n"
+            "        --add-image IMAGE   add an embedded image by path\n"
             "\n"
             "  MusicBrainz:\n"
             "        --auto              fetch missing tags from MusicBrainz\n"
@@ -751,21 +834,43 @@ static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag
 
 static bool image_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
                          rsvc_done_t fail) {
-    char* path;
-    int fd;
-    rsvc_format_t format;
-    if (!(get_value(&path, fail)
-          && rsvc_open(path, O_RDONLY, 0644, &fd, fail)
-          && rsvc_format_detect(path, fd, RSVC_FORMAT_IMAGE, &format, fail))) {
-        return false;
+    if ((flag == IMAGE) || (flag == ADD_IMAGE)) {
+        char* path;
+        int fd;
+        rsvc_format_t format;
+        if (!(get_value(&path, fail)
+              && rsvc_open(path, O_RDONLY, 0644, &fd, fail)
+              && rsvc_format_detect(path, fd, RSVC_FORMAT_IMAGE, &format, fail))) {
+            return false;
+        }
+        if (flag == IMAGE) {
+            ops->remove_all_images = true;
+        }
+        struct add_image_node node = {path, fd, format};
+        struct add_image_node* copy = memdup(&node, sizeof(node));
+        RSVC_LIST_PUSH(&ops->add_images, copy);
+        return true;
+    } else if (flag == WRITE_IMAGE) {
+        char* path;
+        int fd;
+        char temp_path[MAXPATHLEN];
+        if (!(get_value(&path, fail)
+              && rsvc_temp(path, 0644, temp_path, &fd, fail))) {
+            return false;
+        }
+        struct write_image_node node = {ops->image_index, path, {}, fd};
+        memcpy(node.temp_path, temp_path, MAXPATHLEN);
+        struct write_image_node* copy = memdup(&node, sizeof(node));
+        RSVC_LIST_PUSH(&ops->write_images, copy);
+        return true;
+    } else if (flag == REMOVE_IMAGE) {
+        struct remove_image_node node = {ops->image_index};
+        struct remove_image_node* copy = memdup(&node, sizeof(node));
+        RSVC_LIST_PUSH(&ops->remove_images, copy);
+        return true;
     }
-    if (flag == IMAGE) {
-        ops->remove_all_images = true;
-    }
-    struct add_image_node node = {path, fd, format};
-    struct add_image_node* copy = memdup(&node, sizeof(node));
-    RSVC_LIST_PUSH(&ops->add_images, copy);
-    return true;
+    rsvc_errorf(fail, __FILE__, __LINE__, "internal error");
+    return false;
 }
 
 static bool path_option(ops_t ops, rsvc_option_value_t get_value, rsvc_done_t fail) {
