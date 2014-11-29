@@ -56,7 +56,10 @@ def build(bld):
     bld.program(
         target="ripservice/cloak",
         features="universal",
-        source="src/bin/cloak.c",
+        source=[
+            "src/bin/cloak.c",
+            "src/bin/cloak_options.c",
+        ],
         includes="include",
         cflags=CFLAGS,
         use="ripservice/librsvc",
