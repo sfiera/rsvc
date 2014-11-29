@@ -153,8 +153,10 @@ struct ops {
     bool            auto_mode;
 
     bool            dry_run;
+
     list_mode_t     list_mode;
-    list_mode_t     list_images_mode;
+    bool            list_tags;
+    bool            list_images;
 
     bool            move_mode;
     char*           move_format;

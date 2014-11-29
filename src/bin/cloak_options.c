@@ -23,7 +23,6 @@
 static bool help_option(const char* progname);
 static bool verbosity_option();
 static bool version_option();
-static bool list_option(list_mode_t* list_mode);
 static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
                        rsvc_done_t fail);
 static bool image_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
@@ -99,8 +98,8 @@ bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t* files,
           case DRY_RUN:             return rsvc_boolean_option(&ops->dry_run);
           case VERBOSE:             return verbosity_option();
           case VERSION:             return version_option();
-          case LIST:                return list_option(&ops->list_mode);
-          case LIST_IMAGES:         return list_option(&ops->list_images_mode);
+          case LIST:                return rsvc_boolean_option(&ops->list_tags);
+          case LIST_IMAGES:         return rsvc_boolean_option(&ops->list_images);
           case ADD:                 return tag_option(ops, get_value, opt, fail);
           case SET:                 return tag_option(ops, get_value, opt, fail);
           case REMOVE:              return tag_option(ops, get_value, opt, fail);
@@ -132,11 +131,8 @@ bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t* files,
         return false;
     }
 
-    if ((files->nstrings > 1) && (ops->list_mode == LIST_MODE_SHORT)) {
-        ops->list_mode = LIST_MODE_LONG;
-    }
-    if ((files->nstrings > 1) && (ops->list_images_mode == LIST_MODE_SHORT)) {
-        ops->list_images_mode = LIST_MODE_LONG;
+    if (ops->list_tags || ops->list_images) {
+        ops->list_mode = (files->nstrings > 1) ? LIST_MODE_LONG : LIST_MODE_SHORT;
     }
     return true;
 }
@@ -150,8 +146,8 @@ int cloak_mode(ops_t ops) {
             || ops->remove_images.head
             || ops->auto_mode) {
         return RSVC_TAG_RDWR;
-    } else if (ops->list_mode
-            || ops->list_images_mode
+    } else if (ops->list_tags
+            || ops->list_images
             || ops->write_images.head
             || ops->move_mode) {
         return RSVC_TAG_RDONLY;
@@ -223,11 +219,6 @@ static bool verbosity_option() {
 static bool version_option() {
     printf("cloak %s\n", RSVC_VERSION);
     exit(0);
-}
-
-static bool list_option(list_mode_t* list_mode) {
-    *list_mode = LIST_MODE_SHORT;
-    return true;
 }
 
 static bool validate_name(char* name, rsvc_done_t fail) {
@@ -355,9 +346,6 @@ static bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail) {
         return false;
     } else if (cloak_mode(ops) < 0) {
         rsvc_errorf(fail, __FILE__, __LINE__, "no actions");
-        return false;
-    } else if (ops->list_mode && ops->list_images_mode) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "can't list both tags and images");
         return false;
     }
     return true;

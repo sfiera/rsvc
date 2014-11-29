@@ -100,12 +100,13 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
                 done(error);
                 return;
             }
-            if ((ops->list_mode == LIST_MODE_LONG) || (ops->list_images_mode == LIST_MODE_LONG)) {
+            if (ops->list_mode == LIST_MODE_LONG) {
                 printf("%s:\n", path);
             }
-            if (ops->list_mode) {
+            if (ops->list_tags) {
                 print_tags(tags);
-            } else if (ops->list_images_mode) {
+            }
+            if (ops->list_images) {
                 print_images(tags);
             }
             rsvc_tags_destroy(tags);
