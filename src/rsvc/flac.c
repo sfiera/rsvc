@@ -315,15 +315,13 @@ static bool rsvc_flac_tags_each(rsvc_tags_t tags,
     return loop;
 }
 
-static void rsvc_flac_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
+static bool rsvc_flac_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        if (!FLAC__metadata_chain_write(self->chain, true, false)) {
-            rsvc_errorf(done, __FILE__, __LINE__, "comment error");
-            return;
-        }
-        done(NULL);
-    });
+    if (!FLAC__metadata_chain_write(self->chain, true, false)) {
+        rsvc_errorf(done, __FILE__, __LINE__, "comment error");
+        return false;
+    }
+    return true;
 }
 
 static void rsvc_flac_tags_destroy(rsvc_tags_t tags) {

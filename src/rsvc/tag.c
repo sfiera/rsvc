@@ -59,11 +59,11 @@ static bool check_tags_writable(rsvc_tags_t tags, rsvc_done_t fail) {
     return true;
 }
 
-void rsvc_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
+bool rsvc_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     if (tags_writable(tags)) {
-        tags->vptr->save(tags, done);
+        return tags->vptr->save(tags, fail);
     } else {
-        done(NULL);
+        return true;
     }
 }
 
@@ -508,10 +508,8 @@ static bool rsvc_detached_tags_each(
     return loop;
 }
 
-static void rsvc_detached_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        done(NULL);
-    });
+static bool rsvc_detached_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
+    return true;
 }
 
 static void rsvc_detached_tags_destroy(rsvc_tags_t tags) {

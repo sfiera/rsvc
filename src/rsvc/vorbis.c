@@ -272,57 +272,57 @@ static bool rsvc_vorbis_tags_each(
     return loop;
 }
 
-static void rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
+static bool rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
-    rsvc_done_t done_copy = done;
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        rsvc_done_t done = done_copy;
-        int fd;
-        char tmp_path[MAXPATHLEN];
-        if (!rsvc_temp(self->path, 0644, tmp_path, &fd, done)) {
-            return;
+    int fd;
+    char tmp_path[MAXPATHLEN];
+    if (!rsvc_temp(self->path, 0644, tmp_path, &fd, fail)) {
+        return false;
+    }
+    rsvc_done_t done = ^(rsvc_error_t error){
+        close(fd);
+        if (error) {
+            fail(error);
         }
-        done = ^(rsvc_error_t error){
-            close(fd);
-            done(error);
-        };
+    };
 
-        ogg_page                    og;
-        __block ogg_stream_state    os;
-        ogg_stream_init(&os, self->serial);
-        done = ^(rsvc_error_t error){
-            ogg_stream_clear(&os);
-            done(error);
-        };
+    ogg_page                    og;
+    __block ogg_stream_state    os;
+    ogg_stream_init(&os, self->serial);
+    done = ^(rsvc_error_t error){
+        ogg_stream_clear(&os);
+        done(error);
+    };
 
-        ogg_packet header_comm;
-        vorbis_commentheader_out(&self->vc, &header_comm);
-        ogg_stream_packetin(&os, &self->header);
-        ogg_stream_packetin(&os, &header_comm);
-        ogg_stream_packetin(&os, &self->header_code);
-        ogg_packet_clear(&header_comm);
+    ogg_packet header_comm;
+    vorbis_commentheader_out(&self->vc, &header_comm);
+    ogg_stream_packetin(&os, &self->header);
+    ogg_stream_packetin(&os, &header_comm);
+    ogg_stream_packetin(&os, &self->header_code);
+    ogg_packet_clear(&header_comm);
 
-        while (true) {
-            int result = ogg_stream_flush(&os, &og);
-            if (result == 0) {
-                break;
-            }
-            if (!(rsvc_write(NULL, fd, og.header, og.header_len, NULL, NULL, done) &&
-                  rsvc_write(NULL, fd, og.body, og.body_len, NULL, NULL, done))) {
-                return;  // TODO(sfiera): cleanup?
-            }
+    while (true) {
+        int result = ogg_stream_flush(&os, &og);
+        if (result == 0) {
+            break;
         }
+        if (!(rsvc_write(NULL, fd, og.header, og.header_len, NULL, NULL, done) &&
+              rsvc_write(NULL, fd, og.body, og.body_len, NULL, NULL, done))) {
+            return false;  // TODO(sfiera): cleanup?
+        }
+    }
 
-        for (rsvc_ogg_page_node_t curr = self->pages.head; curr; curr = curr->next) {
-            if (!(rsvc_write(NULL, fd, curr->page.header, curr->page.header_len, NULL, NULL, done) &&
-                  rsvc_write(NULL, fd, curr->page.body, curr->page.body_len, NULL, NULL, done))) {
-                return;
-            }
+    for (rsvc_ogg_page_node_t curr = self->pages.head; curr; curr = curr->next) {
+        if (!(rsvc_write(NULL, fd, curr->page.header, curr->page.header_len, NULL, NULL, done) &&
+              rsvc_write(NULL, fd, curr->page.body, curr->page.body_len, NULL, NULL, done))) {
+            return false;
         }
-        if (rsvc_refile(tmp_path, self->path, done)) {
-            done(NULL);
-        }
-    });
+    }
+    if (!rsvc_refile(tmp_path, self->path, done)) {
+        return false;
+    }
+    done(NULL);
+    return true;
 }
 
 static void rsvc_vorbis_tags_clear(rsvc_tags_t tags) {

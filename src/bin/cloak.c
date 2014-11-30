@@ -420,9 +420,11 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
         done = ^(rsvc_error_t error){
             if (error) {
                 done(error);
-            } else {
-                rsvc_tags_save(tags, done);
             }
+            if (!rsvc_tags_save(tags, done)) {
+                return;
+            }
+            done(NULL);
         };
     }
     if (ops->auto_mode) {

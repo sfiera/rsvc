@@ -476,14 +476,12 @@ static bool rsvc_id3_tags_image_add(
             &self->frames, spec, 0x03, format->mime, description, data, st.st_size, fail);
 }
 
-static void rsvc_id3_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
+static bool rsvc_id3_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        if (!id3_write_tags(self, done)) {
-            return;
-        }
-        done(NULL);
-    });
+    if (!id3_write_tags(self, fail)) {
+        return false;
+    }
+    return true;
 }
 
 static void rsvc_id3_tags_clear(rsvc_id3_tags_t tags) {

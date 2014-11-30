@@ -371,5 +371,8 @@ static void copy_tags(convert_options_t options, const char* tmp_path, rsvc_done
     rsvc_tags_each(read_tags, ^(const char* name, const char* value, rsvc_stop_t stop){
         rsvc_tags_add(write_tags, ^(rsvc_error_t error){}, name, value);
     });
-    rsvc_tags_save(write_tags, write_done);
+    if (!rsvc_tags_save(write_tags, write_done)) {
+        return;
+    }
+    done(NULL);
 }

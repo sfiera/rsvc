@@ -244,5 +244,8 @@ static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {
         return;
     }
 
-    rsvc_tags_save(tags, done);
+    if (!rsvc_tags_save(tags, done)) {
+        return;
+    }
+    done(NULL);
 }

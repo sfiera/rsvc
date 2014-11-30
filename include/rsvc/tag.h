@@ -32,7 +32,7 @@ struct rsvc_tags_methods {
     bool (*add)(rsvc_tags_t tags, const char* name, const char* value, rsvc_done_t fail);
     bool (*each)(rsvc_tags_t tags,
                  void (^block)(const char* name, const char* value, rsvc_stop_t stop));
-    void (*save)(rsvc_tags_t tags, rsvc_done_t done);
+    bool (*save)(rsvc_tags_t tags, rsvc_done_t fail);
     void (*destroy)(rsvc_tags_t tags);
 
     bool (*image_remove)(rsvc_tags_t tags, size_t* index, rsvc_done_t fail);
@@ -62,12 +62,12 @@ enum {
 ///     strings.  The names may have any uppercase ASCII string as their
 ///     value, but see :ref:`tag_constants` for well-known values.
 ///
-/// ..  function:: void rsvc_tags_save(rsvc_tags_t, rsvc_done_t done)
+/// ..  function:: bool rsvc_tags_save(rsvc_tags_t, rsvc_done_t fail)
 ///
 /// ..  function:: void rsvc_tags_destroy(rsvc_tags_t tags)
 ///
 ///     Destroys a :type:`rsvc_tags_t`, reclaiming its resources.
-void                    rsvc_tags_save(rsvc_tags_t tags, rsvc_done_t done);
+bool                    rsvc_tags_save(rsvc_tags_t tags, rsvc_done_t fail);
 void                    rsvc_tags_destroy(rsvc_tags_t tags);
 
 /// ..  function:: bool rsvc_tags_clear(rsvc_tags_t tags, rsvc_done_t fail)

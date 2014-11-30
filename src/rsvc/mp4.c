@@ -632,53 +632,51 @@ skip:
     return loop;
 }
 
-static void rsvc_mp4_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
+static bool rsvc_mp4_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        // The mp4v2 C API doesn't have a way to say "clean up this file
-        // without saving its contents to disk", so rsvc_mp4_open_tags
-        // always opens the file in read-only mode.  To save the file,
-        // we reopen it in read-write mode, and copy over the tags.
-        MP4FileHandle* file = MP4Modify(self->path, 0);
-        if (file == MP4_INVALID_FILE_HANDLE) {
-            rsvc_errorf(done, __FILE__, __LINE__, "MP4_INVALID_FILE_HANDLE");
-            return;
-        }
+    // The mp4v2 C API doesn't have a way to say "clean up this file
+    // without saving its contents to disk", so rsvc_mp4_open_tags
+    // always opens the file in read-only mode.  To save the file,
+    // we reopen it in read-write mode, and copy over the tags.
+    MP4FileHandle* file = MP4Modify(self->path, 0);
+    if (file == MP4_INVALID_FILE_HANDLE) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "MP4_INVALID_FILE_HANDLE");
+        return false;
+    }
 
-        // Clear existing tags from the file.
-        MP4ItmfItemList* dst_items = MP4ItmfGetItems(file);
-        for (int i = 0; i < dst_items->size; ++i) {
-            MP4ItmfItem* item = &dst_items->elements[i];
-            MP4ItmfRemoveItem(file, item);
-        }
-        MP4ItmfItemListFree(dst_items);
+    // Clear existing tags from the file.
+    MP4ItmfItemList* dst_items = MP4ItmfGetItems(file);
+    for (int i = 0; i < dst_items->size; ++i) {
+        MP4ItmfItem* item = &dst_items->elements[i];
+        MP4ItmfRemoveItem(file, item);
+    }
+    MP4ItmfItemListFree(dst_items);
 
-        // Copy tags from self->file.
-        MP4ItmfItemList* src_items = MP4ItmfGetItems(self->file);
-        for (uint32_t i = 0; i < src_items->size; ++i) {
-            const MP4ItmfItem* src_item = &src_items->elements[i];
-            MP4ItmfItem* dst_item = MP4ItmfItemAlloc(src_item->code, src_item->dataList.size);
-            if (src_item->mean) {
-                dst_item->mean = strdup(src_item->mean);
-                dst_item->name = strdup(src_item->name);
-            }
-            for (uint32_t j = 0; j < src_item->dataList.size; ++j) {
-                const MP4ItmfData* src_data = &src_item->dataList.elements[0];
-                MP4ItmfData* dst_data = &dst_item->dataList.elements[0];
-                dst_data->typeSetIdentifier = src_data->typeSetIdentifier;
-                dst_data->typeCode          = src_data->typeCode;
-                dst_data->locale            = src_data->locale;
-                dst_data->value             = memdup(src_data->value, src_data->valueSize);
-                dst_data->valueSize         = src_data->valueSize;
-            }
-            MP4ItmfAddItem(file, dst_item);
-            MP4ItmfItemFree(dst_item);
+    // Copy tags from self->file.
+    MP4ItmfItemList* src_items = MP4ItmfGetItems(self->file);
+    for (uint32_t i = 0; i < src_items->size; ++i) {
+        const MP4ItmfItem* src_item = &src_items->elements[i];
+        MP4ItmfItem* dst_item = MP4ItmfItemAlloc(src_item->code, src_item->dataList.size);
+        if (src_item->mean) {
+            dst_item->mean = strdup(src_item->mean);
+            dst_item->name = strdup(src_item->name);
         }
-        MP4ItmfItemListFree(src_items);
+        for (uint32_t j = 0; j < src_item->dataList.size; ++j) {
+            const MP4ItmfData* src_data = &src_item->dataList.elements[0];
+            MP4ItmfData* dst_data = &dst_item->dataList.elements[0];
+            dst_data->typeSetIdentifier = src_data->typeSetIdentifier;
+            dst_data->typeCode          = src_data->typeCode;
+            dst_data->locale            = src_data->locale;
+            dst_data->value             = memdup(src_data->value, src_data->valueSize);
+            dst_data->valueSize         = src_data->valueSize;
+        }
+        MP4ItmfAddItem(file, dst_item);
+        MP4ItmfItemFree(dst_item);
+    }
+    MP4ItmfItemListFree(src_items);
 
-        MP4Close(file, MP4_CLOSE_DO_NOT_COMPUTE_BITRATE);
-        done(NULL);
-    });
+    MP4Close(file, MP4_CLOSE_DO_NOT_COMPUTE_BITRATE);
+    return true;
 }
 
 static void rsvc_mp4_tags_destroy(rsvc_tags_t tags) {
