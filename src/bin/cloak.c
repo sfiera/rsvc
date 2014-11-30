@@ -311,6 +311,36 @@ bool same_file(const char* x, const char* y) {
     return false;
 }
 
+bool move_file(const char* path, rsvc_tags_t tags, ops_t ops, rsvc_done_t fail) {
+    __block bool success = true;
+    const char* format = ops->move_format ? ops->move_format : DEFAULT_PATH;
+    const char* extension = get_extension(path);
+    char* new_path;
+    if (!rsvc_tags_strf(tags, format, extension, &new_path, fail)) {
+        return false;
+    }
+
+    if (ops->dry_run) {
+        if (!same_file(path, new_path)) {
+            print_rename(path, new_path);
+        }
+    } else {
+        rsvc_dirname(path, ^(const char* parent){
+            rsvc_dirname(new_path, ^(const char* new_parent){
+                if (rsvc_makedirs(new_parent, 0755, fail)
+                    && rsvc_mv(path, new_path, fail)) {
+                    rsvc_trimdirs(parent);
+                } else {
+                    success = false;
+                }
+            });
+        });
+    }
+
+    free(new_path);
+    return success;
+}
+
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done) {
     if (ops->remove_all_tags) {
         if (!rsvc_tags_clear(tags, done)) {
@@ -386,46 +416,10 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
         }
     }
 
-    if (ops->move_mode) {
-        done = ^(rsvc_error_t error){
-            if (error) {
-                done(error);
-            } else {
-                const char* format = ops->move_format ? ops->move_format : DEFAULT_PATH;
-                const char* extension = get_extension(path);
-                char* new_path;
-                if (!rsvc_tags_strf(tags, format, extension, &new_path, done)) {
-                    return;
-                }
-                if (ops->dry_run) {
-                    if (!same_file(path, new_path)) {
-                        print_rename(path, new_path);
-                    }
-                    done(NULL);
-                } else {
-                    rsvc_dirname(path, ^(const char* parent){
-                        rsvc_dirname(new_path, ^(const char* new_parent){
-                            if (rsvc_makedirs(new_parent, 0755, done)
-                                && rsvc_mv(path, new_path, done)) {
-                                rsvc_trimdirs(parent);
-                                done(NULL);
-                            }
-                        });
-                    });
-                }
-                free(new_path);
-            }
-        };
-    }
-    if (ops->auto_mode) {
-        if (!rsvc_apply_musicbrainz_tags(tags, done)) {
-            return;
-        }
-    }
-    if (!ops->dry_run) {
-        if (!rsvc_tags_save(tags, done)) {
-            return;
-        }
+    if ((ops->move_mode && !move_file(path, tags, ops, done))
+        || (ops->auto_mode && !rsvc_apply_musicbrainz_tags(tags, done))
+        || (!ops->dry_run && !rsvc_tags_save(tags, done))) {
+        return;
     }
     done(NULL);
 }
