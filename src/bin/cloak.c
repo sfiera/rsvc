@@ -393,26 +393,27 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
             } else {
                 const char* format = ops->move_format ? ops->move_format : DEFAULT_PATH;
                 const char* extension = get_extension(path);
-                rsvc_tags_strf(tags, format, extension, ^(rsvc_error_t error, char* new_path){
-                    if (error) {
-                        done(error);
-                    } else if (ops->dry_run) {
-                        if (!same_file(path, new_path)) {
-                            print_rename(path, new_path);
-                        }
-                        done(NULL);
-                    } else {
-                        rsvc_dirname(path, ^(const char* parent){
-                            rsvc_dirname(new_path, ^(const char* new_parent){
-                                if (rsvc_makedirs(new_parent, 0755, done)
-                                    && rsvc_mv(path, new_path, done)) {
-                                    rsvc_trimdirs(parent);
-                                    done(NULL);
-                                }
-                            });
-                        });
+                char* new_path;
+                if (!rsvc_tags_strf(tags, format, extension, &new_path, done)) {
+                    return;
+                }
+                if (ops->dry_run) {
+                    if (!same_file(path, new_path)) {
+                        print_rename(path, new_path);
                     }
-                });
+                    done(NULL);
+                } else {
+                    rsvc_dirname(path, ^(const char* parent){
+                        rsvc_dirname(new_path, ^(const char* new_parent){
+                            if (rsvc_makedirs(new_parent, 0755, done)
+                                && rsvc_mv(path, new_path, done)) {
+                                rsvc_trimdirs(parent);
+                                done(NULL);
+                            }
+                        });
+                    });
+                }
+                free(new_path);
             }
         };
     }

@@ -124,71 +124,69 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             return;
         }
 
-        rsvc_tags_strf(tags, options->path_format, options->encode.format->extension,
-                       ^(rsvc_error_t error, char* path){
+        char* path;
+        if (!rsvc_tags_strf(tags, options->path_format, options->encode.format->extension,
+                            &path, rip_done)) {
+            rsvc_tags_destroy(tags);
+            return;
+        }
+
+        __block bool makedirs_succeeded;
+        rsvc_dirname(path, ^(const char* parent){
+            makedirs_succeeded = rsvc_makedirs(parent, 0755, rip_done);
+        });
+        int file;
+        if (!makedirs_succeeded
+            || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, rip_done)) {
+            rsvc_tags_destroy(tags);
+            return;
+        }
+
+        rsvc_group_t rip_group = rsvc_group_create(rip_done);
+        rsvc_done_t decode_done = rsvc_group_add(rip_group);
+        rsvc_done_t encode_done = rsvc_group_add(rip_group);
+        rsvc_group_ready(rip_group);
+
+        int read_pipe, write_pipe;
+        if (!rsvc_pipe(&read_pipe, &write_pipe, rip_done)) {
+            close(file);
+            free(path);
+            return;
+        }
+
+        // Rip the current track.  If that fails, bail.  If it succeeds,
+        // start ripping the next track.
+        rsvc_cd_track_rip(track, write_pipe, &rsvc_sigint, ^(rsvc_error_t error){
+            close(write_pipe);
+            decode_done(error);
+        });
+
+        // Encode the current track.
+        rsvc_progress_t progress = rsvc_progress_start(path);
+        size_t nsamples = rsvc_cd_track_nsamples(track);
+
+        struct rsvc_encode_options encode_options = {
+            .bitrate                = options->encode.bitrate,
+            .channels               = 2,
+            .samples_per_channel    = nsamples,
+            .progress               = ^(double fraction){
+                rsvc_progress_update(progress, fraction);
+            },
+        };
+        encode_done = ^(rsvc_error_t error){
+            close(file);
+            close(read_pipe);
+            rsvc_tags_destroy(tags);
+            rsvc_progress_done(progress);
+            free(path);
+            encode_done(error);
+        };
+        options->encode.format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
             if (error) {
-                rip_done(error);
-                rsvc_tags_destroy(tags);
-                return;
-            }
-
-            __block bool makedirs_succeeded;
-            rsvc_dirname(path, ^(const char* parent){
-                makedirs_succeeded = rsvc_makedirs(parent, 0755, rip_done);
-            });
-            int file;
-            if (!makedirs_succeeded
-                || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, rip_done)) {
-                rsvc_tags_destroy(tags);
-                return;
-            }
-
-            rsvc_group_t rip_group = rsvc_group_create(rip_done);
-            rsvc_done_t decode_done = rsvc_group_add(rip_group);
-            rsvc_done_t encode_done = rsvc_group_add(rip_group);
-            rsvc_group_ready(rip_group);
-
-            int read_pipe, write_pipe;
-            if (!rsvc_pipe(&read_pipe, &write_pipe, rip_done)) {
-                close(file);
-                return;
-            }
-
-            // Rip the current track.  If that fails, bail.  If it succeeds,
-            // start ripping the next track.
-            rsvc_cd_track_rip(track, write_pipe, &rsvc_sigint, ^(rsvc_error_t error){
-                close(write_pipe);
-                decode_done(error);
-            });
-
-            // Encode the current track.
-            rsvc_progress_t progress = rsvc_progress_start(path);
-            size_t nsamples = rsvc_cd_track_nsamples(track);
-
-            struct rsvc_encode_options encode_options = {
-                .bitrate                = options->encode.bitrate,
-                .channels               = 2,
-                .samples_per_channel    = nsamples,
-                .progress               = ^(double fraction){
-                    rsvc_progress_update(progress, fraction);
-                },
-            };
-            char* path_copy = strdup(path);
-            encode_done = ^(rsvc_error_t error){
-                close(file);
-                close(read_pipe);
-                rsvc_tags_destroy(tags);
-                rsvc_progress_done(progress);
-                free(path_copy);
                 encode_done(error);
-            };
-            options->encode.format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
-                if (error) {
-                    encode_done(error);
-                } else {
-                    set_tags(file, path_copy, tags, encode_done);
-                }
-            });
+            } else {
+                set_tags(file, path, tags, encode_done);
+            }
         });
     });
 }

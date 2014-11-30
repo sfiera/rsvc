@@ -147,7 +147,7 @@ bool                    rsvc_tags_image_each(rsvc_tags_t tags,
                                                            rsvc_stop_t stop));
 size_t                  rsvc_tags_image_size(rsvc_tags_t tags);
 
-/// ..  function:: void rsvc_tags_strf(const char* format, rsvc_tags_t tags, const char* extension, void (^done)(rsvc_error_t error, char* path))
+/// ..  function:: bool rsvc_tags_strf(const char* format, rsvc_tags_t tags, const char* extension, char** path, rsvc_done_t fail)
 ///
 ///     Formatting codes:
 ///
@@ -191,11 +191,11 @@ size_t                  rsvc_tags_image_size(rsvc_tags_t tags);
 ///     :param extension:   an extension, such as "flac".  If non-NULL,
 ///                         it will be appended after the result of the
 ///                         formatting string.
-///     :param done:        on success, invoked with a NULL rsvc_error_t
-///                         and the formatted path; on failure, invoked
-///                         with the error.
-void rsvc_tags_strf(rsvc_tags_t tags, const char* format, const char* extension,
-                    void (^done)(rsvc_error_t error, char* path));
+///     :param path:        on success, set to the path.  Memory is
+///                         owned by the caller.
+///     :param fail:        on failure, invoked with an rsvc_error_t
+bool rsvc_tags_strf(rsvc_tags_t tags, const char* format, const char* extension,
+                    char** path, rsvc_done_t fail);
 bool rsvc_tags_validate_strf(const char* format, rsvc_done_t fail);
 
 /// ..  function:: bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail)

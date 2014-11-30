@@ -411,22 +411,19 @@ static bool snpathf(char* data, size_t size, size_t* size_needed,
     return true;
 }
 
-void rsvc_tags_strf(rsvc_tags_t tags, const char* format, const char* extension,
-                    void (^done)(rsvc_error_t error, char* path)) {
-    rsvc_done_t fail = ^(rsvc_error_t error){
-        done(error, NULL);
-    };
-
+bool rsvc_tags_strf(rsvc_tags_t tags, const char* format, const char* extension,
+                    char** path, rsvc_done_t fail) {
     size_t size;
     if (!snpathf(NULL, 0, &size, format, tags, extension, fail)) {
-        return;
+        return false;
     }
     char* new_path = malloc(size + 1);
     if (!snpathf(new_path, size + 1, NULL, format, tags, extension, fail)) {
-        return;
+        free(new_path);
+        return false;
     }
-    done(NULL, new_path);
-    free(new_path);
+    *path = new_path;
+    return true;
 }
 
 bool rsvc_tags_validate_strf(const char* format, rsvc_done_t fail) {
