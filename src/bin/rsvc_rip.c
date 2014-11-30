@@ -229,22 +229,17 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
 
 static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {
     rsvc_format_t format;
-    if (!rsvc_format_detect(path, fd, RSVC_FORMAT_OPEN_TAGS, &format, done)) {
-        return;
-    }
     rsvc_tags_t tags;
-    if (!format->open_tags(path, RSVC_TAG_RDWR, &tags, done)) {
+    if (!(rsvc_format_detect(path, fd, RSVC_FORMAT_OPEN_TAGS, &format, done)
+          && format->open_tags(path, RSVC_TAG_RDWR, &tags, done))) {
         return;
     }
     done = ^(rsvc_error_t error){
         rsvc_tags_destroy(tags);
         done(error);
     };
-    if (!rsvc_tags_copy(tags, source, done)) {
-        return;
-    }
-
-    if (!rsvc_tags_save(tags, done)) {
+    if (!(rsvc_tags_copy(tags, source, done)
+          && rsvc_tags_save(tags, done))) {
         return;
     }
     done(NULL);
