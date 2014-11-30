@@ -106,6 +106,7 @@ bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t* files,
           case REMOVE_ALL:          return rsvc_boolean_option(&ops->remove_all_tags);
           case IMAGE:               return image_option(ops, get_value, opt, fail);
           case WRITE_IMAGE:         return image_option(ops, get_value, opt, fail);
+          case WRITE_IMAGE_DEFAULT: return image_option(ops, get_value, opt, fail);
           case SELECT_IMAGE:        return rsvc_integer_option(&ops->image_index, get_value, fail);
           case REMOVE_IMAGE:        return image_option(ops, get_value, opt, fail);
           case REMOVE_ALL_IMAGES:   return rsvc_boolean_option(&ops->remove_all_images);
@@ -195,10 +196,12 @@ static bool help_option(const char* progname) {
             "  Image:\n"
             "    -i, --image PNG|JPG     set the embedded image by path\n"
             "    -o, --write-image PATH  write the embedded image to a path\n"
+            "                            (default MUSIC-DIR/cover.EXT)\n"
+            "    -O                      same as --write-image=''\n"
             "    -I, --select-image N    select an image for --{write,remove}-image\n"
             "        --remove-image      remove the embedded image\n"
             "        --remove-all-images remove all embedded images\n"
-            "        --add-image IMAGE   add an embedded image by path\n"
+            "        --add-image PNG|JPG add an embedded image by path\n"
             "\n"
             "  MusicBrainz:\n"
             "        --auto              fetch missing tags from MusicBrainz\n"
@@ -292,12 +295,16 @@ static bool image_option(ops_t ops, rsvc_option_value_t get_value, enum short_fl
         struct add_image_node* copy = memdup(&node, sizeof(node));
         RSVC_LIST_PUSH(&ops->add_images, copy);
         return true;
-    } else if (flag == WRITE_IMAGE) {
-        char* path;
+    } else if ((flag == WRITE_IMAGE) || (flag == WRITE_IMAGE_DEFAULT)) {
+        char* path = "";
         int fd;
         char temp_path[MAXPATHLEN];
-        if (!(get_value(&path, fail)
-              && rsvc_temp(path, 0644, temp_path, &fd, fail))) {
+        if (flag == WRITE_IMAGE) {
+            if (!get_value(&path, fail)) {
+                return false;
+            }
+        }
+        if (!rsvc_temp(path, 0644, temp_path, &fd, fail)) {
             return false;
         }
         struct write_image_node node = {ops->image_index, path, {}, fd};

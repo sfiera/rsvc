@@ -86,6 +86,7 @@ enum short_flag {
 
     IMAGE               = 'i',
     WRITE_IMAGE         = 'o',
+    WRITE_IMAGE_DEFAULT = 'O',
     SELECT_IMAGE        = 'I',
     REMOVE_IMAGE        = -1,
     REMOVE_ALL_IMAGES   = -2,
