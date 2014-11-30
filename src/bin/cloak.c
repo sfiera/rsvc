@@ -312,12 +312,14 @@ bool same_file(const char* x, const char* y) {
 }
 
 bool move_file(const char* path, rsvc_tags_t tags, ops_t ops, rsvc_done_t fail) {
-    __block bool success = true;
+    bool success = false;
     const char* format = ops->move_format ? ops->move_format : DEFAULT_PATH;
     const char* extension = get_extension(path);
-    char* new_path;
+    char* parent = NULL;
+    char* new_path = NULL;
+    char* new_parent = NULL;
     if (!rsvc_tags_strf(tags, format, extension, &new_path, fail)) {
-        return false;
+        goto end;
     }
 
     if (ops->dry_run) {
@@ -325,19 +327,20 @@ bool move_file(const char* path, rsvc_tags_t tags, ops_t ops, rsvc_done_t fail) 
             print_rename(path, new_path);
         }
     } else {
-        rsvc_dirname(path, ^(const char* parent){
-            rsvc_dirname(new_path, ^(const char* new_parent){
-                if (rsvc_makedirs(new_parent, 0755, fail)
-                    && rsvc_mv(path, new_path, fail)) {
-                    rsvc_trimdirs(parent);
-                } else {
-                    success = false;
-                }
-            });
-        });
+        parent = rsvc_dirname(path);
+        new_parent = rsvc_dirname(new_path);
+        if (!(rsvc_makedirs(new_parent, 0755, fail)
+              && rsvc_mv(path, new_path, fail))) {
+            goto end;
+        }
+        rsvc_trimdirs(parent);
     }
 
-    free(new_path);
+    success = true;
+end:
+    if (parent) free(parent);
+    if (new_path) free(new_path);
+    if (new_parent) free(new_parent);
     return success;
 }
 

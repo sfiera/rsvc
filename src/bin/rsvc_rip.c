@@ -131,16 +131,15 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             return;
         }
 
-        __block bool makedirs_succeeded;
-        rsvc_dirname(path, ^(const char* parent){
-            makedirs_succeeded = rsvc_makedirs(parent, 0755, rip_done);
-        });
+        char* parent = rsvc_dirname(path);
         int file;
-        if (!makedirs_succeeded
+        if (!rsvc_makedirs(parent, 0755, rip_done)
             || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, rip_done)) {
+            free(parent);
             rsvc_tags_destroy(tags);
             return;
         }
+        free(parent);
 
         rsvc_group_t rip_group = rsvc_group_create(rip_done);
         rsvc_done_t decode_done = rsvc_group_add(rip_group);

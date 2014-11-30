@@ -117,15 +117,12 @@ static void convert(convert_options_t options, rsvc_done_t done) {
     }
 
     if (options->makedirs) {
-        __block bool cancel = false;
-        rsvc_dirname(options->output, ^(const char* parent){
-            if (!rsvc_makedirs(parent, 0755, done)) {
-                cancel = true;
-            }
-        });
-        if (cancel) {
+        char* parent = rsvc_dirname(options->output);
+        if (!rsvc_makedirs(parent, 0755, done)) {
+            free(parent);
             return;
         }
+        free(parent);
     }
 
     // Open a temporary file next to the output path.

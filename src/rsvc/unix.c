@@ -217,15 +217,15 @@ bool rsvc_mv(const char* src, const char* dst, rsvc_done_t fail) {
 }
 
 bool rsvc_makedirs(const char* path, mode_t mode, rsvc_done_t fail) {
-    __block bool ok = true;
-    rsvc_dirname(path, ^(const char* parent){
-        if (strcmp(path, parent) != 0) {
-            ok = rsvc_makedirs(parent, mode, fail);
+    char* parent = rsvc_dirname(path);
+    if (strcmp(path, parent) != 0) {
+        if (!rsvc_makedirs(parent, mode, fail)) {
+            free(parent);
+            return false;
         }
-    });
-    if (!ok) {
-        return false;
     }
+    free(parent);
+
     if (rsvc_mkdir(path, mode, ^(rsvc_error_t error){})) {
         return true;
     } else if ((errno == EEXIST) || (errno == EISDIR)) {
@@ -238,26 +238,26 @@ bool rsvc_makedirs(const char* path, mode_t mode, rsvc_done_t fail) {
 
 void rsvc_trimdirs(const char* path) {
     if (rsvc_rmdir(path, ^(rsvc_error_t error){})) {
-        rsvc_dirname(path, ^(const char* parent){
-            rsvc_trimdirs(parent);
-        });
+        char* parent = rsvc_dirname(path);
+        rsvc_trimdirs(parent);
+        free(parent);
     }
 }
 
-void rsvc_dirname(const char* path, void (^block)(const char* parent)) {
+char* rsvc_dirname(const char* path) {
     char* slash = strrchr(path, '/');
     if (slash == NULL) {
-        block(".");
+        return strdup(".");
     } else if (slash == path) {
-        block("/");
+        return strdup("/");
     } else if (slash[1] == '\0') {
-        char* parent = strndup(path, slash - path);
-        rsvc_dirname(parent, block);
-        free(parent);
+        char* stripped = strndup(path, slash - path);
+        char* parent = rsvc_dirname(stripped);
+        free(stripped);
+        return parent;
     } else {
         char* parent = strndup(path, slash - path);
-        block(parent);
-        free(parent);
+        return parent;
     }
 }
 
