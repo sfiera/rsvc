@@ -341,47 +341,38 @@ static struct rsvc_tags_methods flac_vptr = {
     .destroy = rsvc_flac_tags_destroy,
 };
 
-void rsvc_flac_open_tags(const char* path, int flags,
-                         void (^done)(rsvc_tags_t, rsvc_error_t)) {
-    char* path_copy = strdup(path);
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        void (^cleanup)() = ^{
-            free(path_copy);
-        };
-        struct rsvc_flac_tags tags = {
-            .super = {
-                .vptr   = &flac_vptr,
-                .flags  = flags,
-            },
-            .chain      = FLAC__metadata_chain_new(),
-            .it         = FLAC__metadata_iterator_new(),
-            .block      = NULL,
-            .comments   = NULL,
-        };
-        if (!FLAC__metadata_chain_read(tags.chain, path_copy)) {
-            cleanup();
-            FLAC__metadata_iterator_delete(tags.it);
-            FLAC__metadata_chain_delete(tags.chain);
-            rsvc_errorf(^(rsvc_error_t error){
-                done(NULL, error);
-            }, __FILE__, __LINE__, "%s",
-               FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(tags.chain)]);
-            return;
+bool rsvc_flac_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail) {
+    struct rsvc_flac_tags flac = {
+        .super = {
+            .vptr   = &flac_vptr,
+            .flags  = flags,
+        },
+        .chain      = FLAC__metadata_chain_new(),
+        .it         = FLAC__metadata_iterator_new(),
+        .block      = NULL,
+        .comments   = NULL,
+    };
+    if (!FLAC__metadata_chain_read(flac.chain, path)) {
+        FLAC__metadata_iterator_delete(flac.it);
+        FLAC__metadata_chain_delete(flac.chain);
+        rsvc_errorf(fail, __FILE__, __LINE__, "%s",
+           FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(flac.chain)]);
+        return false;
+    }
+    FLAC__metadata_iterator_init(flac.it, flac.chain);
+    // First block is STREAMINFO, which we can skip.
+    while (FLAC__metadata_iterator_next(flac.it)) {
+        if (FLAC__metadata_iterator_get_block_type(flac.it) != FLAC__METADATA_TYPE_VORBIS_COMMENT) {
+            continue;
         }
-        FLAC__metadata_iterator_init(tags.it, tags.chain);
-        // First block is STREAMINFO, which we can skip.
-        while (FLAC__metadata_iterator_next(tags.it)) {
-            if (FLAC__metadata_iterator_get_block_type(tags.it) != FLAC__METADATA_TYPE_VORBIS_COMMENT) {
-                continue;
-            }
-            tags.block = FLAC__metadata_iterator_get_block(tags.it);
-            tags.comments = &tags.block->data.vorbis_comment;
-            break;
-        }
-        rsvc_flac_tags_t copy = memdup(&tags, sizeof(tags));
-        cleanup();
-        done(&copy->super, NULL);
-    });
+        flac.block = FLAC__metadata_iterator_get_block(flac.it);
+        flac.comments = &flac.block->data.vorbis_comment;
+        break;
+    }
+
+    rsvc_flac_tags_t copy = memdup(&flac, sizeof(flac));
+    *tags = &copy->super;
+    return true;
 }
 
 static write_encode_status_t flac_encode_write(const FLAC__StreamEncoder* encoder,

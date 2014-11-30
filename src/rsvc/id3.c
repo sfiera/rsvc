@@ -529,39 +529,29 @@ static bool read_id3_header(rsvc_id3_tags_t tags, rsvc_done_t fail);
 static bool read_id3_frames(rsvc_id3_tags_t tags, rsvc_done_t fail);
 static bool read_id3_frame(rsvc_id3_tags_t tags, uint8_t** data, size_t* size, rsvc_done_t fail);
 
-void rsvc_id3_open_tags(const char* path, int flags,
-                        void (^done)(rsvc_tags_t, rsvc_error_t)) {
-    char* path_copy = strdup(path);
-    void (^done_copy)(rsvc_tags_t, rsvc_error_t) = done;
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        void (^done)(rsvc_tags_t, rsvc_error_t) = done_copy;
-        rsvc_logf(1, "reading ID3 file");
-        __block struct rsvc_id3_tags tags = {
-            .super = {
-                .vptr   = &id3_vptr,
-                .flags  = flags,
-            },
-            .path = path_copy,
-        };
-        done = ^(rsvc_tags_t result_tags, rsvc_error_t error){
-            if (error) {
-                rsvc_id3_tags_clear(&tags);
-            }
-            done(result_tags, error);
-        };
-        rsvc_done_t fail = ^(rsvc_error_t error){
-            done(NULL, error);
-        };
-        bool rdwr = flags & RSVC_TAG_RDWR;
-        if (!rsvc_open(tags.path, rdwr ? O_RDWR : O_RDONLY, 0644, &tags.fd, fail)
-                || !read_id3_header(&tags, fail)
-                || !read_id3_frames(&tags, fail)) {
-            return;
-        }
+bool rsvc_id3_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail) {
+    rsvc_logf(1, "reading ID3 file");
+    __block struct rsvc_id3_tags id3 = {
+        .super = {
+            .vptr   = &id3_vptr,
+            .flags  = flags,
+        },
+        .path = strdup(path),
+    };
+    fail = ^(rsvc_error_t error){
+        rsvc_id3_tags_clear(&id3);
+        fail(error);
+    };
+    bool rdwr = flags & RSVC_TAG_RDWR;
+    if (!(rsvc_open(id3.path, rdwr ? O_RDWR : O_RDONLY, 0644, &id3.fd, fail)
+          && read_id3_header(&id3, fail)
+          && read_id3_frames(&id3, fail))) {
+        return false;
+    }
 
-        rsvc_id3_tags_t copy = memdup(&tags, sizeof(tags));
-        done(&copy->super, NULL);
-    });
+    rsvc_id3_tags_t copy = memdup(&id3, sizeof(id3));
+    *tags = &copy->super;
+    return true;
 }
 
 static bool read_sync_safe_size(const uint8_t* data, size_t* out, rsvc_done_t fail) {

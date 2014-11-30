@@ -23,8 +23,8 @@
 
 #include <rsvc/tag.h>
 
-void                    rsvc_mp4_open_tags(const char* path, int flags,
-                                           void (^done)(rsvc_tags_t, rsvc_error_t));
+bool                    rsvc_mp4_open_tags(const char* path, int flags,
+                                           rsvc_tags_t* tags, rsvc_done_t fail);
 
 void rsvc_mp4_format_register();
 

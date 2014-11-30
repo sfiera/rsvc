@@ -232,20 +232,17 @@ static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {
     if (!rsvc_format_detect(path, fd, RSVC_FORMAT_OPEN_TAGS, &format, done)) {
         return;
     }
-    format->open_tags(path, RSVC_TAG_RDWR, ^(rsvc_tags_t tags, rsvc_error_t error){
-        if (error) {
-            done(error);
-            return;
-        }
-        rsvc_done_t original_done = done;
-        rsvc_done_t done = ^(rsvc_error_t error){
-            rsvc_tags_destroy(tags);
-            original_done(error);
-        };
-        if (!rsvc_tags_copy(tags, source, done)) {
-            return;
-        }
+    rsvc_tags_t tags;
+    if (!format->open_tags(path, RSVC_TAG_RDWR, &tags, done)) {
+        return;
+    }
+    done = ^(rsvc_error_t error){
+        rsvc_tags_destroy(tags);
+        done(error);
+    };
+    if (!rsvc_tags_copy(tags, source, done)) {
+        return;
+    }
 
-        rsvc_tags_save(tags, done);
-    });
+    rsvc_tags_save(tags, done);
 }

@@ -89,29 +89,28 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
         return;
     }
 
-    format->open_tags(path, cloak_mode(ops), ^(rsvc_tags_t tags, rsvc_error_t error){
+    rsvc_tags_t tags;
+    if (!format->open_tags(path, cloak_mode(ops), &tags, done)) {
+        return;
+    }
+
+    apply_ops(tags, path, ops, ^(rsvc_error_t error){
         if (error) {
+            rsvc_tags_destroy(tags);
             done(error);
             return;
         }
-        apply_ops(tags, path, ops, ^(rsvc_error_t error){
-            if (error) {
-                rsvc_tags_destroy(tags);
-                done(error);
-                return;
-            }
-            if (ops->list_mode == LIST_MODE_LONG) {
-                printf("%s:\n", path);
-            }
-            if (ops->list_tags) {
-                print_tags(tags);
-            }
-            if (ops->list_images) {
-                print_images(tags);
-            }
-            rsvc_tags_destroy(tags);
-            done(NULL);
-        });
+        if (ops->list_mode == LIST_MODE_LONG) {
+            printf("%s:\n", path);
+        }
+        if (ops->list_tags) {
+            print_tags(tags);
+        }
+        if (ops->list_images) {
+            print_images(tags);
+        }
+        rsvc_tags_destroy(tags);
+        done(NULL);
     });
 }
 

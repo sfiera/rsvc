@@ -38,8 +38,8 @@ void rsvc_flac_encode(
         rsvc_done_t done);
 
 /// ..  function:: void rsvc_flac_open_tags(const char* path, void (^done)(rsvc_tags_t, rsvc_error_t));
-void                    rsvc_flac_open_tags(const char* path, int flags,
-                                            void (^done)(rsvc_tags_t, rsvc_error_t));
+bool                    rsvc_flac_open_tags(const char* path, int flags,
+                                            rsvc_tags_t* tags, rsvc_done_t fail);
 
 void                    rsvc_flac_format_register();
 

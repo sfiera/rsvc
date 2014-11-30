@@ -696,28 +696,24 @@ static struct rsvc_tags_methods mp4_vptr = {
     .destroy = rsvc_mp4_tags_destroy,
 };
 
-void rsvc_mp4_open_tags(const char* path, int flags,
-                        void (^done)(rsvc_tags_t, rsvc_error_t)) {
-    char* path_copy = strdup(path);
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        struct rsvc_mp4_tags tags = {
-            .super = {
-                .vptr   = &mp4_vptr,
-                .flags  = flags,
-            },
-            .path = path_copy,
-            .file = MP4Read(path_copy),
-        };
-        if (tags.file == MP4_INVALID_FILE_HANDLE) {
-            free(tags.path);
-            rsvc_errorf(^(rsvc_error_t error){
-                done(NULL, error);
-            }, __FILE__, __LINE__, "MP4_INVALID_FILE_HANDLE");
-            return;
-        }
-        rsvc_mp4_tags_t copy = memdup(&tags, sizeof(tags));
-        done(&copy->super, NULL);
-    });
+bool rsvc_mp4_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail) {
+    struct rsvc_mp4_tags mp4 = {
+        .super = {
+            .vptr   = &mp4_vptr,
+            .flags  = flags,
+        },
+        .path = strdup(path),
+    };
+    mp4.file = MP4Read(mp4.path);
+    if (mp4.file == MP4_INVALID_FILE_HANDLE) {
+        free(mp4.path);
+        rsvc_errorf(fail, __FILE__, __LINE__, "MP4_INVALID_FILE_HANDLE");
+        return false;
+    }
+
+    rsvc_mp4_tags_t copy = memdup(&mp4, sizeof(mp4));
+    *tags = &copy->super;
+    return true;
 }
 
 void rsvc_mp4_format_register() {

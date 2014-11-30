@@ -349,30 +349,27 @@ static void copy_tags(convert_options_t options, const char* tmp_path, rsvc_done
         return;
     }
 
-    read_fmt->open_tags(options->input, RSVC_TAG_RDONLY,
-                        ^(rsvc_tags_t read_tags, rsvc_error_t error){
-        if (error) {
-            done(error);
-            return;
-        }
-        rsvc_done_t read_done = ^(rsvc_error_t error){
-            rsvc_tags_destroy(read_tags);
-            done(error);
-        };
-        write_fmt->open_tags(tmp_path, RSVC_TAG_RDWR,
-                             ^(rsvc_tags_t write_tags, rsvc_error_t error){
-            if (error) {
-                read_done(error);
-                return;
-            }
-            rsvc_done_t write_done = ^(rsvc_error_t error){
-                rsvc_tags_destroy(write_tags);
-                read_done(error);
-            };
-            rsvc_tags_each(read_tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-                rsvc_tags_add(write_tags, ^(rsvc_error_t error){}, name, value);
-            });
-            rsvc_tags_save(write_tags, write_done);
-        });
+    rsvc_tags_t read_tags;
+    if (!read_fmt->open_tags(options->input, RSVC_TAG_RDONLY, &read_tags, done)) {
+        return;
+    }
+
+    rsvc_done_t read_done = ^(rsvc_error_t error){
+        rsvc_tags_destroy(read_tags);
+        done(error);
+    };
+
+    rsvc_tags_t write_tags;
+    if (!write_fmt->open_tags(tmp_path, RSVC_TAG_RDWR, &write_tags, read_done)) {
+        return;
+    }
+
+    rsvc_done_t write_done = ^(rsvc_error_t error){
+        rsvc_tags_destroy(write_tags);
+        read_done(error);
+    };
+    rsvc_tags_each(read_tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+        rsvc_tags_add(write_tags, ^(rsvc_error_t error){}, name, value);
     });
+    rsvc_tags_save(write_tags, write_done);
 }

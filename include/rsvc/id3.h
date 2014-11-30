@@ -23,8 +23,8 @@
 
 #include <rsvc/tag.h>
 
-void                    rsvc_id3_open_tags(const char* path, int flags,
-                                           void (^done)(rsvc_tags_t, rsvc_error_t));
+bool                    rsvc_id3_open_tags(const char* path, int flags,
+                                           rsvc_tags_t* tags, rsvc_done_t fail);
 bool                    rsvc_id3_skip_tags(int fd, rsvc_done_t fail);
 
 void                    rsvc_id3_format_register();

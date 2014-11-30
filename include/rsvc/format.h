@@ -31,8 +31,7 @@
 /// Formats
 /// -------
 
-typedef void (*rsvc_open_tags_f)(const char* path, int flags,
-                                 void (^done)(rsvc_tags_t, rsvc_error_t));
+typedef bool (*rsvc_open_tags_f)(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail);
 
 struct rsvc_format {
     const char*         name;
