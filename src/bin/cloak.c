@@ -390,18 +390,21 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
         rsvc_tags_image_each(tags, ^(
                     rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop){
             if (index == i++) {
-                char path[MAXPATHLEN + 10];  // space for extra dot and extension.
-                strcpy(path, curr->path);
-                if (!path[0]) {
-                    strcpy(path, "cover");
+                char image_path[MAXPATHLEN + 10];  // space for extra dot and extension.
+                strcpy(image_path, curr->path);
+                if (!image_path[0]) {
+                    char* parent = rsvc_dirname(path);
+                    strcat(image_path, parent);
+                    strcat(image_path, "/cover");
+                    free(parent);
                 }
-                if (!get_extension(path)) {
-                    strcat(path, ".");
-                    strcat(path, format->extension);
+                if (!get_extension(image_path)) {
+                    strcat(image_path, ".");
+                    strcat(image_path, format->extension);
                 }
                 success =
                     rsvc_write(curr->path, curr->fd, data, size, NULL, NULL, done)
-                    && rsvc_rename(curr->temp_path, path, done);
+                    && rsvc_rename(curr->temp_path, image_path, done);
                 stop();
             }
         });
