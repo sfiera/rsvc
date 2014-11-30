@@ -416,25 +416,15 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
             }
         };
     }
-    if (!ops->dry_run) {
-        done = ^(rsvc_error_t error){
-            if (error) {
-                done(error);
-            }
-            if (!rsvc_tags_save(tags, done)) {
-                return;
-            }
-            done(NULL);
-        };
-    }
     if (ops->auto_mode) {
-        done = ^(rsvc_error_t error){
-            if (error) {
-                done(error);
-            } else {
-                rsvc_apply_musicbrainz_tags(tags, done);
-            }
-        };
+        if (!rsvc_apply_musicbrainz_tags(tags, done)) {
+            return;
+        }
+    }
+    if (!ops->dry_run) {
+        if (!rsvc_tags_save(tags, done)) {
+            return;
+        }
     }
     done(NULL);
 }

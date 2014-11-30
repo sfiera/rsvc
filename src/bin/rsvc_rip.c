@@ -218,13 +218,13 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
         return;
     }
 
-    rsvc_apply_musicbrainz_tags(tags, ^(rsvc_error_t error){
+    (void)rsvc_apply_musicbrainz_tags(tags, ^(rsvc_error_t error){
         // MusicBrainz tagging could fail for a number of reasons:
         // wasn't reachable; couldn't find album.  None of those is
         // reason to stop ripping, so ignore and proceed.
         (void)error;
-        wrapped_done(NULL);
     });
+    wrapped_done(NULL);
 }
 
 static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {

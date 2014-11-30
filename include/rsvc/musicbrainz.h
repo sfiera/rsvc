@@ -24,6 +24,6 @@
 #include <rsvc/common.h>
 #include <rsvc/tag.h>
 
-void rsvc_apply_musicbrainz_tags(rsvc_tags_t tags, rsvc_done_t done);
+bool rsvc_apply_musicbrainz_tags(rsvc_tags_t tags, rsvc_done_t fail);
 
 #endif  // RSVC_MUSICBRAINZ_H_
