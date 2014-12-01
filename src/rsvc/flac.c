@@ -283,8 +283,8 @@ static bool rsvc_flac_tags_add(rsvc_tags_t tags, const char* name, const char* v
                                rsvc_done_t fail) {
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     FLAC__StreamMetadata_VorbisComment_Entry entry;
-    if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(&entry, name, value) ||
-        !FLAC__metadata_object_vorbiscomment_append_comment(self->block, entry, false)) {
+    if (!(FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(&entry, name, value)
+          && FLAC__metadata_object_vorbiscomment_append_comment(self->block, entry, false))) {
         rsvc_errorf(fail, __FILE__, __LINE__, "FLAC tag error");
         return false;
     }

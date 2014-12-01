@@ -133,8 +133,8 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
 
         char* parent = rsvc_dirname(path);
         int file;
-        if (!rsvc_makedirs(parent, 0755, rip_done)
-            || !rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, rip_done)) {
+        if (!(rsvc_makedirs(parent, 0755, rip_done)
+              && rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, rip_done))) {
             free(parent);
             rsvc_tags_destroy(tags);
             return;
@@ -207,11 +207,11 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
         }
     };
 
-    if (!rsvc_tags_addf(tags, wrapped_done, RSVC_ENCODER, "ripservice %s", RSVC_VERSION)
-            || !rsvc_tags_add(tags, wrapped_done, RSVC_MUSICBRAINZ_DISCID, discid)
-            || !rsvc_tags_addf(tags, wrapped_done, RSVC_TRACKNUMBER, "%zu", track_number)
-            || !rsvc_tags_addf(tags, wrapped_done, RSVC_TRACKTOTAL, "%zu", ntracks)
-            || (*mcn && !rsvc_tags_add(tags, wrapped_done, RSVC_MCN, mcn))) {
+    if (!(rsvc_tags_addf(tags, wrapped_done, RSVC_ENCODER, "ripservice %s", RSVC_VERSION)
+          && rsvc_tags_add(tags, wrapped_done, RSVC_MUSICBRAINZ_DISCID, discid)
+          && rsvc_tags_addf(tags, wrapped_done, RSVC_TRACKNUMBER, "%zu", track_number)
+          && rsvc_tags_addf(tags, wrapped_done, RSVC_TRACKTOTAL, "%zu", ntracks)
+          && (*mcn ? rsvc_tags_add(tags, wrapped_done, RSVC_MCN, mcn) : true))) {
         return;
     }
 

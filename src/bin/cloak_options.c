@@ -252,7 +252,8 @@ static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag
                        rsvc_done_t fail) {
     if (flag == REMOVE) {
         char* value;
-        if (!get_value(&value, fail) || !validate_name(value, fail)) {
+        if (!(get_value(&value, fail)
+              && validate_name(value, fail))) {
             return false;
         }
         add_string(&ops->remove_tags, value);
@@ -262,9 +263,9 @@ static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag
     char* tag_name;
     char* tag_value;
     char* value;
-    if (!get_value(&value, fail) ||
-            !split_assignment(value, &tag_name, &tag_value, fail) ||
-            !validate_name(tag_name, fail)) {
+    if (!(get_value(&value, fail)
+          && split_assignment(value, &tag_name, &tag_value, fail)
+          && validate_name(tag_name, fail))) {
         return false;
     }
     if (flag == SET) {

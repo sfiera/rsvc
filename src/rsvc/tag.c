@@ -79,23 +79,22 @@ bool rsvc_tags_clear(rsvc_tags_t tags, rsvc_done_t fail) {
 }
 
 bool rsvc_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail) {
-    if (!check_tags_writable(tags, fail) || !check_tag_name_is_valid(name, fail)) {
-        return false;
-    }
-    return tags->vptr->remove(tags, name, fail);
+    return check_tags_writable(tags, fail)
+        && check_tag_name_is_valid(name, fail)
+        && tags->vptr->remove(tags, name, fail);
 }
 
 bool rsvc_tags_add(rsvc_tags_t tags, rsvc_done_t fail,
                    const char* name, const char* value) {
-    if (!check_tags_writable(tags, fail) || !check_tag_name_is_valid(name, fail)) {
-        return false;
-    }
-    return tags->vptr->add(tags, name, value, fail);
+    return check_tags_writable(tags, fail)
+        && check_tag_name_is_valid(name, fail)
+        && tags->vptr->add(tags, name, value, fail);
 }
 
 bool rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
                     const char* name, const char* format, ...) {
-    if (!check_tags_writable(tags, fail) || !check_tag_name_is_valid(name, fail)) {
+    if (!(check_tags_writable(tags, fail)
+          && check_tag_name_is_valid(name, fail))) {
         return false;
     }
     char* value;

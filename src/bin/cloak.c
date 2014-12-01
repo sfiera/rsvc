@@ -422,9 +422,9 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
         }
     }
 
-    if ((ops->move_mode && !move_file(path, tags, ops, done))
-        || (ops->auto_mode && !rsvc_apply_musicbrainz_tags(tags, done))
-        || (!ops->dry_run && !rsvc_tags_save(tags, done))) {
+    if (!((ops->move_mode ? move_file(path, tags, ops, done) : true)
+          && (ops->auto_mode ? rsvc_apply_musicbrainz_tags(tags, done) : true)
+          && (!ops->dry_run ? rsvc_tags_save(tags, done) : true))) {
         return;
     }
     done(NULL);

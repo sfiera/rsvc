@@ -1017,7 +1017,8 @@ static bool id3_sequence_both_add(
         rsvc_done_t fail) {
     if (!number_spec) number_spec = get_paired_frame_spec(total_spec);
     if (!total_spec) total_spec = get_paired_frame_spec(number_spec);
-    if (!check_seq(number_spec, number_value, fail) || !check_seq(total_spec, total_value, fail)) {
+    if (!(check_seq(number_spec, number_value, fail)
+          && check_seq(total_spec, total_value, fail))) {
         return false;
     }
     id3_frame_node_t match = find_by_spec(frames, number_spec);
