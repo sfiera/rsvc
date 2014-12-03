@@ -417,6 +417,13 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
         const char* path = curr->path;
         int fd = curr->fd;
         rsvc_format_t format = curr->format;
+        size_t width, height, depth, palette_size;
+        if (!format->image_info(path, fd, &width, &height, &depth, &palette_size, done)) {
+            return;
+        }
+        rsvc_logf(
+                3, "adding %s image from %s (%zux%zu, depth %zu, %zu-color)",
+                format->name, path, width, height, depth, palette_size);
         if (!rsvc_tags_image_add(tags, path, format, fd, done)) {
             return;
         }

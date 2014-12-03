@@ -32,6 +32,10 @@
 /// -------
 
 typedef bool (*rsvc_open_tags_f)(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail);
+typedef bool (*rsvc_image_info_f)(
+        const char* path, int fd,
+        size_t* width, size_t* height, size_t* depth, size_t* palette_size,
+        rsvc_done_t fail);
 
 struct rsvc_format {
     const char*         name;
@@ -46,14 +50,14 @@ struct rsvc_format {
     rsvc_encode_f       encode;
     rsvc_decode_f       decode;
 
-    bool                image;
+    rsvc_image_info_f   image_info;
 };
 
 enum rsvc_format_detect_flags {
     RSVC_FORMAT_OPEN_TAGS   = 1 << 0,
     RSVC_FORMAT_ENCODE      = 1 << 1,
     RSVC_FORMAT_DECODE      = 1 << 2,
-    RSVC_FORMAT_IMAGE       = 1 << 3,
+    RSVC_FORMAT_IMAGE_INFO  = 1 << 3,
 };
 
 void                    rsvc_format_register(rsvc_format_t format);
