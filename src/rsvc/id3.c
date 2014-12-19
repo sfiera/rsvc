@@ -467,7 +467,7 @@ static bool rsvc_id3_tags_image_add(
     }
     static const char description[] = "";
     return id3_image_add(
-            &self->frames, spec, 0x03, format->mime, description, data, size, fail);
+            &self->frames, spec, 0x00, format->mime, description, data, size, fail);
 }
 
 static bool rsvc_id3_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
