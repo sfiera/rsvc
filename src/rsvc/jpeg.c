@@ -18,7 +18,12 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <rsvc/format.h>
+
+#include <string.h>
+#include <unistd.h>
 
 #define JPEG_SOI 0xD8
 #define JPEG_EOI 0xD9
