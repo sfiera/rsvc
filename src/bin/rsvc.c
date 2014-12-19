@@ -32,6 +32,7 @@
 #include <rsvc/disc.h>
 #include <rsvc/flac.h>
 #include <rsvc/id3.h>
+#include <rsvc/lame.h>
 #include <rsvc/mad.h>
 #include <rsvc/mp4.h>
 #include <rsvc/vorbis.h>
@@ -57,6 +58,7 @@ static void rsvc_main(int argc, char* const* argv) {
 #endif
     rsvc_flac_format_register();
     rsvc_id3_format_register();
+    rsvc_lame_format_register();
     rsvc_mad_format_register();
     rsvc_mp4_format_register();
     rsvc_vorbis_format_register();

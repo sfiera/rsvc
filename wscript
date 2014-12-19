@@ -108,6 +108,7 @@ def build(bld):
             "src/rsvc/group.c",
             "src/rsvc/id3.c",
             "src/rsvc/jpeg.c",
+            "src/rsvc/lame.c",
             "src/rsvc/mad.c",
             "src/rsvc/mp4.c",
             "src/rsvc/musicbrainz.c",
@@ -125,6 +126,7 @@ def build(bld):
         use=[
             "discid/libdiscid",
             "flac/libflac",
+            "lame/libmp3lame",
             "mp4v2/libmp4v2",
             "mad/libmad",
             "libmusicbrainz/libmusicbrainz",
