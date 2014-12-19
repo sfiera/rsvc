@@ -1,0 +1,76 @@
+# -*- mode: python -*-
+
+def common(ctx):
+    ctx.load("compiler_c")
+    ctx.load("core", tooldir="ext/waf-sfiera")
+
+def options(opt):
+    common(opt)
+    opt.add_option(
+            "--with-lame", action="store", default="auto", choices=["system", "bundled", "auto"],
+            metavar="system|bundled|auto",
+            help="select between system-provided and bundled libmp3lame [default: 'auto']")
+
+def configure(cnf):
+    common(cnf)
+    if cnf.options.with_lame == "system":
+        cnf.check_cc(lib="LAME", uselib_store="lame/libmp3lame")
+        cnf.env.bundled_lame = False
+    elif cnf.options.with_lame == "bundled":
+        cnf.env.bundled_lame = True
+    else:
+        cnf.check_cc(lib="LAME", uselib_store="lame/libmp3lame", mandatory=False)
+        cnf.env.bundled_lame = "LIB_lame/libmp3lame" not in cnf.env
+
+def build(bld):
+    common(bld)
+
+    if bld.env.bundled_lame:
+        bld.stlib(
+            target="lame/libmp3lame",
+            features="universal",
+            source=[
+                "lame-3.99.5/libmp3lame/VbrTag.c",
+                "lame-3.99.5/libmp3lame/bitstream.c",
+                "lame-3.99.5/libmp3lame/encoder.c",
+                "lame-3.99.5/libmp3lame/fft.c",
+                "lame-3.99.5/libmp3lame/gain_analysis.c",
+                "lame-3.99.5/libmp3lame/id3tag.c",
+                "lame-3.99.5/libmp3lame/lame.c",
+                "lame-3.99.5/libmp3lame/mpglib_interface.c",
+                "lame-3.99.5/libmp3lame/newmdct.c",
+                "lame-3.99.5/libmp3lame/presets.c",
+                "lame-3.99.5/libmp3lame/psymodel.c",
+                "lame-3.99.5/libmp3lame/quantize.c",
+                "lame-3.99.5/libmp3lame/quantize_pvt.c",
+                "lame-3.99.5/libmp3lame/reservoir.c",
+                "lame-3.99.5/libmp3lame/set_get.c",
+                "lame-3.99.5/libmp3lame/tables.c",
+                "lame-3.99.5/libmp3lame/takehiro.c",
+                "lame-3.99.5/libmp3lame/util.c",
+                "lame-3.99.5/libmp3lame/vbrquantize.c",
+                "lame-3.99.5/libmp3lame/vector/xmm_quantize_sub.c",
+                "lame-3.99.5/libmp3lame/version.c",
+                "lame-3.99.5/mpglib/common.c",
+                "lame-3.99.5/mpglib/dct64_i386.c",
+                "lame-3.99.5/mpglib/decode_i386.c",
+                "lame-3.99.5/mpglib/interface.c",
+                "lame-3.99.5/mpglib/layer1.c",
+                "lame-3.99.5/mpglib/layer2.c",
+                "lame-3.99.5/mpglib/layer3.c",
+                "lame-3.99.5/mpglib/tabinit.c",
+            ],
+            defines="HAVE_CONFIG_H",
+            includes=[
+                "lame-3.99.5/include",
+                "lame-3.99.5/libmp3lame",
+                "lame-3.99.5/mpglib",
+            ],
+            export_includes="lame-3.99.5/include",
+        )
+
+        bld.platform(
+            target="lame/libmp3lame",
+            platform="darwin",
+            includes="darwin",
+        )

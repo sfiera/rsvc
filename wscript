@@ -13,7 +13,7 @@ def common(ctx):
     ctx.default_compiler = "clang"
     ctx.load("compiler_c")
     ctx.load("core externals", tooldir="ext/waf-sfiera")
-    ctx.external("discid flac libmusicbrainz mad mp4v2 vorbis")
+    ctx.external("discid flac lame libmusicbrainz mad mp4v2 vorbis")
 
 def dist(dst):
     dst.algo = "zip"
