@@ -20,7 +20,7 @@
 
 #include <rsvc/lame.h>
 
-#include <lame.h>
+#include <lame/lame.h>
 #include <rsvc/encode.h>
 #include <rsvc/format.h>
 #include "unix.h"
