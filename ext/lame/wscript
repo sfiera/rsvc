@@ -14,12 +14,12 @@ def options(opt):
 def configure(cnf):
     common(cnf)
     if cnf.options.with_lame == "system":
-        cnf.check_cc(lib="LAME", uselib_store="lame/libmp3lame")
+        cnf.check_cc(lib="mp3lame", uselib_store="lame/libmp3lame")
         cnf.env.bundled_lame = False
     elif cnf.options.with_lame == "bundled":
         cnf.env.bundled_lame = True
     else:
-        cnf.check_cc(lib="LAME", uselib_store="lame/libmp3lame", mandatory=False)
+        cnf.check_cc(lib="mp3lame", uselib_store="lame/libmp3lame", mandatory=False)
         cnf.env.bundled_lame = "LIB_lame/libmp3lame" not in cnf.env
 
 def build(bld):
