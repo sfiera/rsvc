@@ -365,13 +365,13 @@ static void copy_tags(convert_options_t options, const char* tmp_path, rsvc_done
         rsvc_tags_destroy(write_tags);
         done(error);
     };
-    rsvc_tags_each(read_tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        rsvc_tags_add(write_tags, ^(rsvc_error_t error){}, name, value);
-    });
     rsvc_logf(1, "copying %zu images from %s", rsvc_tags_image_size(read_tags), options->input);
     rsvc_tags_image_each(read_tags, ^(rsvc_format_t format, const uint8_t* data, size_t size,
                                       rsvc_stop_t stop){
         rsvc_tags_image_add(write_tags, format, data, size, ^(rsvc_error_t error){});
+    });
+    rsvc_tags_each(read_tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+        rsvc_tags_add(write_tags, ^(rsvc_error_t error){}, name, value);
     });
     if (!rsvc_tags_save(write_tags, done)) {
         return;
