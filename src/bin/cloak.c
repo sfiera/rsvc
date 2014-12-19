@@ -424,9 +424,16 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
         rsvc_logf(
                 3, "adding %s image from %s (%zux%zu, depth %zu, %zu-color)",
                 format->name, path, width, height, depth, palette_size);
-        if (!rsvc_tags_image_add(tags, path, format, fd, done)) {
+        uint8_t* data;
+        size_t size;
+        if (!rsvc_mmap(path, fd, &data, &size, done)) {
             return;
         }
+        if (!rsvc_tags_image_add(tags, format, data, size, done)) {
+            munmap(data, size);
+            return;
+        }
+        munmap(data, size);
     }
 
     if (!((ops->move_mode ? move_file(path, tags, ops, done) : true)

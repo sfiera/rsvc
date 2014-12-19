@@ -36,7 +36,7 @@ struct rsvc_tags_methods {
     void (*destroy)(rsvc_tags_t tags);
 
     bool (*image_remove)(rsvc_tags_t tags, size_t* index, rsvc_done_t fail);
-    bool (*image_add)(rsvc_tags_t tags, const char* path, rsvc_format_t format, int fd,
+    bool (*image_add)(rsvc_tags_t tags, rsvc_format_t format, const uint8_t* data, size_t size,
                       rsvc_done_t fail);
     bool (*image_each)(rsvc_tags_t tags,
                        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size,
@@ -96,9 +96,8 @@ bool                    rsvc_tags_addf(rsvc_tags_t tags, rsvc_done_t fail,
 
 bool                    rsvc_tags_image_clear(rsvc_tags_t tags, rsvc_done_t fail);
 bool                    rsvc_tags_image_remove(rsvc_tags_t tags, size_t index, rsvc_done_t fail);
-bool                    rsvc_tags_image_add(rsvc_tags_t tags,
-                                            const char* path, rsvc_format_t format, int fd,
-                                            rsvc_done_t fail);
+bool                    rsvc_tags_image_add(rsvc_tags_t tags, rsvc_format_t format,
+                                            const uint8_t* data, size_t size, rsvc_done_t fail);
 
 /// ..  function:: size_t rsvc_tags_size(rsvc_tags_t tags)
 ///

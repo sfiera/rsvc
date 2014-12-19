@@ -33,6 +33,7 @@
 #include <string.h>
 #include <sys/param.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <sysexits.h>
 #include <unistd.h>
 

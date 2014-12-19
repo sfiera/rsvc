@@ -31,6 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -153,6 +154,22 @@ bool rsvc_rmdir(const char* path, rsvc_done_t fail) {
     rsvc_logf(3, "rmdir %s", path);
     if (rmdir(path) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
+        return false;
+    }
+    return true;
+}
+
+bool rsvc_mmap(const char* path, int fd, uint8_t** data, size_t* size, rsvc_done_t fail) {
+    rsvc_logf(3, "mmap %s", path);
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "stat %s", path);
+        return false;
+    }
+    *size = st.st_size;
+    *data = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    if (*data == MAP_FAILED) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "mmap %s", path);
         return false;
     }
     return true;

@@ -128,14 +128,15 @@ bool rsvc_tags_image_remove(rsvc_tags_t tags, size_t index, rsvc_done_t fail) {
 }
 
 bool rsvc_tags_image_add(
-        rsvc_tags_t tags, const char* path, rsvc_format_t format, int fd, rsvc_done_t fail) {
+        rsvc_tags_t tags, rsvc_format_t format, const uint8_t* data, size_t size,
+        rsvc_done_t fail) {
     if (!tags->vptr->image_add) {
         rsvc_errorf(fail, __FILE__, __LINE__, "unsupported format");
         return false;
     } else if (!check_tags_writable(tags, fail)) {
         return false;
     }
-    return tags->vptr->image_add(tags, path, format, fd, fail);
+    return tags->vptr->image_add(tags, format, data, size, fail);
 }
 
 bool rsvc_tags_each(rsvc_tags_t tags,

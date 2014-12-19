@@ -457,23 +457,17 @@ static bool rsvc_id3_tags_image_remove(
 }
 
 static bool rsvc_id3_tags_image_add(
-        rsvc_tags_t tags, const char* path, rsvc_format_t format, int fd, rsvc_done_t fail) {
+        rsvc_tags_t tags, rsvc_format_t format, const uint8_t* data, size_t size,
+        rsvc_done_t fail) {
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
     static const uint8_t tag[] = "APIC";
     id3_frame_spec_t spec;
     if (!get_id3_frame_spec(4, tag, &spec, fail)) {
         return false;
     }
-    struct stat st;
-    uint8_t* data;
-    if (!((fstat(fd, &st) == 0)
-          && ((data = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0)) != MAP_FAILED))) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-        return false;
-    }
     static const char description[] = "";
     return id3_image_add(
-            &self->frames, spec, 0x03, format->mime, description, data, st.st_size, fail);
+            &self->frames, spec, 0x03, format->mime, description, data, size, fail);
 }
 
 static bool rsvc_id3_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {

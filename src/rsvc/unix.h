@@ -34,6 +34,7 @@ bool rsvc_refile(const char* src, const char* dst, rsvc_done_t fail);
 bool rsvc_rm(const char* path, rsvc_done_t fail);
 bool rsvc_mkdir(const char* path, mode_t mode, rsvc_done_t fail);
 bool rsvc_rmdir(const char* path, rsvc_done_t fail);
+bool rsvc_mmap(const char* path, int fd, uint8_t** data, size_t* size, rsvc_done_t fail);
 
 bool rsvc_walk(char* path, int options, rsvc_done_t fail,
                bool (^callback)(unsigned short info, const char* dirname, const char* basename,
