@@ -34,6 +34,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/errno.h>
+#include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -340,6 +341,71 @@ static bool rsvc_flac_tags_image_each(
     return loop;
 }
 
+static bool rsvc_flac_tags_image_remove(
+        rsvc_tags_t tags, size_t* index, rsvc_done_t fail) {
+    rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
+    FLAC__Metadata_Iterator* it = FLAC__metadata_iterator_new();
+    FLAC__metadata_iterator_init(it, self->chain);
+    size_t i = 0;
+    // First block is STREAMINFO, which we can skip.
+    while (FLAC__metadata_iterator_next(it)) {
+        if (FLAC__metadata_iterator_get_block_type(it) != FLAC__METADATA_TYPE_PICTURE) {
+            continue;
+        }
+        if (index) {
+            if (*index == i++) {
+                FLAC__metadata_iterator_delete_block(it, false);
+                break;
+            }
+        } else {
+            FLAC__metadata_iterator_delete_block(it, false);
+        }
+    }
+    FLAC__metadata_iterator_delete(it);
+    return true;
+}
+
+static bool rsvc_flac_tags_image_add(
+        rsvc_tags_t tags, rsvc_format_t format, const uint8_t* data, size_t size,
+        rsvc_done_t fail) {
+    struct rsvc_image_info info;
+    if (!format->image_info("image", data, size, &info, fail)) {
+        return false;
+    }
+
+    FLAC__StreamMetadata *metadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_PICTURE);
+    metadata->data.picture.type = FLAC__STREAM_METADATA_PICTURE_TYPE_FRONT_COVER;
+    metadata->data.picture.width = info.width;
+    metadata->data.picture.height = info.height;
+    metadata->data.picture.depth = info.depth;
+    metadata->data.picture.colors = info.palette_size;
+    if (!(FLAC__metadata_object_picture_set_mime_type(metadata, (char*)format->mime, true)
+          && FLAC__metadata_object_picture_set_description(metadata, (unsigned char*)"", true)
+          && FLAC__metadata_object_picture_set_data(metadata, (uint8_t*)data, size, true))) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "memory error");
+        return false;
+    }
+    const char* err;
+    if (!FLAC__format_picture_is_legal(&metadata->data.picture, &err)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "%s", err);
+        return false;
+    }
+
+    rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
+    FLAC__Metadata_Iterator* it = FLAC__metadata_iterator_new();
+    FLAC__metadata_iterator_init(it, self->chain);
+    while (FLAC__metadata_iterator_next(it)) {
+        continue;
+    }
+    if (!FLAC__metadata_iterator_insert_block_after(it, metadata)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "error inserting picture block");
+        FLAC__metadata_iterator_delete(it);
+        return false;
+    }
+    FLAC__metadata_iterator_delete(it);
+    return true;
+}
+
 static bool rsvc_flac_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     if (!FLAC__metadata_chain_write(self->chain, true, false)) {
@@ -356,12 +422,14 @@ static void rsvc_flac_tags_destroy(rsvc_tags_t tags) {
 }
 
 static struct rsvc_tags_methods flac_vptr = {
-    .remove = rsvc_flac_tags_remove,
-    .add = rsvc_flac_tags_add,
-    .each = rsvc_flac_tags_each,
-    .save = rsvc_flac_tags_save,
-    .destroy = rsvc_flac_tags_destroy,
-    .image_each = rsvc_flac_tags_image_each,
+    .remove         = rsvc_flac_tags_remove,
+    .add            = rsvc_flac_tags_add,
+    .each           = rsvc_flac_tags_each,
+    .save           = rsvc_flac_tags_save,
+    .destroy        = rsvc_flac_tags_destroy,
+    .image_each     = rsvc_flac_tags_image_each,
+    .image_remove   = rsvc_flac_tags_image_remove,
+    .image_add      = rsvc_flac_tags_image_add,
 };
 
 bool rsvc_flac_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail) {
