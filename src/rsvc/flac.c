@@ -608,7 +608,9 @@ static FLAC__bool flac_decode_eof(const FLAC__StreamDecoder* decoder, void* user
 
 static void flac_decode_error(const FLAC__StreamDecoder* decoder,
                               FLAC__StreamDecoderErrorStatus error, void* userdata) {
-    fprintf(stderr, "FLAC error: %d\n", error);
+    if (error != FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC) {
+        rsvc_logf(0, "FLAC error: %s", FLAC__StreamDecoderErrorStatusString[error]);
+    }
 }
 
 void rsvc_flac_format_register() {

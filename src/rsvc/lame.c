@@ -34,7 +34,7 @@ void rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         lame_global_flags* lame = lame_init();
         lame_set_num_channels(lame, channels);
-        lame_set_brate(lame, bitrate);
+        lame_set_brate(lame, bitrate >> 10);
         lame_set_in_samplerate(lame, 44100);
         lame_set_bWriteVbrTag(lame, 0);  // TODO(sfiera): write the tag.
         if (lame_init_params(lame) < 0) {
