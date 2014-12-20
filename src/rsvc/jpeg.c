@@ -35,10 +35,7 @@ static size_t read_short(char data[2]) {
         + ((uint8_t)data[1] << 0);
 }
 
-static bool jpeg_info(
-        const char* path, int fd,
-        size_t* width, size_t* height, size_t* depth, size_t* palette_size,
-        rsvc_done_t fail) {
+static bool jpeg_info(const char* path, int fd, struct rsvc_image_info* info, rsvc_done_t fail) {
     size_t offset = 0;
     bool got_soi = false;
     uint8_t marker[2];
@@ -119,10 +116,10 @@ static bool jpeg_info(
                 rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
                 return false;
             }
-            *depth = segment[0];
-            *width = read_short(segment + 1);
-            *height = read_short(segment + 3);
-            *palette_size = 0;
+            info->depth = segment[0];
+            info->width = read_short(segment + 1);
+            info->height = read_short(segment + 3);
+            info->palette_size = 0;
             return true;
         }
 

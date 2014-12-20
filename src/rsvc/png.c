@@ -42,10 +42,7 @@ static size_t read_size(char data[4]) {
         + ((uint8_t)data[3] << 0);
 }
 
-static bool png_info(
-        const char* path, int fd,
-        size_t* width, size_t* height, size_t* depth, size_t* palette_size,
-        rsvc_done_t fail) {
+static bool png_info(const char* path, int fd, struct rsvc_image_info* info, rsvc_done_t fail) {
     size_t offset = 8;
     char block_header[PNG_HEADER_SIZE + 1] = {};  // one extra for '\0' after block type.
     bool got_ihdr = false;
@@ -84,14 +81,14 @@ static bool png_info(
                 rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
                 return false;
             }
-            *width = read_size(block + 0);
-            *height = read_size(block + 4);
+            info->width = read_size(block + 0);
+            info->height = read_size(block + 4);
             if (block[9] & PNG_PALETTE_USED) {
-                *depth = 8;
+                info->depth = 8;
                 // keep looping until we find a PLTE chunk.
             } else {
-                *depth = block[8];
-                *palette_size = 0;
+                info->depth = block[8];
+                info->palette_size = 0;
                 return true;
             }
         } else {
@@ -100,7 +97,7 @@ static bool png_info(
                     rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid png (bad PLTE size)", path);
                     return false;
                 }
-                *palette_size = block_size / 3;
+                info->palette_size = block_size / 3;
                 return true;
             }
         }
