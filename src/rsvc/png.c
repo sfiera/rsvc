@@ -35,30 +35,54 @@
 
 #define PNG_PALETTE_USED 0x01
 
-static size_t read_size(char data[4]) {
+static size_t read_size(const uint8_t data[4]) {
     return ((uint8_t)data[0] << 24)
         + ((uint8_t)data[1] << 16)
         + ((uint8_t)data[2] << 8)
         + ((uint8_t)data[3] << 0);
 }
 
-static bool png_info(const char* path, int fd, struct rsvc_image_info* info, rsvc_done_t fail) {
-    size_t offset = 8;
-    char block_header[PNG_HEADER_SIZE + 1] = {};  // one extra for '\0' after block type.
+static bool png_consume_file_header(
+        const char* path, const uint8_t** data, size_t* size, rsvc_done_t fail) {
+    if (*size < 8) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
+        return false;
+    }
+    *data += 8;
+    *size -= 8;
+    return true;
+}
+
+static bool png_consume_block_header(
+        const char* path, const uint8_t** data, size_t* size,
+        char block_type[5], size_t* block_size, rsvc_done_t fail) {
+    if (*size < PNG_HEADER_SIZE) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
+        return false;
+    }
+    *block_size = read_size(*data);
+    memcpy(block_type, *data + 4, 4);
+    block_type[5] = '\0';
+    *data += PNG_HEADER_SIZE;
+    *size -= PNG_HEADER_SIZE;
+    return true;
+}
+
+static bool png_info(
+        const char* path, const uint8_t* data, size_t size,
+        struct rsvc_image_info* info, rsvc_done_t fail) {
+    if (!png_consume_file_header(path, &data, &size, fail)) {
+        return false;
+    }
+
     bool got_ihdr = false;
     while (true) {
-        ssize_t size = pread(fd, block_header, PNG_HEADER_SIZE, offset);
-        if (size < 0) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-            return false;
-        } else if (size == 0) {
-            break;
-        } else if (size < PNG_HEADER_SIZE) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
+        char block_type[5];
+        size_t block_size;
+        if (!png_consume_block_header(path, &data, &size, block_type, &block_size, fail)) {
             return false;
         }
-        size_t block_size = read_size(block_header);
-        char* block_type = block_header + 4;
+        rsvc_logf(3, "png header %s", block_type);
 
         if (!got_ihdr) {
             if (strcmp(block_type, PNG_IHDR) != 0) {
@@ -70,24 +94,18 @@ static bool png_info(const char* path, int fd, struct rsvc_image_info* info, rsv
             if (block_size != PNG_IHDR_SIZE) {
                 rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid png (bad IHDR size)", path);
                 return false;
-            }
-
-            char block[PNG_IHDR_SIZE];
-            size = pread(fd, block, PNG_IHDR_SIZE, offset + PNG_HEADER_SIZE);
-            if (size < 0) {
-                rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-                return false;
-            } else if (size < PNG_IHDR_SIZE) {
+            } else if (size < block_size) {
                 rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
                 return false;
             }
-            info->width = read_size(block + 0);
-            info->height = read_size(block + 4);
-            if (block[9] & PNG_PALETTE_USED) {
+
+            info->width = read_size(data + 0);
+            info->height = read_size(data + 4);
+            if (data[9] & PNG_PALETTE_USED) {
                 info->depth = 8;
                 // keep looping until we find a PLTE chunk.
             } else {
-                info->depth = block[8];
+                info->depth = data[8];
                 info->palette_size = 0;
                 return true;
             }
@@ -101,7 +119,8 @@ static bool png_info(const char* path, int fd, struct rsvc_image_info* info, rsv
                 return true;
             }
         }
-        offset += PNG_HEADER_SIZE + block_size + PNG_CHECKSUM_SIZE;
+        data += block_size + PNG_CHECKSUM_SIZE;
+        size -= block_size + PNG_CHECKSUM_SIZE;
     }
 
     if (got_ihdr) {

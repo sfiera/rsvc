@@ -417,19 +417,20 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
         const char* path = curr->path;
         int fd = curr->fd;
         rsvc_format_t format = curr->format;
-        struct rsvc_image_info image_info;
-        if (!format->image_info(path, fd, &image_info, done)) {
-            return;
-        }
-        rsvc_logf(
-                3, "adding %s image from %s (%zux%zu, depth %zu, %zu-color)",
-                format->name, path, image_info.width, image_info.height, image_info.depth,
-                image_info.palette_size);
         uint8_t* data;
         size_t size;
         if (!rsvc_mmap(path, fd, &data, &size, done)) {
             return;
         }
+        struct rsvc_image_info image_info;
+        if (!format->image_info(path, data, size, &image_info, done)) {
+            munmap(data, size);
+            return;
+        }
+        rsvc_logf(
+                2, "adding %s image from %s (%zux%zu, depth %zu, %zu-color)",
+                format->name, path, image_info.width, image_info.height, image_info.depth,
+                image_info.palette_size);
         if (!rsvc_tags_image_add(tags, format, data, size, done)) {
             munmap(data, size);
             return;

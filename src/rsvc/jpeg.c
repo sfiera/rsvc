@@ -30,30 +30,39 @@
 #define JPEG_SOF0 0xC0
 #define JPEG_SOF2 0xC2
 
-static size_t read_short(char data[2]) {
-    return ((uint8_t)data[0] << 8)
-        + ((uint8_t)data[1] << 0);
+static size_t read_short(const uint8_t data[2]) {
+    return (data[0] << 8) + (data[1] << 0);
 }
 
-static bool jpeg_info(const char* path, int fd, struct rsvc_image_info* info, rsvc_done_t fail) {
-    size_t offset = 0;
+static bool jpeg_consume_marker(
+        const char* path, const uint8_t** data, size_t* size,
+        uint8_t marker[2], rsvc_done_t fail) {
+    if (*size < 2) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
+        return false;
+    }
+    memcpy(marker, *data, 2);
+    *data += 2;
+    *size -= 2;
+    return true;
+}
+
+static bool jpeg_info(
+        const char* path, const uint8_t* data, size_t size,
+        struct rsvc_image_info* info, rsvc_done_t fail) {
     bool got_soi = false;
     uint8_t marker[2];
     while (true) {
-        ssize_t size = pread(fd, marker, 2, offset);
-        if (size < 0) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-            return false;
-        } else if (size == 0) {
-            break;
-        } else if (size < 2) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
+        if (!jpeg_consume_marker(path, &data, &size, marker, fail)) {
             return false;
         }
         if (marker[0] != 0xff) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid jpeg (bad marker)", path);
+            rsvc_errorf(
+                    fail, __FILE__, __LINE__, "%s: invalid jpeg (bad marker 0x%02x%02x)",
+                    path, marker[0], marker[1]);
             return false;
         }
+        rsvc_logf(3, "jpeg marker 0x%02x%02x", marker[0], marker[1]);
 
         if (!got_soi) {
             if (marker[1] != JPEG_SOI) {
@@ -61,13 +70,13 @@ static bool jpeg_info(const char* path, int fd, struct rsvc_image_info* info, rs
                 return false;
             }
             got_soi = true;
-            offset += 2;
             continue;
         }
 
         switch (marker[1]) {
           case 0xff:
-            offset += 1;
+            data += 1;
+            size -= 1;
             continue;
 
           case 0x01:
@@ -79,7 +88,8 @@ static bool jpeg_info(const char* path, int fd, struct rsvc_image_info* info, rs
           case 0xd5:
           case 0xd6:
           case 0xd7:
-            offset += 2;
+            data += 2;
+            size -= 2;
             continue;
 
           case JPEG_SOI:
@@ -91,39 +101,32 @@ static bool jpeg_info(const char* path, int fd, struct rsvc_image_info* info, rs
             return false;
         }
 
-        char segment_size_bytes[2];
-        size = pread(fd, segment_size_bytes, 2, offset + 2);
-        if (size < 0) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-            return false;
-        } else if (size < 2) {
+        if (size < 2) {
             rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
             return false;
         }
-        size_t segment_size = read_short(segment_size_bytes);
+        size_t segment_size = read_short(data);
+        data += 2;
+        size -= 2;
 
         if ((marker[1] == JPEG_SOF0) || (marker[1] == JPEG_SOF2)) {
-            if (segment_size < 7) {
+            if (segment_size < 5) {
                 rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid png (bad SOFn size)", path);
                 return false;
             }
-            char segment[5];
-            size = pread(fd, segment, 5, offset + 4);
-            if (size < 0) {
-                rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-                return false;
-            } else if (size < 2) {
+            if (size < segment_size) {
                 rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
                 return false;
             }
-            info->depth = segment[0];
-            info->width = read_short(segment + 1);
-            info->height = read_short(segment + 3);
+            info->depth = data[0];
+            info->width = read_short(data + 1);
+            info->height = read_short(data + 3);
             info->palette_size = 0;
             return true;
         }
 
-        offset += 2 + segment_size;
+        data += segment_size - 2;
+        size -= segment_size - 2;
     }
 
     if (got_soi) {

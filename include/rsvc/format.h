@@ -39,7 +39,8 @@ struct rsvc_image_info {
 
 typedef bool (*rsvc_open_tags_f)(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail);
 typedef bool (*rsvc_image_info_f)(
-        const char* path, int fd, struct rsvc_image_info* info, rsvc_done_t fail);
+        const char* path, const uint8_t* data, size_t size,
+        struct rsvc_image_info* info, rsvc_done_t fail);
 
 struct rsvc_format {
     const char*         name;
