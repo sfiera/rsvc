@@ -444,10 +444,10 @@ bool rsvc_flac_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_do
     };
     FLAC__Metadata_Iterator* it = FLAC__metadata_iterator_new();
     if (!FLAC__metadata_chain_read(flac.chain, path)) {
-        FLAC__metadata_iterator_delete(it);
-        FLAC__metadata_chain_delete(flac.chain);
         rsvc_errorf(fail, __FILE__, __LINE__, "%s",
            FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(flac.chain)]);
+        FLAC__metadata_iterator_delete(it);
+        FLAC__metadata_chain_delete(flac.chain);
         return false;
     }
     FLAC__metadata_iterator_init(it, flac.chain);
