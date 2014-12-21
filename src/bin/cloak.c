@@ -299,16 +299,19 @@ static void print_rename(const char* src, const char* dst) {
 
 bool same_file(const char* x, const char* y) {
     void (^ignore)(rsvc_error_t) = ^(rsvc_error_t error){};
+    bool same = false;
     int a_fd, b_fd;
     if (rsvc_open(x, O_RDONLY, 0644, &a_fd, ignore)
             && rsvc_open(y, O_RDONLY, 0644, &b_fd, ignore)) {
         struct stat a_st, b_st;
         if ((fstat(a_fd, &a_st) >= 0) && (fstat(b_fd, &b_st) >= 0)) {
-            return (a_st.st_dev == b_st.st_dev)
+            same = (a_st.st_dev == b_st.st_dev)
                 && (a_st.st_ino == b_st.st_ino);
         }
+        close(a_fd);
+        close(b_fd);
     }
-    return false;
+    return same;
 }
 
 bool move_file(const char* path, rsvc_tags_t tags, ops_t ops, rsvc_done_t fail) {
