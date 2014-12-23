@@ -74,6 +74,7 @@ struct convert_options {
 
     bool recursive;
     bool update;
+    bool delete_;
     bool skip_unknown;
     bool makedirs;
     struct encode_options encode;

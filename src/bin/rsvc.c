@@ -192,6 +192,7 @@ static void rsvc_main(int argc, char* const* argv) {
               case 'f': return format_option(&convert_options.encode, get_value, fail);
               case 'r': return rsvc_boolean_option(&convert_options.recursive);
               case 'u': return rsvc_boolean_option(&convert_options.update);
+              case -1: return rsvc_boolean_option(&convert_options.delete_);
               default:  return rsvc_illegal_short_option(opt, fail);
             }
         },
@@ -201,6 +202,7 @@ static void rsvc_main(int argc, char* const* argv) {
                 {"format",      'f'},
                 {"recursive",   'r'},
                 {"update",      'u'},
+                {"delete",      -1},
                 {NULL}
             }, callbacks.short_option, opt, get_value, fail);
         },
@@ -224,6 +226,7 @@ static void rsvc_main(int argc, char* const* argv) {
                     "  -f, --format FMT        output format (default: flac or vorbis)\n"
                     "  -r, --recursive         convert folder recursively\n"
                     "  -u, --update            skip files that are newer than the source\n"
+                    "      --delete            delete extraneous files from destination\n"
                     "\n"
                     "Formats:\n",
                     rsvc_progname);

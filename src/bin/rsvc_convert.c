@@ -32,6 +32,7 @@
 #include <unistd.h>
 
 #include "../rsvc/group.h"
+#include "../rsvc/list.h"
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
 
@@ -168,15 +169,70 @@ static void build_path(char* out, const char* a, const char* b, const char* c) {
     }
 }
 
+struct path_list {
+    struct path_node {
+        char path[MAXPATHLEN];
+        struct path_node *prev, *next;
+    } *head, *tail;
+};
+
 static void convert_recursive(convert_options_t options, rsvc_done_t done) {
     rsvc_group_t group = rsvc_group_create(done);
     rsvc_done_t walk_done = rsvc_group_add(group);
     dispatch_semaphore_t sema = dispatch_semaphore_create(rsvc_jobs);
 
+    __block struct path_list outputs = {};
+    if (options->delete_) {
+        if (!rsvc_walk(options->output, FTS_NOCHDIR, walk_done,
+                       ^bool(unsigned short info, const char* dirname, const char* basename,
+                             struct stat* st, rsvc_done_t fail){
+            if (info != FTS_F) {
+                return true;
+            }
+            struct path_node node = {};
+            strcat(node.path, options->output);
+            if (dirname) {
+                strcat(node.path, "/");
+                strcat(node.path, dirname);
+            }
+            strcat(node.path, "/");
+            strcat(node.path, basename);
+            RSVC_LIST_PUSH(&outputs, memdup(&node, sizeof(node)));
+            return true;
+        })) {
+            return;
+        }
+    }
+
     if (rsvc_walk(options->input, FTS_NOCHDIR, walk_done,
                   ^bool(unsigned short info, const char* dirname, const char* basename,
                         struct stat* st, rsvc_done_t fail){
-        if (info != FTS_F) {
+        if (info == FTS_DP) {
+            if (!options->delete_) {
+                return true;
+            }
+            char dir[MAXPATHLEN];
+            strcpy(dir, options->output);
+            if (dirname) {
+                strcat(dir, "/");
+                strcat(dir, dirname);
+            }
+            if (basename) {
+                strcat(dir, "/");
+                strcat(dir, basename);
+            }
+            for (struct path_node* node = outputs.head; node; node = node->next) {
+                if (strstr(dir, node->path) == 0) {
+                    char* slash = strrchr(node->path, '/');
+                    if (slash && (slash == node->path + strlen(dir))) {
+                        if (!rsvc_rm(node->path, fail)) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            return true;
+        } else if (info != FTS_F) {
             return true;
         }
 
@@ -186,6 +242,16 @@ static void convert_recursive(convert_options_t options, rsvc_done_t done) {
         if (!change_extension(output, options->encode.format->extension, output, fail)) {
             return false;
         }
+
+        if (options->delete_) {
+            for (struct path_node* node = outputs.head; node; node = node->next) {
+                if (strcmp(node->path, output) == 0) {
+                    RSVC_LIST_ERASE(&outputs, node);
+                    break;
+                }
+            }
+        }
+
         struct convert_options inner_options = {
             .input = input,
             .output = output,
