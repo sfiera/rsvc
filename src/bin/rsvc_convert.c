@@ -221,8 +221,9 @@ static void convert_recursive(convert_options_t options, rsvc_done_t done) {
                 strcat(dir, "/");
                 strcat(dir, basename);
             }
+            rsvc_logf(1, "cleaning %s", dir);
             for (struct path_node* node = outputs.head; node; node = node->next) {
-                if (strstr(dir, node->path) == 0) {
+                if (strstr(node->path, dir) == node->path) {
                     char* slash = strrchr(node->path, '/');
                     if (slash && (slash == node->path + strlen(dir))) {
                         if (!rsvc_rm(node->path, fail)) {
