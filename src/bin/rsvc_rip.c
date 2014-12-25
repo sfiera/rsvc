@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/param.h>
 #include <unistd.h>
 
 #include "../rsvc/group.h"
@@ -131,15 +132,14 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             return;
         }
 
-        char* parent = rsvc_dirname(path);
+        char parent[MAXPATHLEN];
+        rsvc_dirname(path, parent);
         int file;
         if (!(rsvc_makedirs(parent, 0755, rip_done)
               && rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, rip_done))) {
-            free(parent);
             rsvc_tags_destroy(tags);
             return;
         }
-        free(parent);
 
         rsvc_group_t rip_group = rsvc_group_create(rip_done);
         rsvc_done_t decode_done = rsvc_group_add(rip_group);

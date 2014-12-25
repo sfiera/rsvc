@@ -45,7 +45,7 @@ bool rsvc_mv(const char* src, const char* dst, rsvc_done_t fail);
 bool rsvc_makedirs(const char* path, mode_t mode, rsvc_done_t fail);
 void rsvc_trimdirs(const char* path);
 
-char* rsvc_dirname(const char* path);
+void rsvc_dirname(const char* path, char* dirname);
 
 bool rsvc_pipe(int* read_pipe, int* write_pipe, rsvc_done_t fail);
 

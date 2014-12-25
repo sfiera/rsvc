@@ -118,12 +118,11 @@ static void convert(convert_options_t options, rsvc_done_t done) {
     }
 
     if (options->makedirs) {
-        char* parent = rsvc_dirname(options->output);
+        char parent[MAXPATHLEN];
+        rsvc_dirname(options->output, parent);
         if (!rsvc_makedirs(parent, 0755, done)) {
-            free(parent);
             return;
         }
-        free(parent);
     }
 
     // Open a temporary file next to the output path.

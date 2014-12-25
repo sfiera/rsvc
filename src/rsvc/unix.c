@@ -234,14 +234,13 @@ bool rsvc_mv(const char* src, const char* dst, rsvc_done_t fail) {
 }
 
 bool rsvc_makedirs(const char* path, mode_t mode, rsvc_done_t fail) {
-    char* parent = rsvc_dirname(path);
+    char parent[MAXPATHLEN];
+    rsvc_dirname(path, parent);
     if (strcmp(path, parent) != 0) {
         if (!rsvc_makedirs(parent, mode, fail)) {
-            free(parent);
             return false;
         }
     }
-    free(parent);
 
     if (rsvc_mkdir(path, mode, ^(rsvc_error_t error){})) {
         return true;
@@ -255,26 +254,26 @@ bool rsvc_makedirs(const char* path, mode_t mode, rsvc_done_t fail) {
 
 void rsvc_trimdirs(const char* path) {
     if (rsvc_rmdir(path, ^(rsvc_error_t error){})) {
-        char* parent = rsvc_dirname(path);
+        char parent[MAXPATHLEN];
+        rsvc_dirname(path, parent);
         rsvc_trimdirs(parent);
-        free(parent);
     }
 }
 
-char* rsvc_dirname(const char* path) {
+void rsvc_dirname(const char* path, char* dirname) {
     char* slash = strrchr(path, '/');
     if (slash == NULL) {
-        return strdup(".");
+        strcpy(dirname, ".");
     } else if (slash == path) {
-        return strdup("/");
+        strcpy(dirname, "/");
     } else if (slash[1] == '\0') {
-        char* stripped = strndup(path, slash - path);
-        char* parent = rsvc_dirname(stripped);
-        free(stripped);
-        return parent;
+        char stripped[MAXPATHLEN];
+        strncpy(stripped, path, slash - path);
+        stripped[slash - path] = '\0';
+        rsvc_dirname(stripped, dirname);
     } else {
-        char* parent = strndup(path, slash - path);
-        return parent;
+        strncpy(dirname, path, slash - path);
+        dirname[slash - path] = '\0';
     }
 }
 

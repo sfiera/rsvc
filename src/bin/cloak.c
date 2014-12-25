@@ -330,8 +330,9 @@ bool move_file(const char* path, rsvc_tags_t tags, ops_t ops, rsvc_done_t fail) 
             print_rename(path, new_path);
         }
     } else {
-        parent = rsvc_dirname(path);
-        new_parent = rsvc_dirname(new_path);
+        char parent[MAXPATHLEN], new_parent[MAXPATHLEN];
+        rsvc_dirname(path, parent);
+        rsvc_dirname(new_path, new_parent);
         if (!(rsvc_makedirs(new_parent, 0755, fail)
               && rsvc_mv(path, new_path, fail))) {
             goto end;
@@ -396,10 +397,10 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
                 char image_path[MAXPATHLEN + 10];  // space for extra dot and extension.
                 strcpy(image_path, curr->path);
                 if (!image_path[0]) {
-                    char* parent = rsvc_dirname(path);
+                    char parent[MAXPATHLEN];
+                    rsvc_dirname(path, parent);
                     strcat(image_path, parent);
                     strcat(image_path, "/cover");
-                    free(parent);
                 }
                 if (!get_extension(image_path)) {
                     strcat(image_path, ".");
