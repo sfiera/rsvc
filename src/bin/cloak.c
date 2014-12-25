@@ -119,16 +119,19 @@ static void print_tags(rsvc_tags_t tags) {
                            rsvc_stop_t stop){
         printf("%s=", name);
         while (*value) {
-            size_t size = strcspn(value, "\\\n");
+            size_t size = strcspn(value, "\\\r\n");
             fwrite(value, sizeof(char), size, stdout);
             value += size;
             size = strspn(value, "\\");
-            if (size && ((value[size] == '\n') || (!value[size]))) {
+            if (size && strcspn(value + size, "\r\n")) {
                 fwrite(value, sizeof(char), size, stdout);
             }
             fwrite(value, sizeof(char), size, stdout);
             value += size;
-            if (*value == '\n') {
+            if (strstr(value, "\r\n") == value) {
+                printf("\\\n");
+                value += 2;
+            } else if (strspn(value, "\r\n")) {
                 printf("\\\n");
                 value += 1;
             }
