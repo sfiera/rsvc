@@ -69,7 +69,7 @@ static bool set_mb_tag(rsvc_tags_t tags, const char* tag_name,
     return rsvc_tags_add(tags, fail, tag_name, tag_value);
 }
 
-static bool mb_query_cached(const char* discid, MbMetadata** meta, rsvc_done_t fail) {
+static bool mb_query_cached(const char* discid, MbMetadata* meta, rsvc_done_t fail) {
     // MusicBrainz requires that requests be throttled to 1 per second.
     // In order to do so, we serialize all of our requests through a
     // single dispatch queue.
@@ -98,7 +98,7 @@ static bool mb_query_cached(const char* discid, MbMetadata** meta, rsvc_done_t f
         for (struct cache_entry* curr = cache; curr; curr = curr->next) {
             if (strcmp(discid, curr->discid) == 0) {
                 rsvc_logf(1, "mb request in cache for %s", discid);
-                *meta = &curr->meta;
+                *meta = curr->meta;
                 result = true;
                 return;
             }
@@ -125,15 +125,13 @@ static bool mb_query_cached(const char* discid, MbMetadata** meta, rsvc_done_t f
         MbMetadata response = mb_query_query(q, "discid", discid, NULL,
                                              1, param_names, param_values);
         rsvc_logf(1, "received mb response for %s", discid);
-        *meta = &response;
-        dispatch_sync(cache_queue, ^{
-            struct cache_entry new_cache = {
-                .discid = strdup(discid),
-                .meta   = response,
-                .next   = cache,
-            };
-            cache = memdup(&new_cache, sizeof new_cache);
-        });
+        *meta = response;
+        struct cache_entry new_cache = {
+            .discid = strdup(discid),
+            .meta   = response,
+            .next   = cache,
+        };
+        cache = memdup(&new_cache, sizeof new_cache);
         mb_query_delete(q);
     });
     return result;
@@ -169,7 +167,7 @@ bool rsvc_apply_musicbrainz_tags(rsvc_tags_t tags, rsvc_done_t fail) {
         goto cleanup;
     }
 
-    MbMetadata* meta;
+    MbMetadata meta;
     if (!mb_query_cached(discid, &meta, fail)) {
         goto cleanup;
     }
