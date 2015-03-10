@@ -48,7 +48,7 @@ void rsvc_command_rip(rip_options_t options, rsvc_done_t done) {
             if (error) {
                 done(error);
             } else {
-                options->disk = disk;
+                options->disk = strdup(disk);
                 rsvc_command_rip(options, done);
             }
         });
