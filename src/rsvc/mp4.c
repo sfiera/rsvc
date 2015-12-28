@@ -343,6 +343,26 @@ static bool add_media_kind(MP4FileHandle* file, mp4_tag_t tag, const char* value
     return false;
 }
 
+static bool add_image_tag(
+        MP4FileHandle* file, mp4_tag_t tag,
+        rsvc_format_t format, const uint8_t* data, size_t size,
+        rsvc_done_t fail) {
+    int type_code;
+    if (strcmp(format->name, "gif") == 0) {
+        type_code = MP4_ITMF_BT_GIF;
+    } else if (strcmp(format->name, "jpeg") == 0) {
+        type_code = MP4_ITMF_BT_JPEG;
+    } else if (strcmp(format->name, "png") == 0) {
+        type_code = MP4_ITMF_BT_PNG;
+    } else if (strcmp(format->name, "bmp") == 0) {
+        type_code = MP4_ITMF_BT_BMP;
+    } else {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid mp4 image type: %s", format->name);
+        return false;
+    }
+    return add_binary_tag(file, tag, data, size, type_code, fail);
+}
+
 static bool delete_tag(MP4FileHandle* file, mp4_tag_t tag,
                        rsvc_done_t fail) {
     MP4ItmfItemList* items = MP4ItmfGetItems(file);
@@ -440,7 +460,6 @@ static struct mp4_tag_type mp4_media_kind = {
 };
 
 static struct mp4_tag_type mp4_image = {
-    .add = NULL,
     .remove = delete_tag,
 };
 
@@ -691,6 +710,13 @@ static bool rsvc_mp4_tags_image_remove(
     return delete_tag(self->file, &mp4_image_tag, fail);
 }
 
+static bool rsvc_mp4_tags_image_add(
+        rsvc_tags_t tags, rsvc_format_t format, const uint8_t* data, size_t size,
+        rsvc_done_t fail) {
+    rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
+    return add_image_tag(self->file, &mp4_image_tag, format, data, size, fail);
+}
+
 static bool rsvc_mp4_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
     // The mp4v2 C API doesn't have a way to say "clean up this file
@@ -751,6 +777,7 @@ static struct rsvc_tags_methods mp4_vptr = {
     .each = rsvc_mp4_tags_each,
     .image_each = rsvc_mp4_tags_image_each,
     .image_remove = rsvc_mp4_tags_image_remove,
+    .image_add = rsvc_mp4_tags_image_add,
     .save = rsvc_mp4_tags_save,
     .destroy = rsvc_mp4_tags_destroy,
 };
