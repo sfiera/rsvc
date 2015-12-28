@@ -439,6 +439,11 @@ static struct mp4_tag_type mp4_media_kind = {
     .remove = delete_tag,
 };
 
+static struct mp4_tag_type mp4_image = {
+    .add = NULL,
+    .remove = delete_tag,
+};
+
 static struct mp4_tag mp4_tags[] = {
     {"TITLE",               &mp4_string,        "\251nam"},
     {"TITLESORT",           &mp4_string,        "sonm"},
@@ -485,6 +490,8 @@ static struct mp4_tag mp4_tags[] = {
 
     {},
 };
+static struct mp4_tag mp4_image_tag =
+    {NULL,                  &mp4_image,         "covr"};
 
 struct rsvc_mp4_tags {
     struct rsvc_tags    super;
@@ -645,7 +652,7 @@ static bool rsvc_mp4_tags_image_each(
     for (uint32_t i = 0; loop && (i < items->size); ++i) {
         MP4ItmfItem* item = &items->elements[i];
         if ((item->dataList.size == 0)
-                || (strcmp(item->code, "covr") != 0)) {
+                || (strcmp(item->code, mp4_image_tag.mp4_code) != 0)) {
             continue;
         }
         MP4ItmfData* data = &item->dataList.elements[0];
@@ -672,6 +679,16 @@ static bool rsvc_mp4_tags_image_each(
     }
     MP4ItmfItemListFree(items);
     return loop;
+}
+
+static bool rsvc_mp4_tags_image_remove(
+        rsvc_tags_t tags, size_t* index, rsvc_done_t fail) {
+    if (index) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "not implemented");
+        return false;
+    }
+    rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
+    return delete_tag(self->file, &mp4_image_tag, fail);
 }
 
 static bool rsvc_mp4_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
@@ -733,6 +750,7 @@ static struct rsvc_tags_methods mp4_vptr = {
     .add = rsvc_mp4_tags_add,
     .each = rsvc_mp4_tags_each,
     .image_each = rsvc_mp4_tags_image_each,
+    .image_remove = rsvc_mp4_tags_image_remove,
     .save = rsvc_mp4_tags_save,
     .destroy = rsvc_mp4_tags_destroy,
 };
