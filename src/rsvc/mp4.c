@@ -632,6 +632,48 @@ skip:
     return loop;
 }
 
+static bool rsvc_mp4_tags_image_each(
+        rsvc_tags_t tags,
+        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop)) {
+    rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
+    __block bool loop = true;
+    rsvc_stop_t stop = ^{
+        loop = false;
+    };
+
+    MP4ItmfItemList* items = MP4ItmfGetItems(self->file);
+    for (uint32_t i = 0; loop && (i < items->size); ++i) {
+        MP4ItmfItem* item = &items->elements[i];
+        if ((item->dataList.size == 0)
+                || (strcmp(item->code, "covr") != 0)) {
+            continue;
+        }
+        MP4ItmfData* data = &item->dataList.elements[0];
+        rsvc_format_t format = NULL;
+        switch (data->typeCode) {
+            case MP4_ITMF_BT_GIF:
+                format = rsvc_format_named("gif", 0);
+                break;
+            case MP4_ITMF_BT_JPEG:
+                format = rsvc_format_named("jpeg", 0);
+                break;
+            case MP4_ITMF_BT_PNG:
+                format = rsvc_format_named("png", 0);
+                break;
+            case MP4_ITMF_BT_BMP:
+                format = rsvc_format_named("bmp", 0);
+                break;
+            default:
+                continue;
+        }
+        if (format) {
+            block(format, data->value, data->valueSize, stop);
+        }
+    }
+    MP4ItmfItemListFree(items);
+    return loop;
+}
+
 static bool rsvc_mp4_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
     // The mp4v2 C API doesn't have a way to say "clean up this file
@@ -690,6 +732,7 @@ static struct rsvc_tags_methods mp4_vptr = {
     .remove = rsvc_mp4_tags_remove,
     .add = rsvc_mp4_tags_add,
     .each = rsvc_mp4_tags_each,
+    .image_each = rsvc_mp4_tags_image_each,
     .save = rsvc_mp4_tags_save,
     .destroy = rsvc_mp4_tags_destroy,
 };
