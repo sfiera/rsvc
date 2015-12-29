@@ -151,8 +151,14 @@ void rsvc_logf(int level, const char* format, ...) {
     }
 }
 
+static dispatch_once_t mark_main_init;
+
 void rsvc_main_sync(void (^block)()) {
-    if (dispatch_get_current_queue() == dispatch_get_main_queue()) {
+    dispatch_once(&mark_main_init, ^{
+        dispatch_queue_set_specific(
+                dispatch_get_main_queue(), &mark_main_init, &mark_main_init, NULL);
+    });
+    if (dispatch_get_specific(&mark_main_init)) {
         block();
     } else {
         dispatch_sync(dispatch_get_main_queue(), block);
