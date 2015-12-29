@@ -9,8 +9,7 @@ WARNINGS = ["-Wall", "-Werror", "-Wno-sign-compare"]
 CFLAGS = WARNINGS + ["-fblocks"]
 
 def common(ctx):
-    ctx.default_sdk = "10.8"
-    ctx.default_compiler = "clang"
+    ctx.mac_target = "10.9"
     ctx.load("compiler_c")
     ctx.load("core externals", tooldir="ext/waf-sfiera")
     ctx.external("discid flac lame libmusicbrainz mad mp4v2 vorbis")
