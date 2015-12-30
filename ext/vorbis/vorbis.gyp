@@ -58,7 +58,7 @@
         [ { "target_name": "libvorbis"
           , "type": "static_library"
           , "link_settings":
-            { "libraries": ["-lvorbis"]
+            { "libraries": ["-lvorbis", "-lvorbisenc"]
             }
           }
         ]

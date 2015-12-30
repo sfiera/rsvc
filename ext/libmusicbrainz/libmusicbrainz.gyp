@@ -82,7 +82,7 @@
         [ { "target_name": "libmusicbrainz"
           , "type": "static_library"
           , "link_settings":
-            { "libraries": ["-lmusicbrainz"]
+            { "libraries": ["-lmusicbrainz5"]
             }
           }
         ]

@@ -13,7 +13,7 @@
 , "conditions":
   [ [ "<(BUNDLED_FLAC) != 0"
     , { "targets":
-        [ { "target_name": "libflac"
+        [ { "target_name": "libFLAC"
           , "type": "static_library"
           , "sources":
             [ "flac-1.2.1/src/libFLAC/bitmath.c"
@@ -46,10 +46,10 @@
         ]
       }
     , { "targets":
-        [ { "target_name": "libflac"
+        [ { "target_name": "libFLAC"
           , "type": "static_library"
           , "link_settings":
-            { "libraries": ["-lflac"]
+            { "libraries": ["-lFLAC"]
             }
           }
         ]

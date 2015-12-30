@@ -61,7 +61,7 @@
     , "defines": ["MB_VERSION=<(MB_VERSION)"]
     , "dependencies":
       [ "<(DEPTH)/ext/discid/discid.gyp:libdiscid"
-      , "<(DEPTH)/ext/flac/flac.gyp:libflac"
+      , "<(DEPTH)/ext/flac/flac.gyp:libFLAC"
       , "<(DEPTH)/ext/lame/lame.gyp:libmp3lame"
       , "<(DEPTH)/ext/mp4v2/mp4v2.gyp:libmp4v2"
       , "<(DEPTH)/ext/mad/mad.gyp:libmad"
@@ -71,7 +71,7 @@
       ]
     , "export_dependent_settings":
       [ "<(DEPTH)/ext/discid/discid.gyp:libdiscid"
-      , "<(DEPTH)/ext/flac/flac.gyp:libflac"
+      , "<(DEPTH)/ext/flac/flac.gyp:libFLAC"
       , "<(DEPTH)/ext/lame/lame.gyp:libmp3lame"
       , "<(DEPTH)/ext/mp4v2/mp4v2.gyp:libmp4v2"
       , "<(DEPTH)/ext/mad/mad.gyp:libmad"
@@ -101,6 +101,9 @@
             , "src/rsvc/unix_linux.c"
             , "src/rsvc/disc_linux.c"
             ]
+          , "link_settings":
+            { "libraries": ["-lBlocksRuntime", "-ldispatch", "-ludev"]
+            }
           }
         ]
       ]
