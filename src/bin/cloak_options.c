@@ -23,6 +23,7 @@
 #include "cloak.h"
 
 static bool help_option(const char* progname);
+static bool formats_option(const char* progname);
 static bool verbosity_option();
 static bool version_option();
 static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
@@ -35,6 +36,7 @@ static bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail);
 
 rsvc_long_option_names kLongFlags = {
     {"help",                HELP},
+    {"formats",             FORMATS},
     {"dry-run",             DRY_RUN},
     {"verbose",             VERBOSE},
     {"version",             VERSION},
@@ -97,6 +99,7 @@ bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t* files,
     callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
         switch (opt) {
           case HELP:                return help_option(progname);
+          case FORMATS:             return formats_option(progname);
           case DRY_RUN:             return rsvc_boolean_option(&ops->dry_run);
           case VERBOSE:             return verbosity_option();
           case VERSION:             return version_option();
@@ -165,6 +168,7 @@ static bool help_option(const char* progname) {
             "\n"
             "Options:\n"
             "  -h, --help                display this help and exit\n"
+            "      --formats             list supported audio and image formats\n"
             "  -n, --dry-run             validate inputs but don't save changes\n"
             "  -v, --verbose             more verbose logging\n"
             "  -V, --version             show version and exit\n"
@@ -213,6 +217,27 @@ static bool help_option(const char* progname) {
             "    -m, --move              move file according to new tags\n"
             "    -p, --path PATH         format string for --move (default %s)\n",
             progname, DEFAULT_PATH);
+    exit(0);
+}
+
+static bool formats_option(const char* progname) {
+    __block void* previous = NULL;
+    fprintf(stderr, "audio:");
+    rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+        if (format->open_tags && (format->open_tags != previous)) {
+            fprintf(stderr, " %s", format->name);
+            previous = format->open_tags;
+        }
+    });
+    fprintf(stderr, "\nimage:");
+    previous = NULL;
+    rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+        if (format->image_info && (format->image_info != previous)) {
+            fprintf(stderr, " %s", format->name);
+            previous = format->image_info;
+        }
+    });
+    fprintf(stderr, "\n");
     exit(0);
 }
 

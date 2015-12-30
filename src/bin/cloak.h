@@ -56,6 +56,7 @@
 
 enum short_flag {
     HELP                = 'h',
+    FORMATS             = -5,
     DRY_RUN             = 'n',
     VERBOSE             = 'v',
     VERSION             = 'V',
