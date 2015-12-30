@@ -1,3 +1,0 @@
-[submodule "ext/waf-sfiera"]
-	path = ext/waf-sfiera
-	url = https://github.com/sfiera/waf-sfiera.git

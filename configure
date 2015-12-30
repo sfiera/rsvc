@@ -1,5 +1,186 @@
-#!/bin/bash
+#!/usr/bin/env python
 
-set -e
+from __future__ import division, print_function, unicode_literals
 
-python ext/waf-sfiera/waf configure "$@"
+import argparse
+import collections
+import glob
+import os
+import platform
+import subprocess
+import sys
+from scripts import cfg
+
+LIBS = [
+    ("discid", "libdiscid", "?", "libdiscid"),
+    ("flac", "flac", "?", "flac"),
+    # ("lame", "mp3lame", "?", "lame"),
+    ("musicbrainz5", "libmusicbrainz5", "?", "libmusicbrainz"),
+    ("mad", "mad", "?", "mad"),
+    # ("mp4v2", "mp4v2", "?", "mp4v2"),
+    ("neon", "neon", "?", "neon"),
+    ("ogg", "ogg", "?", "libogg"),
+    ("vorbis", "vorbis", "?", "libvorbis"),
+]
+
+def main():
+    os.chdir(os.path.dirname(sys.argv[0]))
+    progname = sys.argv[0]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-m", "--mode", type=unicode, choices="dbg dev opt".split(), default="opt")
+    for name, _, _, _ in LIBS:
+        if cfg.platform() == "mac":
+            choices = ["bundled"]  # no system on mac
+            default = "bundled"
+        elif cfg.platform() == "linux":
+            choices = "system bundled auto".split()
+            default = "auto"
+        parser.add_argument("--with-" + name, choices=choices, default=default)
+    args, remainder = parser.parse_known_args()
+
+    check_platform()
+    check_arch()
+    check_deps(args)
+
+    cfg.makedirs("out")
+    cfg.linkf(args.mode, "out/cur")
+    gyp(args, remainder)
+    print("make(1) it so!")
+
+
+def check_platform():
+    with cfg.step("checking platform") as msg:
+        if cfg.platform() in ["mac", "linux"]:
+            msg(cfg.platform(), color="green")
+        else:
+            msg(cfg.platform(), color="red")
+            print("\nSorry! rsvc requires Mac OS X or Linux")
+            sys.exit(1)
+
+
+def check_arch():
+    with cfg.step("checking architecture") as msg:
+        arch = platform.uname()[4]
+        if not arch:
+            msg("unknown", color="red")
+            sys.exit(1)
+        elif arch in ["x86_64", "i386"]:
+            msg(arch, color="green")
+        else:
+            msg(arch + " (untested)", color="yellow")
+
+
+def check_deps(args):
+    checker = {
+        "mac": check_mac,
+        "linux": check_linux,
+    }[cfg.platform()]
+    checker(args)
+
+
+def check_mac(args):
+    with cfg.step("checking Mac OS X version") as msg:
+        ver = platform.mac_ver()[0]
+        ver = tuple(int(x) for x in ver.split(".")[:2])
+        if ver < (10, 9):
+            msg("%d.%d" % ver, color="red")
+            print("\nSorry! rsvc requires Mac OS X 10.9+")
+            sys.exit(1)
+        msg("%d.%d" % ver, color="green")
+
+    missing = collections.OrderedDict()
+    if not cfg.check_clang():
+        missing["xcode"] = (
+                "* Xcode can be installed via the App Store:\n"
+                "    https://itunes.apple.com/en/app/xcode/id497799835\n"
+                "  After installing, open it and accept the license agreement\n")
+    if not cfg.check_gyp():
+        missing["gyp"] = (
+                "* gyp can be installed with Homebrew:\n"
+                "    $ brew install --HEAD scripts/gyp.rb\n")
+
+    if not cfg.check_ninja():
+        missing["ninja"] = (
+                "* ninja can be installed with Homebrew:\n"
+                "    $ brew install ninja\n")
+
+    if any("Homebrew" in v for v in missing.values()):
+        if not cfg.check_bin("brew --version".split()):
+            homebrew_url = "https://raw.githubusercontent.com/Homebrew/install/master/install"
+            missing["homebrew"] = (
+                    "* Homebrew can be installed like so:\n"
+                    '    $ ruby -e "$(curl -fsSL %s)"') % homebrew_url
+
+    if missing:
+        print("\nmissing dependencies: %s\n" % " ".join(missing.iterkeys()))
+        for step in missing.values():
+            sys.stdout.write(step)
+        sys.exit(1)
+
+
+def check_linux():
+    with cfg.step("checking Linux distro") as msg:
+        distro = platform.linux_distribution()
+        if distro[0] == "Ubuntu":
+            msg(" ".join(distro), color="green")
+        else:
+            msg(" ".join(distro) + " (untested)", color="yellow")
+
+    missing = collections.OrderedDict()
+    if not cfg.check_clang():
+        missing["clang"] = "clang"
+        missing["libc++"] = "libc++-dev"
+    if not cfg.check_gyp():
+        missing["gyp"] = "gyp"
+    if not cfg.check_ninja():
+        missing["ninja"] = "ninja-build"
+
+    if cfg.check_pkg_config():
+        for name, pkg, _, brew in LIBS:
+            if getattr(args, "with_" + name) != "bundled":
+                if cfg.check_pkg(pkg):
+                    setattr(args, "with_" + name, "system")
+                else:
+                    missing_pkgs[name] = brew
+    else:
+        missing_pkgs["pkg-config"] = "pkg-config"
+
+    if missing:
+        print("\nmissing dependencies: %s" % " ".join(missing.keys()))
+        if len(missing) == 1:
+            print("\nOn Ubuntu, you can install it with:\n")
+        else:
+            print("\nOn Ubuntu, you can install them with:\n")
+        print("    $ sudo apt-get install %s" % (" ".join(missing.values())))
+        sys.exit(1)
+
+
+def gyp(args, remainder):
+    with cfg.step("configure mode") as msg:
+        msg(args.mode, color="green")
+    with cfg.step("generating build.ninja") as msg:
+        cmd = [
+            "gyp",
+            "--include=defaults.gypi",
+            "--format=ninja",
+            "--depth=.",
+            "-DMB_VERSION=5",
+            "-DBUNDLED_LAME=1",
+            "-DBUNDLED_LIBMUSICBRAINZ=1",
+            "-DBUNDLED_MP4V2=1",
+        ]
+        for name, _, _, _ in LIBS:
+            if getattr(args, "with_" + name) == "system":
+                cmd += ["-D", "BUNDLED_%s=0" % name.upper()]
+            else:
+                cmd += ["-D", "BUNDLED_%s=1" % name.upper()]
+        cmd += remainder
+
+        retcode = subprocess.call(cmd)
+        if retcode != 0:
+            msg("failed", color="red")
+            sys.exit(retcode)
+
+
+if __name__ == "__main__":
+    main()

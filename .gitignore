@@ -1,5 +1,4 @@
-/.lock-wafbuild
-/.waf-*
-/build
+/out
 *.h.rst
+*.pyc
 /doc/_build
