@@ -111,16 +111,33 @@ void rsvc_progress_done(rsvc_progress_t item) {
     });
 }
 
-void rsvc_printf(const char* format, ...) {
+static void rsvc_vfprintf(FILE* file, const char* format, va_list vl) {
+    static dispatch_once_t init;
+    static dispatch_queue_t io;
+    dispatch_once(&init, ^{
+        io = dispatch_queue_create("net.sfiera.ripservice.io", NULL);
+    });
+
     char* str;
-    va_list vl;
-    va_start(vl, format);
     rsvc_vasprintf(&str, format, vl);
-    va_end(vl);
-    rsvc_main_sync(^{
+    dispatch_sync(io, ^{
         progress_hide();
-        printf("%s", str);
+        fprintf(file, "%s", str);
         progress_show();
         free(str);
     });
+}
+
+void rsvc_outf(const char* format, ...) {
+    va_list vl;
+    va_start(vl, format);
+    rsvc_vfprintf(stdout, format, vl);
+    va_end(vl);
+}
+
+void rsvc_errf(const char* format, ...) {
+    va_list vl;
+    va_start(vl, format);
+    rsvc_vfprintf(stderr, format, vl);
+    va_end(vl);
 }

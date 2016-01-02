@@ -111,7 +111,7 @@ static void convert(convert_options_t options, rsvc_done_t done) {
             return;
         }
         if (options->update && (st_input.st_mtime < st_output.st_mtime)) {
-            rsvc_printf(" skip   %s\n", options->output);
+            rsvc_outf(" skip   %s\n", options->output);
             done(NULL);
             return;
         }
@@ -345,7 +345,7 @@ static void decode_file(convert_options_t options, int write_fd,
     if (!rsvc_format_detect(options->input, options->input_fd, RSVC_FORMAT_DECODE, &format,
                             ^(rsvc_error_t error){
         if (options->skip_unknown) {
-            rsvc_printf(" skip   %s\n", options->output);
+            rsvc_outf(" skip   %s\n", options->output);
             done(NULL);
         } else {
             done(error);
