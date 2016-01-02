@@ -15,7 +15,8 @@
   [ { "target_name": "rsvc"
     , "type": "executable"
     , "sources":
-      [ "src/bin/rsvc.c"
+      [ "src/bin/rsvc.h"
+      , "src/bin/rsvc.c"
       , "src/bin/rsvc_convert.c"
       , "src/bin/rsvc_eject.c"
       , "src/bin/rsvc_ls.c"
@@ -29,7 +30,8 @@
   , { "target_name": "cloak"
     , "type": "executable"
     , "sources":
-      [ "src/bin/cloak.c"
+      [ "src/bin/cloak.h"
+      , "src/bin/cloak.c"
       , "src/bin/cloak_options.c"
       ]
     , "dependencies": ["librsvc"]
@@ -38,7 +40,36 @@
   , { "target_name": "librsvc"
     , "type": "static_library"
     , "sources":
-      [ "src/rsvc/cancel.c"
+      [ "include/rsvc/cancel.h"
+      , "include/rsvc/cd.h"
+      , "include/rsvc/common.h"
+      , "include/rsvc/decode.h"
+      , "include/rsvc/disc.h"
+      , "include/rsvc/encode.h"
+      , "include/rsvc/flac.h"
+      , "include/rsvc/format.h"
+      , "include/rsvc/id3.h"
+      , "include/rsvc/jpeg.h"
+      , "include/rsvc/lame.h"
+      , "include/rsvc/mad.h"
+      , "include/rsvc/mp4.h"
+      , "include/rsvc/musicbrainz.h"
+      , "include/rsvc/png.h"
+      , "include/rsvc/tag.h"
+      , "include/rsvc/vorbis.h"
+
+      , "src/rsvc/common.h"
+      , "src/rsvc/disc.h"
+      , "src/rsvc/encoding.h"
+      , "src/rsvc/group.h"
+      , "src/rsvc/list.h"
+      , "src/rsvc/mb4.h"
+      , "src/rsvc/mb5.h"
+      , "src/rsvc/options.h"
+      , "src/rsvc/progress.h"
+      , "src/rsvc/unix.h"
+
+      , "src/rsvc/cancel.c"
       , "src/rsvc/common.c"
       , "src/rsvc/disc.c"
       , "src/rsvc/encoding.c"
@@ -82,7 +113,9 @@
     , "conditions":
       [ [ "OS == 'mac'"
         , { "sources":
-            [ "src/rsvc/cd_darwin.c"
+            [ "include/rsvc/core-audio.h"
+
+            , "src/rsvc/cd_darwin.c"
             , "src/rsvc/core-audio.c"
             , "src/rsvc/disc_darwin.c"
             , "src/rsvc/unix_darwin.c"
