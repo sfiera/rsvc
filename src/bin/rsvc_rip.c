@@ -78,13 +78,13 @@ void rsvc_command_rip(rip_options_t options, rsvc_done_t done) {
 }
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
-    printf("Ripping…\n");
+    rsvc_outf("Ripping…\n");
     rsvc_cd_session_t session = rsvc_cd_session(cd, 0);
     const size_t ntracks = rsvc_cd_session_ntracks(session);
 
     rsvc_group_t group = rsvc_group_create(^(rsvc_error_t error){
         if (!error) {
-            printf("all rips done.\n");
+            rsvc_outf("all rips done.\n");
         }
         done(error);
     });
@@ -103,7 +103,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
     rsvc_cd_track_t track = rsvc_cd_session_track(session, n);
     size_t track_number = rsvc_cd_track_number(track);
     if (rsvc_cd_track_type(track) == RSVC_CD_TRACK_DATA) {
-        printf("skipping track %zu/%zu\n", track_number, ntracks);
+        rsvc_outf("skipping track %zu/%zu\n", track_number, ntracks);
         rip_track(n + 1, ntracks, group, options, cd, session);
         return;
     }

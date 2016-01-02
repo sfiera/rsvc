@@ -163,7 +163,7 @@ int cloak_mode(ops_t ops) {
 }
 
 static bool help_option(const char* progname) {
-    fprintf(stderr,
+    rsvc_errf(
             "usage: %s [OPTIONS] FILE...\n"
             "\n"
             "Options:\n"
@@ -222,22 +222,22 @@ static bool help_option(const char* progname) {
 
 static bool formats_option(const char* progname) {
     __block void* previous = NULL;
-    fprintf(stderr, "audio:");
+    rsvc_errf("audio:");
     rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
         if (format->open_tags && (format->open_tags != previous)) {
-            fprintf(stderr, " %s", format->name);
+            rsvc_errf(" %s", format->name);
             previous = format->open_tags;
         }
     });
-    fprintf(stderr, "\nimage:");
+    rsvc_errf("\nimage:");
     previous = NULL;
     rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
         if (format->image_info && (format->image_info != previous)) {
-            fprintf(stderr, " %s", format->name);
+            rsvc_errf(" %s", format->name);
             previous = format->image_info;
         }
     });
-    fprintf(stderr, "\n");
+    rsvc_errf("\n");
     exit(0);
 }
 
@@ -247,7 +247,7 @@ static bool verbosity_option() {
 }
 
 static bool version_option() {
-    printf("cloak %s\n", RSVC_VERSION);
+    rsvc_outf("cloak %s\n", RSVC_VERSION);
     exit(0);
 }
 

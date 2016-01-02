@@ -33,7 +33,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "progress.h"
 #include "unix.h"
 
 struct mad_userdata {

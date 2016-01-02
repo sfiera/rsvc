@@ -41,8 +41,8 @@ static void cloak_main(int argc, char* const* argv) {
     const char* progname = strdup(basename(argv[0]));
     rsvc_done_t fail = ^(rsvc_error_t error){
         if (error) {
-            fprintf(stderr, "%s: %s (%s:%d)\n",
-                    progname, error->message, error->file, error->lineno);
+            rsvc_errf("%s: %s (%s:%d)\n",
+                      progname, error->message, error->file, error->lineno);
             exit(1);
         }
         exit(0);
@@ -101,7 +101,7 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
             return;
         }
         if (ops->list_mode == LIST_MODE_LONG) {
-            printf("%s:\n", path);
+            rsvc_outf("%s:\n", path);
         }
         if (ops->list_tags) {
             print_tags(tags);
@@ -117,7 +117,7 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
 static void print_tags(rsvc_tags_t tags) {
     rsvc_tags_each(tags, ^(const char* name, const char* value,
                            rsvc_stop_t stop){
-        printf("%s=", name);
+        rsvc_outf("%s=", name);
         while (*value) {
             size_t size = strcspn(value, "\\\r\n");
             fwrite(value, sizeof(char), size, stdout);
@@ -129,21 +129,21 @@ static void print_tags(rsvc_tags_t tags) {
             fwrite(value, sizeof(char), size, stdout);
             value += size;
             if (strstr(value, "\r\n") == value) {
-                printf("\\\n");
+                rsvc_outf("\\\n");
                 value += 2;
             } else if (strspn(value, "\r\n")) {
-                printf("\\\n");
+                rsvc_outf("\\\n");
                 value += 1;
             }
         }
-        printf("\n");
+        rsvc_outf("\n");
     });
 }
 
 static void print_images(rsvc_tags_t tags) {
     rsvc_tags_image_each(tags, ^(
                 rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop){
-        printf("%zu-byte %s image\n", size, format->name);
+        rsvc_outf("%zu-byte %s image\n", size, format->name);
     });
 }
 
@@ -158,7 +158,7 @@ static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done) 
             return;
         }
         if (ops->list_mode && (nfiles > 1)) {
-            printf("\n");
+            rsvc_outf("\n");
         }
         tag_files(nfiles - 1, files + 1, ops, done);
     });
@@ -255,7 +255,7 @@ static void skip_advance_segment(segment_t* seg, size_t* nseg) {
 
 static void print_advance_segment(segment_t* seg, size_t* nseg) {
     char* copy = strndup((*seg)->data, (*seg)->size);
-    printf("%s", copy);
+    rsvc_outf("%s", copy);
     free(copy);
     skip_advance_segment(seg, nseg);
 }
@@ -270,7 +270,7 @@ static void print_rename(const char* src, const char* dst) {
     segment_t srcseg_save = srcseg;
     segment_t dstseg_save = dstseg;
 
-    printf("rename: ");
+    rsvc_outf("rename: ");
     while (nsrcseg && ndstseg) {
         // Segments are equal.
         if ((srcseg->size == dstseg->size)
@@ -284,17 +284,17 @@ static void print_rename(const char* src, const char* dst) {
         size_t src_equal, dst_equal;
         find_next_common_segment(srcseg, nsrcseg, &src_equal,
                                  dstseg, ndstseg, &dst_equal);
-        printf("{");
+        rsvc_outf("{");
         for (size_t i = 0; i < src_equal; ++i) {
             print_advance_segment(&srcseg, &nsrcseg);
         }
-        printf(" => ");
+        rsvc_outf(" => ");
         for (size_t i = 0; i < dst_equal; ++i) {
             print_advance_segment(&dstseg, &ndstseg);
         }
-        printf("}");
+        rsvc_outf("}");
     }
-    printf("\n");
+    rsvc_outf("\n");
 
     free(srcseg_save);
     free(dstseg_save);
