@@ -25,23 +25,12 @@
 
 #include <Block.h>
 #include <dispatch/dispatch.h>
+#include <musicbrainz5/mb5_c.h>
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
 
 #include "common.h"
-
-#ifdef MB_VERSION
-#   if MB_VERSION == 5
-#       include "mb5.h"
-#   elif MB_VERSION == 4
-#       include "mb4.h"
-#   else
-#       error "Unsupported libmusicbrainz version " MB_VERSION
-#   endif
-#else
-#   error "MB_VERSION not set"
-#endif
 
 static int64_t now_usecs() {
     struct timeval tv;
@@ -69,7 +58,7 @@ static bool set_mb_tag(rsvc_tags_t tags, const char* tag_name,
     return rsvc_tags_add(tags, fail, tag_name, tag_value);
 }
 
-static bool mb_query_cached(const char* discid, MbMetadata* meta, rsvc_done_t fail) {
+static bool mb5_query_cached(const char* discid, Mb5Metadata* meta, rsvc_done_t fail) {
     // MusicBrainz requires that requests be throttled to 1 per second.
     // In order to do so, we serialize all of our requests through a
     // single dispatch queue.
@@ -84,7 +73,7 @@ static bool mb_query_cached(const char* discid, MbMetadata* meta, rsvc_done_t fa
 
     struct cache_entry {
         char*               discid;
-        MbMetadata          meta;
+        Mb5Metadata         meta;
         struct cache_entry* next;
     };
     static struct cache_entry* cache = NULL;
@@ -119,10 +108,10 @@ static bool mb_query_cached(const char* discid, MbMetadata* meta, rsvc_done_t fa
         });
 
         rsvc_logf(2, "sending mb request for %s", discid);
-        MbQuery q = mb_query_new("ripservice " RSVC_VERSION, NULL, 0);
+        Mb5Query q = mb5_query_new("ripservice " RSVC_VERSION, NULL, 0);
         char* param_names[] = {"inc"};
         char* param_values[] = {"artists+recordings"};
-        MbMetadata response = mb_query_query(q, "discid", discid, NULL,
+        Mb5Metadata response = mb5_query_query(q, "discid", discid, NULL,
                                              1, param_names, param_values);
         rsvc_logf(1, "received mb response for %s", discid);
         *meta = response;
@@ -132,7 +121,7 @@ static bool mb_query_cached(const char* discid, MbMetadata* meta, rsvc_done_t fa
             .next   = cache,
         };
         cache = memdup(&new_cache, sizeof new_cache);
-        mb_query_delete(q);
+        mb5_query_delete(q);
     });
     return result;
 }
@@ -167,27 +156,27 @@ bool rsvc_apply_musicbrainz_tags(rsvc_tags_t tags, rsvc_done_t fail) {
         goto cleanup;
     }
 
-    MbMetadata meta;
-    if (!mb_query_cached(discid, &meta, fail)) {
+    Mb5Metadata meta;
+    if (!mb5_query_cached(discid, &meta, fail)) {
         goto cleanup;
     }
 
-    MbDisc disc = mb_metadata_get_disc(meta);
-    MbReleaseList rel_list = mb_disc_get_releaselist(disc);
-    for (int i = 0; i < mb_release_list_size(rel_list); ++i) {
-        MbRelease release = mb_release_list_item(rel_list, i);
-        MbMediumList med_list = mb_release_get_mediumlist(release);
-        for (int j = 0; j < mb_medium_list_size(med_list); ++j) {
-            MbMedium medium = mb_medium_list_item(med_list, j);
-            if (!mb_medium_contains_discid(medium, discid)) {
+    Mb5Disc disc = mb5_metadata_get_disc(meta);
+    Mb5ReleaseList rel_list = mb5_disc_get_releaselist(disc);
+    for (int i = 0; i < mb5_release_list_size(rel_list); ++i) {
+        Mb5Release release = mb5_release_list_item(rel_list, i);
+        Mb5MediumList med_list = mb5_release_get_mediumlist(release);
+        for (int j = 0; j < mb5_medium_list_size(med_list); ++j) {
+            Mb5Medium medium = mb5_medium_list_item(med_list, j);
+            if (!mb5_medium_contains_discid(medium, discid)) {
                 continue;
             }
 
-            MbTrack track = NULL;
-            MbTrackList trk_list = mb_medium_get_tracklist(medium);
-            for (int k = 0; k < mb_track_list_size(trk_list); ++k) {
-                MbTrack tk = mb_track_list_item(trk_list, k);
-                if (mb_track_get_position(tk) == tracknumber) {
+            Mb5Track track = NULL;
+            Mb5TrackList trk_list = mb5_medium_get_tracklist(medium);
+            for (int k = 0; k < mb5_track_list_size(trk_list); ++k) {
+                Mb5Track tk = mb5_track_list_item(trk_list, k);
+                if (mb5_track_get_position(tk) == tracknumber) {
                     track = tk;
                     break;
                 }
@@ -195,21 +184,21 @@ bool rsvc_apply_musicbrainz_tags(rsvc_tags_t tags, rsvc_done_t fail) {
             if (track == NULL) {
                 continue;
             }
-            MbRecording recording = mb_track_get_recording(track);
+            Mb5Recording recording = mb5_track_get_recording(track);
 
-            MbArtistCredit artist_credit = mb_release_get_artistcredit(release);
-            MbNameCreditList crd_list = mb_artistcredit_get_namecreditlist(artist_credit);
-            MbArtist artist = NULL;
-            if (mb_namecredit_list_size(crd_list) > 0) {
-                MbNameCredit credit = mb_namecredit_list_item(crd_list, 0);
-                artist = mb_namecredit_get_artist(credit);
+            Mb5ArtistCredit artist_credit = mb5_release_get_artistcredit(release);
+            Mb5NameCreditList crd_list = mb5_artistcredit_get_namecreditlist(artist_credit);
+            Mb5Artist artist = NULL;
+            if (mb5_namecredit_list_size(crd_list) > 0) {
+                Mb5NameCredit credit = mb5_namecredit_list_item(crd_list, 0);
+                artist = mb5_namecredit_get_artist(credit);
             }
 
             success =
-                set_mb_tag(tags, RSVC_TITLE, mb_recording_get_title, recording, fail)
-                && set_mb_tag(tags, RSVC_ARTIST, mb_artist_get_name, artist, fail)
-                && set_mb_tag(tags, RSVC_ALBUM, mb_release_get_title, release, fail)
-                && set_mb_tag(tags, RSVC_DATE, mb_release_get_date, release, fail);
+                set_mb_tag(tags, RSVC_TITLE, mb5_recording_get_title, recording, fail)
+                && set_mb_tag(tags, RSVC_ARTIST, mb5_artist_get_name, artist, fail)
+                && set_mb_tag(tags, RSVC_ALBUM, mb5_release_get_title, release, fail)
+                && set_mb_tag(tags, RSVC_DATE, mb5_release_get_date, release, fail);
             goto cleanup;
         }
     }

@@ -89,7 +89,6 @@
       , "src/rsvc/unix.c"
       , "src/rsvc/vorbis.c"
       ]
-    , "defines": ["MB_VERSION=<(MB_VERSION)"]
     , "dependencies":
       [ "<(DEPTH)/ext/discid/discid.gyp:libdiscid"
       , "<(DEPTH)/ext/flac/flac.gyp:libFLAC"
