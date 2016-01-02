@@ -49,9 +49,6 @@
             , "neon-0.29.6/src/ne_xmlreq.c"
             , "neon-0.29.6/src/ne_openssl.c"
             ]
-          , "dependencies":
-            [ "<(DEPTH)/ext/ogg/ogg.gyp:libogg"
-            ]
           , "link_settings":
             { "libraries": ["-lgssapi_krb5", "-lssl", "-lcrypto"]
             }
