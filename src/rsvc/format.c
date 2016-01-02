@@ -44,21 +44,14 @@ static struct {
     rsvc_format_node_t head, tail;
 } formats;
 
-static char* maybe_strdup(const char* s) {
-    if (s) {
-        return strdup(s);
-    }
-    return NULL;
-}
-
 void rsvc_format_register(rsvc_format_t format) {
     struct rsvc_format_node node = {
         .format = {
             .name       = strdup(format->name),
             .mime       = strdup(format->mime),
-            .magic      = maybe_strdup(format->magic),
+            .magic      = format->magic ? memdup(format->magic, format->magic_size) : NULL,
             .magic_size = format->magic_size,
-            .extension  = maybe_strdup(format->extension),
+            .extension  = format->extension ? strdup(format->extension) : NULL,
             .lossless   = format->lossless,
             .open_tags  = format->open_tags,
             .encode     = format->encode,
