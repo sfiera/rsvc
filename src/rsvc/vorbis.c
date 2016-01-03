@@ -46,6 +46,7 @@ void rsvc_vorbis_encode(
         rsvc_encode_options_t options,
         rsvc_done_t done) {
     int32_t bitrate                     = options->bitrate;
+    size_t sample_rate                  = options->sample_rate;
     size_t samples_per_channel          = options->samples_per_channel;
     size_t channels                     = options->channels;
     rsvc_encode_progress_t progress     = options->progress;
@@ -66,7 +67,7 @@ void rsvc_vorbis_encode(
 
         // Initialize the encoder.
         vorbis_info_init(&vi);
-        ret = vorbis_encode_init(&vi, channels, 44100, -1, bitrate, -1);
+        ret = vorbis_encode_init(&vi, channels, sample_rate, -1, bitrate, -1);
         if (ret != 0 ) {
             rsvc_errorf(done, __FILE__, __LINE__, "couldn't init vorbis encoder");
             return;

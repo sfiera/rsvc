@@ -27,6 +27,7 @@
 
 void rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done) {
     int32_t bitrate                     = options->bitrate;
+    size_t sample_rate                  = options->sample_rate;
     size_t samples_per_channel          = options->samples_per_channel;
     size_t channels                     = options->channels;
     rsvc_encode_progress_t progress     = options->progress;
@@ -35,7 +36,7 @@ void rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
         lame_global_flags* lame = lame_init();
         lame_set_num_channels(lame, channels);
         lame_set_brate(lame, bitrate >> 10);
-        lame_set_in_samplerate(lame, 44100);
+        lame_set_in_samplerate(lame, sample_rate);
         lame_set_bWriteVbrTag(lame, 0);  // TODO(sfiera): write the tag.
         if (lame_init_params(lame) < 0) {
             rsvc_errorf(done, __FILE__, __LINE__, "init error");

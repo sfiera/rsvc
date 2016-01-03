@@ -91,6 +91,7 @@ static void core_audio_encode(
         int src_fd, int dst_fd, rsvc_encode_options_t options,
         int container_id, int codec_id, rsvc_done_t done) {
     int32_t bitrate                     = options->bitrate;
+    size_t sample_rate                  = options->sample_rate;
     size_t samples_per_channel          = options->samples_per_channel;
     size_t channels                     = options->channels;
     rsvc_encode_progress_t progress     = options->progress;
@@ -98,7 +99,7 @@ static void core_audio_encode(
         OSStatus err;
         AudioStreamBasicDescription asbd_out = {
             .mFormatID          = codec_id,
-            .mSampleRate        = 44100.0,
+            .mSampleRate        = sample_rate,
             .mChannelsPerFrame  = channels,
         };
         if (codec_id == kAudioFormatAppleLossless) {
@@ -135,7 +136,7 @@ static void core_audio_encode(
                                 | kAudioFormatFlagsNativeEndian
                                 | kAudioFormatFlagIsPacked,
             .mBitsPerChannel    = 16,
-            .mSampleRate        = 44100.0,
+            .mSampleRate        = sample_rate,
             .mChannelsPerFrame  = channels,
             .mFramesPerPacket   = 1,
             .mBytesPerPacket    = 2 * channels,

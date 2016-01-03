@@ -27,6 +27,7 @@
 /// ========
 typedef void (^rsvc_decode_metadata_f)(
         int32_t bitrate,
+        size_t sample_rate,
         size_t channels,
         size_t samples_per_channel);
 

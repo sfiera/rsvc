@@ -36,6 +36,7 @@ typedef void (^rsvc_encode_progress_t)(double progress);
 typedef struct rsvc_encode_options* rsvc_encode_options_t;
 struct rsvc_encode_options {
     int32_t                 bitrate;
+    size_t                  sample_rate;
     size_t                  channels;
     size_t                  samples_per_channel;
     rsvc_encode_progress_t  progress;

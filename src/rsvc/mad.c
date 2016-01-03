@@ -42,6 +42,9 @@ struct mad_userdata {
     unsigned char* end;
     size_t end_position;
     size_t sample_count;
+    size_t bitrate;
+    size_t sample_rate;
+    size_t channels;
     rsvc_done_t fail;
 };
 
@@ -68,6 +71,15 @@ static enum mad_flow mad_input(void* v, struct mad_stream* stream) {
         mad_stream_buffer(stream, userdata->data, userdata->end - userdata->data);
         return MAD_FLOW_CONTINUE;
     }
+}
+
+static enum mad_flow mad_header(void* v, struct mad_header const* header) {
+    struct mad_userdata* userdata = v;
+    userdata->bitrate = header->bitrate;
+    userdata->sample_rate = header->samplerate;
+    userdata->channels = 2;
+
+    return MAD_FLOW_CONTINUE;
 }
 
 // Taken directly from minimad.c example code.  Comments there suggest
@@ -122,11 +134,11 @@ static enum mad_flow mad_error(void* v, struct mad_stream* stream, struct mad_fr
     }
 }
 
-bool mad_count_samples(struct mad_userdata* userdata) {
+bool mad_pre_decode(struct mad_userdata* userdata) {
     struct mad_decoder decoder;
     mad_decoder_init(&decoder, userdata,
                      mad_input,
-                     NULL,  // header
+                     mad_header,  // header
                      NULL,  // filter
                      mad_count,
                      mad_error,
@@ -168,10 +180,10 @@ void rsvc_mad_decode(int src_fd, int dst_fd,
             .dst_fd = dst_fd,
             .fail = done,
         };
-        if (!mad_count_samples(&userdata)) {
+        if (!mad_pre_decode(&userdata)) {
             return;
         }
-        metadata(-1, 2, userdata.sample_count);
+        metadata(userdata.bitrate, userdata.sample_rate, userdata.channels, userdata.sample_count);
 
         if (lseek(src_fd, offset, SEEK_SET) < 0) {
             rsvc_strerrorf(done, __FILE__, __LINE__, NULL);
