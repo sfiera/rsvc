@@ -122,10 +122,10 @@ void rsvc_vorbis_encode(
             } else if (nsamples) {
                 samples_per_channel_read += nsamples;
                 float** out = vorbis_analysis_buffer(&vd, sizeof(in));
-                float* channels[] = {out[0], out[1]};
-                for (int16_t* p = in; p < in + (nsamples * 2); p += 2) {
-                    *(channels[0]++) = p[0] / 32768.f;
-                    *(channels[1]++) = p[1] / 32768.f;
+                for (int16_t* p = in; p < in + (nsamples * channels); ) {
+                    for (int i = 0; i < channels; ++i) {
+                        *(out[i]++) = *(p++) / 32768.f;
+                    }
                 }
                 vorbis_analysis_wrote(&vd, nsamples);
             } else if (eof) {
