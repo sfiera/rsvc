@@ -19,7 +19,7 @@
 , "targets": []
 
 , "conditions":
-  [ [ "<(BUNDLED_LIBMUSICBRAINZ) != 0"
+  [ [ "<(BUNDLED_MB5) != 0"
     , { "targets":
         [ { "target_name": "libmusicbrainz"
           , "type": "static_library"
@@ -78,11 +78,18 @@
           }
         ]
       }
+
     , { "targets":
         [ { "target_name": "libmusicbrainz"
           , "type": "static_library"
+          , "direct_dependent_settings":
+            { "include_dirs": ["<@(MB5_INCLUDE_DIRS)"]
+            , "defines": ["<@(MB5_DEFINES)"]
+            , "cflags": ["<@(MB5_CFLAGS)"]
+            }
           , "link_settings":
-            { "libraries": ["-lmusicbrainz5"]
+            { "library_dirs": ["<@(MB5_LIBRARY_DIRS)"]
+            , "libraries": ["<@(MB5_LIBRARIES)"]
             }
           }
         ]

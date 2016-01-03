@@ -57,8 +57,14 @@
     , { "targets":
         [ { "target_name": "libmp3lame"
           , "type": "static_library"
+          , "direct_dependent_settings":
+            { "include_dirs": ["<@(LAME_INCLUDE_DIRS)"]
+            , "defines": ["<@(LAME_DEFINES)"]
+            , "cflags": ["<@(LAME_CFLAGS)"]
+            }
           , "link_settings":
-            { "libraries": ["-lmp3lame"]
+            { "library_dirs": ["<@(LAME_LIBRARY_DIRS)"]
+            , "libraries": ["<@(LAME_LIBRARIES)"]
             }
           }
         ]

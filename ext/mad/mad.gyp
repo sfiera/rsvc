@@ -38,11 +38,18 @@
           }
         ]
       }
+
     , { "targets":
         [ { "target_name": "libmad"
           , "type": "static_library"
+          , "direct_dependent_settings":
+            { "include_dirs": ["<@(MAD_INCLUDE_DIRS)"]
+            , "defines": ["<@(MAD_DEFINES)"]
+            , "cflags": ["<@(MAD_CFLAGS)"]
+            }
           , "link_settings":
-            { "libraries": ["-lmad"]
+            { "library_dirs": ["<@(MAD_LIBRARY_DIRS)"]
+            , "libraries": ["<@(MAD_LIBRARIES)"]
             }
           }
         ]

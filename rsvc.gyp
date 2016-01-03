@@ -121,8 +121,10 @@
             ]
           , "link_settings":
             { "libraries":
-              [ "$(SDKROOT)/System/Library/Frameworks/DiskArbitration.framework"
-              , "$(SDKROOT)/System/Library/Frameworks/AudioToolbox.framework"
+              [ "$(SDKROOT)/System/Library/Frameworks/AudioToolbox.framework"
+              , "$(SDKROOT)/System/Library/Frameworks/CoreFoundation.framework"
+              , "$(SDKROOT)/System/Library/Frameworks/DiskArbitration.framework"
+              , "$(SDKROOT)/System/Library/Frameworks/IOKit.framework"
               ]
             }
           }

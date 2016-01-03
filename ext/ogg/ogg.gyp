@@ -25,11 +25,18 @@
           }
         ]
       }
+
     , { "targets":
         [ { "target_name": "libogg"
           , "type": "static_library"
+          , "direct_dependent_settings":
+            { "include_dirs": ["<@(OGG_INCLUDE_DIRS)"]
+            , "defines": ["<@(OGG_DEFINES)"]
+            , "cflags": ["<@(OGG_CFLAGS)"]
+            }
           , "link_settings":
-            { "libraries": ["-logg"]
+            { "library_dirs": ["<@(OGG_LIBRARY_DIRS)"]
+            , "libraries": ["<@(OGG_LIBRARIES)"]
             }
           }
         ]

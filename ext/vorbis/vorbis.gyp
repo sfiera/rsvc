@@ -54,11 +54,18 @@
           }
         ]
       }
+
     , { "targets":
         [ { "target_name": "libvorbis"
           , "type": "static_library"
+          , "direct_dependent_settings":
+            { "include_dirs": ["<@(VORBIS_INCLUDE_DIRS)"]
+            , "defines": ["<@(VORBIS_DEFINES)"]
+            , "cflags": ["<@(VORBIS_CFLAGS)"]
+            }
           , "link_settings":
-            { "libraries": ["-lvorbis", "-lvorbisenc"]
+            { "library_dirs": ["<@(VORBIS_LIBRARY_DIRS)"]
+            , "libraries": ["<@(VORBIS_LIBRARIES)"]
             }
           }
         ]

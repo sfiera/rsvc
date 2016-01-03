@@ -45,11 +45,18 @@
           }
         ]
       }
+
     , { "targets":
         [ { "target_name": "libFLAC"
           , "type": "static_library"
+          , "direct_dependent_settings":
+            { "include_dirs": ["<@(FLAC_INCLUDE_DIRS)"]
+            , "defines": ["<@(FLAC_DEFINES)"]
+            , "cflags": ["<@(FLAC_CFLAGS)"]
+            }
           , "link_settings":
-            { "libraries": ["-lFLAC"]
+            { "library_dirs": ["<@(FLAC_LIBRARY_DIRS)"]
+            , "libraries": ["<@(FLAC_LIBRARIES)"]
             }
           }
         ]

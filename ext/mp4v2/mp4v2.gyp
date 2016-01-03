@@ -128,8 +128,14 @@
     , { "targets":
         [ { "target_name": "libmp4v2"
           , "type": "static_library"
+          , "direct_dependent_settings":
+            { "include_dirs": ["<@(MP4V2_INCLUDE_DIRS)"]
+            , "defines": ["<@(MP4V2_DEFINES)"]
+            , "cflags": ["<@(MP4V2_CFLAGS)"]
+            }
           , "link_settings":
-            { "libraries": ["-lmp4v2"]
+            { "library_dirs": ["<@(MP4V2_LIBRARY_DIRS)"]
+            , "libraries": ["<@(MP4V2_LIBRARIES)", "-lstdc++"]
             }
           }
         ]

@@ -55,11 +55,18 @@
           }
         ]
       }
+
     , { "targets":
         [ { "target_name": "libneon"
           , "type": "static_library"
+          , "direct_dependent_settings":
+            { "include_dirs": ["<@(NEON_INCLUDE_DIRS)"]
+            , "defines": ["<@(NEON_DEFINES)"]
+            , "cflags": ["<@(NEON_CFLAGS)"]
+            }
           , "link_settings":
-            { "libraries": ["-lneon"]
+            { "library_dirs": ["<@(NEON_LIBRARY_DIRS)"]
+            , "libraries": ["<@(NEON_LIBRARIES)"]
             }
           }
         ]

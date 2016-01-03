@@ -33,11 +33,18 @@
           }
         ]
       }
+
     , { "targets":
         [ { "target_name": "libdiscid"
           , "type": "static_library"
+          , "direct_dependent_settings":
+            { "include_dirs": ["<@(DISCID_INCLUDE_DIRS)"]
+            , "defines": ["<@(DISCID_DEFINES)"]
+            , "cflags": ["<@(DISCID_CFLAGS)"]
+            }
           , "link_settings":
-            { "libraries": ["-ldiscid"]
+            { "library_dirs": ["<@(DISCID_LIBRARY_DIRS)"]
+            , "libraries": ["<@(DISCID_LIBRARIES)"]
             }
           }
         ]

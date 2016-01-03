@@ -11,40 +11,93 @@ import subprocess
 import sys
 from scripts import cfg
 
-LIBS = [
-    ("discid", "libdiscid", "?", "libdiscid"),
-    ("flac", "flac", "?", "flac"),
-    # ("lame", "mp3lame", "?", "lame"),
-    ("musicbrainz5", "libmusicbrainz5", "?", "libmusicbrainz"),
-    ("mad", "mad", "?", "mad"),
-    # ("mp4v2", "mp4v2", "?", "mp4v2"),
-    ("neon", "neon", "?", "neon"),
-    ("ogg", "ogg", "?", "libogg"),
-    ("vorbis", "vorbis", "?", "libvorbis"),
-]
+BUNDLED = object()
+SYSTEM = object()
+
+DEPS = {
+    "discid": {
+        "pkgconfig": "libdiscid",
+        "dpkg": "libdiscid0-dev",
+        "brew": "libdiscid",
+        "headers": ["discid/discid.h"],
+        "libraries": ["discid"],
+    },
+    "flac": {
+        "pkgconfig": "flac",
+        "dpkg": "libflac-dev",
+        "brew": "flac",
+        "headers": ["FLAC/metadata.h"],
+        "libraries": ["FLAC"],
+    },
+    "lame": {
+        "dpkg": "libmp3lame-dev",
+        "brew": "lame",
+        "headers": ["lame/lame.h"],
+        "libraries": ["mp3lame"],
+    },
+    "mb5": {
+        "pkgconfig": "libmusicbrainz5",
+        "dpkg": "libmusicbrainz5-dev",
+        "brew": "libmusicbrainz",
+        "headers": ["musicbrainz5/mb5_c.h"],
+        "libraries": ["musicbrainz5"],
+    },
+    "mad": {
+        "pkgconfig": "mad",
+        "dpkg": "libmad0-dev",
+        "brew": "mad",
+        "headers": ["mad.h"],
+        "libraries": ["mad"],
+    },
+    "mp4v2": {
+        "dpkg": "libmp4v2-dev",
+        "brew": "mp4v2",
+        "headers": ["mp4v2/mp4v2.h"],
+        "libraries": ["mp4v2"],
+    },
+    "neon": {
+        "pkgconfig": "neon",
+        "dpkg": "libneon27-dev",
+        "brew": "neon",
+        "headers": ["ne_uri.h"],
+        "libraries": ["neon"],
+    },
+    "ogg": {
+        "pkgconfig": "ogg",
+        "dpkg": "libogg-dev",
+        "brew": "libogg",
+        "headers": ["ogg/ogg.h"],
+        "libraries": ["ogg"],
+    },
+    "vorbis": {
+        "pkgconfig": "vorbis",
+        "dpkg": "libvorbis-dev",
+        "brew": "libvorbis",
+        "headers": ["vorbis/vorbisenc.h"],
+        "libraries": ["vorbis"],
+    },
+}
 
 def main():
     os.chdir(os.path.dirname(sys.argv[0]))
     progname = sys.argv[0]
     parser = argparse.ArgumentParser()
     parser.add_argument("-m", "--mode", type=unicode, choices="dbg dev opt".split(), default="opt")
-    for name, _, _, _ in LIBS:
-        if cfg.platform() == "mac":
-            choices = ["bundled"]  # no system on mac
-            default = "bundled"
-        elif cfg.platform() == "linux":
-            choices = "system bundled auto".split()
-            default = "auto"
-        parser.add_argument("--with-" + name, choices=choices, default=default)
+    for name in DEPS:
+        parser.add_argument(
+                "--with-system-" + name, dest=name, metavar="PREFIX", nargs="?", const=SYSTEM)
+        parser.add_argument(
+                "--with-bundled-" + name, dest=name, action="store_const", const=BUNDLED)
     args, remainder = parser.parse_known_args()
 
+    defs = {}
     check_platform()
     check_arch()
-    check_deps(args)
+    check_deps(args, defs)
 
     cfg.makedirs("out")
     cfg.linkf(args.mode, "out/cur")
-    gyp(args, remainder)
+    gyp(args, defs, remainder)
     print("make(1) it so!")
 
 
@@ -70,15 +123,62 @@ def check_arch():
             msg(arch + " (untested)", color="yellow")
 
 
-def check_deps(args):
+def check_deps(args, defs):
     checker = {
         "mac": check_mac,
         "linux": check_linux,
     }[cfg.platform()]
-    checker(args)
+    checker(args, defs)
 
 
-def check_mac(args):
+def check_libs(args, defs, have_pkgconfig, package_manager, default):
+    missing_libs = {}
+    for name, value in sorted(DEPS.iteritems()):
+        flag = getattr(args, name)
+        if flag is None:
+            flag = default
+
+        if flag is BUNDLED:
+            with cfg.step("checking for %s" % name) as msg:
+                msg("ok (bundled)", color="green")
+            defs["BUNDLED_%s" % name.upper()] = 1
+            continue
+
+        with cfg.step("checking for %s" % name) as msg:
+            if (flag is SYSTEM) and ("pkgconfig" in value):
+                if not have_pkgconfig:
+                    msg("missing", color="red")
+                    missing_libs[name] = value[package_manager]
+                    continue
+                settings = cfg.pkg_settings(value["pkgconfig"])
+                if settings is None:
+                    msg("missing", color="red")
+                    missing_libs[name] = value[package_manager]
+                    continue
+                include_dirs, defines, cflags, library_dirs, libraries = settings
+            elif flag is not SYSTEM:
+                include_dirs = [os.path.join(flag, "include")]
+                defines = []
+                cflags = []
+                library_dirs = [os.path.join(flag, "lib")]
+                libraries = value["libraries"]
+
+            if not cfg.has_lib(name, include_dirs, defines, cflags, value["headers"], library_dirs, libraries):
+                msg("failed", color="red")
+                missing_libs[name] = value[package_manager]
+                continue
+
+            defs["BUNDLED_%s" % name.upper()] = 0
+            defs["%s_INCLUDE_DIRS" % name.upper()] = " ".join(include_dirs)
+            defs["%s_DEFINES" % name.upper()] = " ".join(defines)
+            defs["%s_CFLAGS" % name.upper()] = " ".join(cflags)
+            defs["%s_LIBRARY_DIRS" % name.upper()] = " ".join(library_dirs)
+            defs["%s_LIBRARIES" % name.upper()] = " ".join("-l" + l for l in libraries)
+
+    return missing_libs
+
+
+def check_mac(args, defs):
     with cfg.step("checking Mac OS X version") as msg:
         ver = platform.mac_ver()[0]
         ver = tuple(int(x) for x in ver.split(".")[:2])
@@ -104,15 +204,29 @@ def check_mac(args):
                 "* ninja can be installed with Homebrew:\n"
                 "    $ brew install ninja\n")
 
+    have_pkgconfig = True
+    if not cfg.check_pkg_config():
+        have_pkgconfig = False
+        missing["pkg-config"] = (
+                "* pkg-config can be installed with Homebrew:\n"
+                "    $ brew install pkg-config\n")
+
+    missing_libs = check_libs(args, defs, have_pkgconfig, "brew", default=BUNDLED)
+    missing_deps = missing.keys() + missing_libs.keys()
+    if missing_libs:
+        missing["libs"] = (
+                "* Missing libraries can be installed with Homebrew:\n"
+                "    $ brew install %s\n" % " ".join(missing_libs.values()))
+
     if any("Homebrew" in v for v in missing.values()):
         if not cfg.check_bin("brew --version".split()):
             homebrew_url = "https://raw.githubusercontent.com/Homebrew/install/master/install"
             missing["homebrew"] = (
                     "* Homebrew can be installed like so:\n"
-                    '    $ ruby -e "$(curl -fsSL %s)"') % homebrew_url
+                    '    $ ruby -e "$(curl -fsSL %s)"\n') % homebrew_url
 
     if missing:
-        print("\nmissing dependencies: %s\n" % " ".join(missing.iterkeys()))
+        print("\nmissing dependencies: %s\n" % " ".join(missing_deps))
         for step in missing.values():
             sys.stdout.write(step)
         sys.exit(1)
@@ -136,10 +250,10 @@ def check_linux():
         missing["ninja"] = "ninja-build"
 
     if cfg.check_pkg_config():
-        for name, pkg, _, brew in LIBS:
-            if getattr(args, "with_" + name) != "bundled":
+        for name, value in DEPS.iteritems():
+            if getattr(args, name) != "bundled":
                 if cfg.check_pkg(pkg):
-                    setattr(args, "with_" + name, "system")
+                    setattr(args, name, "system")
                 else:
                     missing_pkgs[name] = brew
     else:
@@ -155,7 +269,7 @@ def check_linux():
         sys.exit(1)
 
 
-def gyp(args, remainder):
+def gyp(args, defs, remainder):
     with cfg.step("configure mode") as msg:
         msg(args.mode, color="green")
     with cfg.step("generating build.ninja") as msg:
@@ -164,17 +278,9 @@ def gyp(args, remainder):
             "--include=defaults.gypi",
             "--format=ninja",
             "--depth=.",
-            "-DMB_VERSION=5",
-            "-DBUNDLED_LAME=1",
-            "-DBUNDLED_LIBMUSICBRAINZ=1",
-            "-DBUNDLED_MP4V2=1",
         ]
-        for name, _, _, _ in LIBS:
-            if getattr(args, "with_" + name) == "system":
-                cmd += ["-D", "BUNDLED_%s=0" % name.upper()]
-            else:
-                cmd += ["-D", "BUNDLED_%s=1" % name.upper()]
-        cmd += remainder
+        cmd.extend("-D%s=%s" % kv for kv in sorted(defs.iteritems()))
+        cmd.extend(remainder)
 
         retcode = subprocess.call(cmd)
         if retcode != 0:
