@@ -64,7 +64,7 @@ DEPS = {
         "headers": ["ogg/ogg.h"],
     },
     "vorbis": {
-        "pkgconfig": "vorbis",
+        "pkgconfig": "vorbisenc",
         "dpkg": "libvorbis-dev",
         "brew": "libvorbis",
         "headers": ["vorbis/vorbisenc.h"],
