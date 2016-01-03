@@ -138,6 +138,11 @@ def check_libs(args, defs, have_pkgconfig, package_manager, default):
             continue
 
         with cfg.step("checking for %s" % name) as msg:
+            include_dirs = []
+            defines = []
+            cflags = []
+            library_dirs = []
+
             if (flag is SYSTEM) and ("pkgconfig" in value):
                 if not have_pkgconfig:
                     msg("missing", color="red")
@@ -149,11 +154,10 @@ def check_libs(args, defs, have_pkgconfig, package_manager, default):
                     missing_libs[name] = value[package_manager]
                     continue
                 include_dirs, defines, cflags, library_dirs, libraries = settings
-            elif flag is not SYSTEM:
-                include_dirs = [os.path.join(flag, "include")]
-                defines = []
-                cflags = []
-                library_dirs = [os.path.join(flag, "lib")]
+            else:
+                if flag is not SYSTEM:
+                    include_dirs = [os.path.join(flag, "include")]
+                    library_dirs = [os.path.join(flag, "lib")]
                 libraries = value["libraries"]
 
             if not cfg.has_lib(name, include_dirs, defines, cflags, value["headers"], library_dirs, libraries):
