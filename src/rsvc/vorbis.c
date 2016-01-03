@@ -111,12 +111,12 @@ void rsvc_vorbis_encode(
         }
 
         bool eos = false;
-        int16_t in[1024 * 2];
+        int16_t in[2048];
         size_t size_inout = 0;
         while (!eos) {
             bool eof = false;
             size_t nsamples;
-            if (!rsvc_cread("pipe", src_fd, in, 1024, 2 * sizeof(int16_t),
+            if (!rsvc_cread("pipe", src_fd, in, 2048 / channels, channels * sizeof(int16_t),
                             &nsamples, &size_inout, &eof, done)) {
                 return;
             } else if (nsamples) {
