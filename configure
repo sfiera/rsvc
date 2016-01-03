@@ -229,7 +229,7 @@ def check_mac(args, defs):
         sys.exit(1)
 
 
-def check_linux():
+def check_linux(args, defs):
     with cfg.step("checking Linux distro") as msg:
         distro = platform.linux_distribution()
         if distro[0] == "Ubuntu":
@@ -246,15 +246,10 @@ def check_linux():
     if not cfg.check_ninja():
         missing["ninja"] = "ninja-build"
 
-    if cfg.check_pkg_config():
-        for name, value in DEPS.iteritems():
-            if getattr(args, name) != "bundled":
-                if cfg.check_pkg(pkg):
-                    setattr(args, name, "system")
-                else:
-                    missing_pkgs[name] = brew
-    else:
+    have_pkgconfig = cfg.check_pkg_config()
+    if not have_pkgconfig:
         missing_pkgs["pkg-config"] = "pkg-config"
+    missing.update(check_libs(args, defs, have_pkgconfig, "dpkg", SYSTEM))
 
     if missing:
         print("\nmissing dependencies: %s" % " ".join(missing.keys()))
