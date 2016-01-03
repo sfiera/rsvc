@@ -183,7 +183,13 @@ void rsvc_mad_decode(int src_fd, int dst_fd,
         if (!mad_pre_decode(&userdata)) {
             return;
         }
-        metadata(userdata.bitrate, userdata.sample_rate, userdata.channels, userdata.sample_count);
+        struct rsvc_audio_meta meta = {
+            .bitrate = userdata.bitrate,
+            .sample_rate = userdata.sample_rate,
+            .channels = userdata.channels,
+            .samples_per_channel = userdata.sample_count
+        };
+        metadata(&meta);
 
         if (lseek(src_fd, offset, SEEK_SET) < 0) {
             rsvc_strerrorf(done, __FILE__, __LINE__, NULL);

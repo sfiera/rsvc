@@ -40,16 +40,13 @@ static void convert(convert_options_t options, rsvc_done_t done);
 static void convert_recursive(convert_options_t options, rsvc_done_t done);
 static bool validate_convert_options(convert_options_t options, rsvc_done_t fail);
 static void convert_read(convert_options_t options, int write_fd, rsvc_done_t done,
-                         void (^start)(bool ok, size_t sample_rate, size_t channels,
-                                       size_t samples_per_channel));
-static void convert_write(convert_options_t options,
-                          size_t sample_rate, size_t channels, size_t samples_per_channel,
+                         void (^start)(bool ok, rsvc_audio_meta_t meta));
+static void convert_write(convert_options_t options, rsvc_audio_meta_t meta,
                           int read_fd, const char* tmp_path, rsvc_done_t done);
 static void decode_file(convert_options_t options, int write_fd,
                         rsvc_decode_metadata_f start, rsvc_done_t done);
 static void encode_file(convert_options_t options, int read_fd, const char* path,
-                        size_t sample_rate, size_t channels, size_t samples_per_channel,
-                        rsvc_done_t done);
+                        rsvc_audio_meta_t meta, rsvc_done_t done);
 static bool change_extension(const char* path, const char* extension, char* new_path,
                              rsvc_done_t fail);
 static void copy_tags(convert_options_t options, const char* tmp_path, rsvc_done_t done);
@@ -147,10 +144,9 @@ static void convert(convert_options_t options, rsvc_done_t done) {
 
     rsvc_group_t group = rsvc_group_create(done);
     convert_read(options, write_pipe, rsvc_group_add(group),
-                 ^(bool ok, size_t sample_rate, size_t channels, size_t samples_per_channel){
+                 ^(bool ok, rsvc_audio_meta_t meta){
         if (ok) {
-            convert_write(options, sample_rate, channels, samples_per_channel,
-                          read_pipe, tmp_path, rsvc_group_add(group));
+            convert_write(options, meta, read_pipe, tmp_path, rsvc_group_add(group));
         } else {
             close(read_pipe);
         }
@@ -300,26 +296,24 @@ static bool validate_convert_options(convert_options_t options, rsvc_done_t fail
 }
 
 static void convert_read(convert_options_t options, int write_fd, rsvc_done_t done,
-                         void (^start)(bool ok, size_t sample_rate, size_t channels,
-                                       size_t samples_per_channel)) {
+                         void (^start)(bool ok, rsvc_audio_meta_t meta)) {
     __block bool got_metadata = false;
     done = ^(rsvc_error_t error){
         close(write_fd);
         if (!got_metadata) {
-            start(false, 0, 0, -1);
+            start(false, NULL);
         }
         rsvc_prefix_error(options->input, error, done);
     };
 
-    rsvc_decode_metadata_f metadata = ^(int32_t bitrate, size_t sample_rate, size_t channels, size_t samples_per_channel){
+    rsvc_decode_metadata_f metadata = ^(rsvc_audio_meta_t meta){
         got_metadata = true;
-        start(true, sample_rate, channels, samples_per_channel);
+        start(true, meta);
     };
     decode_file(options, write_fd, metadata, done);
 }
 
-static void convert_write(convert_options_t options,
-                          size_t sample_rate, size_t channels, size_t samples_per_channel,
+static void convert_write(convert_options_t options, rsvc_audio_meta_t meta,
                           int read_fd, const char* tmp_path, rsvc_done_t done) {
     done = ^(rsvc_error_t error){
         close(read_fd);
@@ -328,7 +322,7 @@ static void convert_write(convert_options_t options,
 
     // Start the encoder.  When it's done, copy over tags, and then move
     // the temporary file to the final location.
-    encode_file(options, read_fd, options->output, sample_rate, channels, samples_per_channel,
+    encode_file(options, read_fd, options->output, meta,
                 ^(rsvc_error_t error){
         if (error) {
             done(error);
@@ -362,14 +356,15 @@ static void decode_file(convert_options_t options, int write_fd,
 }
 
 static void encode_file(convert_options_t options, int read_fd, const char* path,
-                        size_t sample_rate, size_t channels, size_t samples_per_channel,
-                        rsvc_done_t done) {
+                        rsvc_audio_meta_t meta, rsvc_done_t done) {
     rsvc_progress_t node = rsvc_progress_start(path);
     struct rsvc_encode_options encode_options = {
-        .bitrate                = options->encode.bitrate,
-        .sample_rate            = sample_rate,
-        .channels               = channels,
-        .samples_per_channel    = samples_per_channel,
+        .meta = {
+            .bitrate                = options->encode.bitrate,
+            .sample_rate            = meta->sample_rate,
+            .channels               = meta->channels,
+            .samples_per_channel    = meta->samples_per_channel,
+        },
         .progress = ^(double fraction){
             rsvc_progress_update(node, fraction);
         },

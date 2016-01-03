@@ -111,9 +111,7 @@ static void                    flac_decode_error(const FLAC__StreamDecoder* deco
 // }
 
 void rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done) {
-    size_t sample_rate                  = options->sample_rate;
-    size_t samples_per_channel          = options->samples_per_channel;
-    size_t channels                     = options->channels;
+    struct rsvc_audio_meta meta         = options->meta;
     rsvc_encode_progress_t progress     = options->progress;
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -133,10 +131,10 @@ void rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
 
         if (!(FLAC__stream_encoder_set_verify(encoder, true) &&
               FLAC__stream_encoder_set_compression_level(encoder, 8) &&
-              FLAC__stream_encoder_set_channels(encoder, channels) &&
+              FLAC__stream_encoder_set_channels(encoder, meta.channels) &&
               FLAC__stream_encoder_set_bits_per_sample(encoder, 16) &&
-              FLAC__stream_encoder_set_sample_rate(encoder, sample_rate) &&
-              FLAC__stream_encoder_set_total_samples_estimate(encoder, samples_per_channel))) {
+              FLAC__stream_encoder_set_sample_rate(encoder, meta.sample_rate) &&
+              FLAC__stream_encoder_set_total_samples_estimate(encoder, meta.samples_per_channel))) {
             FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
             const char* message = FLAC__StreamEncoderStateString[state];
             rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
@@ -200,7 +198,7 @@ void rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
                     rsvc_errorf(done, __FILE__, __LINE__, "pipe: %s", message);
                     return;
                 }
-                progress(samples_per_channel_read * 1.0 / samples_per_channel);
+                progress(samples_per_channel_read * 1.0 / meta.samples_per_channel);
             }
         }
         if (!FLAC__stream_encoder_finish(encoder)) {
@@ -511,11 +509,14 @@ static void flac_decode_metadata(const FLAC__StreamDecoder* decoder,
         return;
     }
     flac_decode_userdata_t u = (flac_decode_userdata_t)userdata;
-    u->metadata(
+    struct rsvc_audio_meta meta = {
+        .bitrate =
             metadata->data.stream_info.bits_per_sample * metadata->data.stream_info.sample_rate,
-            metadata->data.stream_info.sample_rate,
-            metadata->data.stream_info.channels,
-            metadata->data.stream_info.total_samples);
+        .channels = metadata->data.stream_info.channels,
+        .sample_rate = metadata->data.stream_info.sample_rate,
+        .samples_per_channel = metadata->data.stream_info.total_samples,
+    };
+    u->metadata(&meta);
 }
 
 static read_decode_status_t flac_decode_read(const FLAC__StreamDecoder* encoder,

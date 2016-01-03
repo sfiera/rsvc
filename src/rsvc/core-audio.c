@@ -90,17 +90,14 @@ static four_char_t fourcc(uint32_t value) {
 static void core_audio_encode(
         int src_fd, int dst_fd, rsvc_encode_options_t options,
         int container_id, int codec_id, rsvc_done_t done) {
-    int32_t bitrate                     = options->bitrate;
-    size_t sample_rate                  = options->sample_rate;
-    size_t samples_per_channel          = options->samples_per_channel;
-    size_t channels                     = options->channels;
+    struct rsvc_audio_meta meta         = options->meta;
     rsvc_encode_progress_t progress     = options->progress;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         OSStatus err;
         AudioStreamBasicDescription asbd_out = {
             .mFormatID          = codec_id,
-            .mSampleRate        = sample_rate,
-            .mChannelsPerFrame  = channels,
+            .mSampleRate        = meta.sample_rate,
+            .mChannelsPerFrame  = meta.channels,
         };
         if (codec_id == kAudioFormatAppleLossless) {
             asbd_out.mFormatFlags       = kAppleLosslessFormatFlag_16BitSourceData;
@@ -136,11 +133,11 @@ static void core_audio_encode(
                                 | kAudioFormatFlagsNativeEndian
                                 | kAudioFormatFlagIsPacked,
             .mBitsPerChannel    = 16,
-            .mSampleRate        = sample_rate,
-            .mChannelsPerFrame  = channels,
+            .mSampleRate        = meta.sample_rate,
+            .mChannelsPerFrame  = meta.channels,
             .mFramesPerPacket   = 1,
-            .mBytesPerPacket    = 2 * channels,
-            .mBytesPerFrame     = 2 * channels,
+            .mBytesPerPacket    = 2 * meta.channels,
+            .mBytesPerFrame     = 2 * meta.channels,
         };
         err = ExtAudioFileSetProperty(
                 file_ref, kExtAudioFileProperty_ClientDataFormat, sizeof(asbd_in), &asbd_in);
@@ -167,7 +164,7 @@ static void core_audio_encode(
                 return;
             }
             err = AudioConverterSetProperty(
-                    converter, kAudioConverterEncodeBitRate, sizeof(bitrate), &bitrate);
+                    converter, kAudioConverterEncodeBitRate, sizeof(meta.bitrate), &meta.bitrate);
             if (err != noErr) {
                 cleanup();
                 rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
@@ -201,17 +198,17 @@ static void core_audio_encode(
             ssize_t result = read(src_fd, buffer + start, sizeof(buffer) - start);
             if (result > 0) {
                 result += start;
-                size_t remainder = result % (2 * channels);
+                size_t remainder = result % (2 * meta.channels);
                 result -= remainder;
-                size_t nsamples = result / (2 * channels);
+                size_t nsamples = result / (2 * meta.channels);
                 samples_per_channel_read += nsamples;
                 if (result > 0) {
                     AudioBufferList buffer_list = {
                         .mNumberBuffers = 1,
                         .mBuffers = {{
                             .mData = buffer,
-                            .mNumberChannels = channels,
-                            .mDataByteSize = nsamples * channels * 2,
+                            .mNumberChannels = meta.channels,
+                            .mDataByteSize = nsamples * meta.channels * 2,
                         }},
                     };
                     err = ExtAudioFileWrite(file_ref, nsamples, &buffer_list);
@@ -223,7 +220,7 @@ static void core_audio_encode(
                     memcpy(buffer, buffer + result, remainder);
                 }
                 start = remainder;
-                progress(samples_per_channel_read * 1.0 / samples_per_channel);
+                progress(samples_per_channel_read * 1.0 / meta.samples_per_channel);
             } else if (result == 0) {
                 break;
             } else if (errno != EINTR) {

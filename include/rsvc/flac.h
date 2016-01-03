@@ -23,7 +23,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include <rsvc/encode.h>
+#include <rsvc/audio.h>
 #include <rsvc/tag.h>
 
 /// FLAC

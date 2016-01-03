@@ -22,8 +22,8 @@
 #define RSVC_VORBIS_H_
 
 #include <stdlib.h>
+#include <rsvc/audio.h>
 #include <rsvc/common.h>
-#include <rsvc/encode.h>
 #include <rsvc/tag.h>
 
 /// Ogg Vorbis

@@ -23,9 +23,8 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <rsvc/audio.h>
 #include <rsvc/common.h>
-#include <rsvc/encode.h>
-#include <rsvc/decode.h>
 #include <rsvc/tag.h>
 
 /// Formats

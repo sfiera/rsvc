@@ -45,10 +45,7 @@ void rsvc_vorbis_encode(
         int dst_fd,
         rsvc_encode_options_t options,
         rsvc_done_t done) {
-    int32_t bitrate                     = options->bitrate;
-    size_t sample_rate                  = options->sample_rate;
-    size_t samples_per_channel          = options->samples_per_channel;
-    size_t channels                     = options->channels;
+    struct rsvc_audio_meta meta         = options->meta;
     rsvc_encode_progress_t progress     = options->progress;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // Largely cribbed from libvorbis's examples/encoder_example.c.
@@ -67,7 +64,7 @@ void rsvc_vorbis_encode(
 
         // Initialize the encoder.
         vorbis_info_init(&vi);
-        ret = vorbis_encode_init(&vi, channels, sample_rate, -1, bitrate, -1);
+        ret = vorbis_encode_init(&vi, meta.channels, meta.sample_rate, -1, meta.bitrate, -1);
         if (ret != 0 ) {
             rsvc_errorf(done, __FILE__, __LINE__, "couldn't init vorbis encoder");
             return;
@@ -117,14 +114,14 @@ void rsvc_vorbis_encode(
         while (!eos) {
             bool eof = false;
             size_t nsamples;
-            if (!rsvc_cread("pipe", src_fd, in, 2048 / channels, channels * sizeof(int16_t),
+            if (!rsvc_cread("pipe", src_fd, in, 2048 / meta.channels, meta.channels * sizeof(int16_t),
                             &nsamples, &size_inout, &eof, done)) {
                 return;
             } else if (nsamples) {
                 samples_per_channel_read += nsamples;
                 float** out = vorbis_analysis_buffer(&vd, sizeof(in));
-                for (int16_t* p = in; p < in + (nsamples * channels); ) {
-                    for (int i = 0; i < channels; ++i) {
+                for (int16_t* p = in; p < in + (nsamples * meta.channels); ) {
+                    for (int i = 0; i < meta.channels; ++i) {
                         *(out[i]++) = *(p++) / 32768.f;
                     }
                 }
@@ -153,7 +150,7 @@ void rsvc_vorbis_encode(
                     }
                 }
             }
-            progress(samples_per_channel_read * 1.0 / samples_per_channel);
+            progress(samples_per_channel_read * 1.0 / meta.samples_per_channel);
         }
 
         ogg_stream_clear(&os);
