@@ -6,12 +6,24 @@
   { "default_configuration": "opt"
   , "configurations":
     { "dbg":
-      { "cflags": ["-g"]
+      { "cflags": ["-g", "-O0"]
+      , "xcode_settings":
+        { "GCC_OPTIMIZATION_LEVEL": "0"
+        , "OTHER_CFLAGS": ["-g"]
+        }
       }
-    , "dev": { }
+    , "dev":
+      { "cflags": ["-g", "-O0"]
+      , "xcode_settings":
+        { "GCC_OPTIMIZATION_LEVEL": "0"
+        }
+      }
     , "opt":
       { "cflags": ["-Os"]
       , "defines": ["NDEBUG"]
+      , "xcode_settings":
+        { "GCC_OPTIMIZATION_LEVEL": "s"
+        }
       }
     }
   }
