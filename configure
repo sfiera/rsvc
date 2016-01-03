@@ -20,14 +20,12 @@ DEPS = {
         "dpkg": "libdiscid0-dev",
         "brew": "libdiscid",
         "headers": ["discid/discid.h"],
-        "libraries": ["discid"],
     },
     "flac": {
         "pkgconfig": "flac",
         "dpkg": "libflac-dev",
         "brew": "flac",
         "headers": ["FLAC/metadata.h"],
-        "libraries": ["FLAC"],
     },
     "lame": {
         "dpkg": "libmp3lame-dev",
@@ -40,14 +38,12 @@ DEPS = {
         "dpkg": "libmusicbrainz5-dev",
         "brew": "libmusicbrainz",
         "headers": ["musicbrainz5/mb5_c.h"],
-        "libraries": ["musicbrainz5"],
     },
     "mad": {
         "pkgconfig": "mad",
         "dpkg": "libmad0-dev",
         "brew": "mad",
         "headers": ["mad.h"],
-        "libraries": ["mad"],
     },
     "mp4v2": {
         "dpkg": "libmp4v2-dev",
@@ -60,21 +56,18 @@ DEPS = {
         "dpkg": "libneon27-dev",
         "brew": "neon",
         "headers": ["ne_uri.h"],
-        "libraries": ["neon"],
     },
     "ogg": {
         "pkgconfig": "ogg",
         "dpkg": "libogg-dev",
         "brew": "libogg",
         "headers": ["ogg/ogg.h"],
-        "libraries": ["ogg"],
     },
     "vorbis": {
         "pkgconfig": "vorbis",
         "dpkg": "libvorbis-dev",
         "brew": "libvorbis",
         "headers": ["vorbis/vorbisenc.h"],
-        "libraries": ["vorbis"],
     },
 }
 
