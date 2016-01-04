@@ -20,8 +20,9 @@
 
 #define _POSIX_C_SOURCE 200809L
 
-#include <rsvc/format.h>
+#include <rsvc/image.h>
 
+#include <rsvc/format.h>
 #include <string.h>
 #include <unistd.h>
 

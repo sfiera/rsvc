@@ -33,9 +33,7 @@ static void register_all_formats() {
     rsvc_vorbis_format_register();
     rsvc_mp4_format_register();
     rsvc_id3_format_register();
-    rsvc_gif_format_register();
-    rsvc_png_format_register();
-    rsvc_jpeg_format_register();
+    rsvc_image_formats_register();
 }
 
 static void cloak_main(int argc, char* const* argv) {
