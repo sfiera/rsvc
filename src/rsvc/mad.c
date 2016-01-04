@@ -96,7 +96,7 @@ static enum mad_flow mad_header(void* v, struct mad_header const* header) {
 // Taken directly from minimad.c example code.  Comments there suggest
 // using a version with dithering and noise shaping instead.  Is this
 // really relevant with most MP3s? (i.e. ones from 16-bit CDs).
-// TODO(sfiera): investigate.
+// TODO(sfiera): investigate better 24-to-32 bit audio conversion.
 static int16_t mad_scale(mad_fixed_t sample) {
     // round
     sample += (1L << (MAD_F_FRACBITS - 16));
