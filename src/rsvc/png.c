@@ -76,7 +76,7 @@ static bool png_info(
     }
 
     bool got_ihdr = false;
-    while (true) {
+    while (size) {
         char block_type[5];
         size_t block_size;
         if (!png_consume_block_header(path, &data, &size, block_type, &block_size, fail)) {
@@ -118,6 +118,10 @@ static bool png_info(
                 info->palette_size = block_size / 3;
                 return true;
             }
+        }
+        if (size < block_size + PNG_CHECKSUM_SIZE) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
+            return false;
         }
         data += block_size + PNG_CHECKSUM_SIZE;
         size -= block_size + PNG_CHECKSUM_SIZE;
