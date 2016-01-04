@@ -40,6 +40,7 @@
 #include <rsvc/tag.h>
 #include <rsvc/flac.h>
 #include <rsvc/format.h>
+#include <rsvc/gif.h>
 #include <rsvc/id3.h>
 #include <rsvc/jpeg.h>
 #include <rsvc/mp4.h>
