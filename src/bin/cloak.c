@@ -147,7 +147,7 @@ static void print_images(rsvc_tags_t tags) {
             rsvc_outf("%zu-byte %s image\n", size, format->name);
         };
         if (format->image_info("embedded image", data, size, &info, fail)) {
-            rsvc_outf("%d×%d %s image\n", info.width, info.height, format->name);
+            rsvc_outf("%zu×%zu %s image\n", info.width, info.height, format->name);
         }
     });
 }
