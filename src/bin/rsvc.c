@@ -65,8 +65,7 @@ static void rsvc_main(int argc, char* const* argv) {
     rsvc_mp4_format_register();
     rsvc_vorbis_format_register();
 
-    rsvc_jpeg_format_register();
-    rsvc_png_format_register();
+    rsvc_image_formats_register();
 
     rsvc_progname = strdup(basename(argv[0]));
 
