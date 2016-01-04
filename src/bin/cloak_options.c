@@ -163,7 +163,7 @@ int cloak_mode(ops_t ops) {
 }
 
 static bool help_option(const char* progname) {
-    rsvc_errf(
+    errf(
             "usage: %s [OPTIONS] FILE...\n"
             "\n"
             "Options:\n"
@@ -224,13 +224,13 @@ static bool formats_option(const char* progname) {
     enum rsvc_super supers[3] = {RSVC_AUDIO, RSVC_VIDEO, RSVC_IMAGE};
     for (int i = 0; i < 3; ++i) {
         enum rsvc_super super = supers[i];
-        rsvc_outf("%s:", rsvc_super_name(super));
+        outf("%s:", rsvc_super_name(super));
         rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
             if (format->super == super) {
-                rsvc_outf(" %s", format->name);
+                outf(" %s", format->name);
             }
         });
-        rsvc_outf("\n");
+        outf("\n");
     }
     exit(0);
 }
@@ -241,7 +241,7 @@ static bool verbosity_option() {
 }
 
 static bool version_option() {
-    rsvc_outf("cloak %s\n", RSVC_VERSION);
+    outf("cloak %s\n", RSVC_VERSION);
     exit(0);
 }
 

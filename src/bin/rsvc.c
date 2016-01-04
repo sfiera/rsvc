@@ -38,7 +38,6 @@
 #include <rsvc/mp4.h>
 #include <rsvc/png.h>
 #include <rsvc/vorbis.h>
-#include "../rsvc/progress.h"
 
 const char*                 rsvc_progname;
 rsvc_option_callbacks_t     callbacks;
@@ -82,7 +81,7 @@ static void rsvc_main(int argc, char* const* argv) {
             return false;
         },
         .usage = ^{
-            rsvc_errf("usage: %s print [DEVICE]\n", rsvc_progname);
+            errf("usage: %s print [DEVICE]\n", rsvc_progname);
         },
         .run = ^(rsvc_done_t done){
             rsvc_command_print(print_disk, done);
@@ -92,7 +91,7 @@ static void rsvc_main(int argc, char* const* argv) {
     __block struct rsvc_command ls = {
         .name = "ls",
         .usage = ^{
-            rsvc_errf("usage: %s ls\n", rsvc_progname);
+            errf("usage: %s ls\n", rsvc_progname);
         },
         .run = ^(rsvc_done_t done){
             rsvc_command_ls(done);
@@ -102,7 +101,7 @@ static void rsvc_main(int argc, char* const* argv) {
     __block struct rsvc_command watch = {
         .name = "watch",
         .usage = ^{
-            rsvc_errf("usage: %s watch\n", rsvc_progname);
+            errf("usage: %s watch\n", rsvc_progname);
         },
         .run = ^(rsvc_done_t done){
             rsvc_command_watch(done);
@@ -120,7 +119,7 @@ static void rsvc_main(int argc, char* const* argv) {
             return false;
         },
         .usage = ^{
-            rsvc_errf("usage: %s eject [DEVICE]\n", rsvc_progname);
+            errf("usage: %s eject [DEVICE]\n", rsvc_progname);
         },
         .run = ^(rsvc_done_t done){
             rsvc_command_eject(eject_disk, done);
@@ -160,7 +159,7 @@ static void rsvc_main(int argc, char* const* argv) {
             }
         },
         .usage = ^{
-            rsvc_errf(
+            errf(
                     "usage: %s rip [OPTIONS] [DEVICE]\n"
                     "\n"
                     "Options:\n"
@@ -174,7 +173,7 @@ static void rsvc_main(int argc, char* const* argv) {
                     rsvc_progname);
             rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
                 if (format->encode) {
-                    rsvc_errf("  %s\n", format->name);
+                    errf("  %s\n", format->name);
                 }
             });
         },
@@ -219,7 +218,7 @@ static void rsvc_main(int argc, char* const* argv) {
             return true;
         },
         .usage = ^{
-            rsvc_errf(
+            errf(
                     "usage: %s convert [OPTIONS] IN [OUT]\n"
                     "\n"
                     "Options:\n"
@@ -233,11 +232,11 @@ static void rsvc_main(int argc, char* const* argv) {
                     rsvc_progname);
             rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
                 if (format->encode && format->decode) {
-                    rsvc_errf("  %s (in, out)\n", format->name);
+                    errf("  %s (in, out)\n", format->name);
                 } else if (format->encode) {
-                    rsvc_errf("  %s (out)\n", format->name);
+                    errf("  %s (out)\n", format->name);
                 } else if (format->decode) {
-                    rsvc_errf("  %s (in)\n", format->name);
+                    errf("  %s (in)\n", format->name);
                 }
             });
         },
@@ -257,7 +256,7 @@ static void rsvc_main(int argc, char* const* argv) {
             ++rsvc_verbosity;
             return true;
           case 'V':
-            rsvc_errf("rsvc %s\n", RSVC_VERSION);
+            errf("rsvc %s\n", RSVC_VERSION);
             exit(0);
           default:
             if (command && command->short_option) {
@@ -314,10 +313,10 @@ static void rsvc_main(int argc, char* const* argv) {
     rsvc_done_t done = ^(rsvc_error_t error){
         if (error) {
             if (command) {
-                rsvc_errf("%s %s: %s (%s:%d)\n",
+                errf("%s %s: %s (%s:%d)\n",
                         rsvc_progname, command->name, error->message, error->file, error->lineno);
             } else {
-                rsvc_errf("%s: %s (%s:%d)\n",
+                errf("%s: %s (%s:%d)\n",
                         rsvc_progname, error->message, error->file, error->lineno);
             }
             if (rsvc_exit == 0) {
@@ -345,7 +344,7 @@ void rsvc_usage(rsvc_done_t done) {
     if (command) {
         command->usage();
     } else {
-        rsvc_errf(
+        errf(
                 "usage: %s COMMAND [OPTIONS]\n"
                 "\n"
                 "Commands:\n"

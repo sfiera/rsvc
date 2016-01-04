@@ -26,7 +26,6 @@
 #include <stdio.h>
 
 #include <rsvc/disc.h>
-#include "../rsvc/progress.h"
 
 void rsvc_command_watch(rsvc_done_t done) {
     __block bool show = false;
@@ -34,11 +33,11 @@ void rsvc_command_watch(rsvc_done_t done) {
     rsvc_disc_watch_callbacks_t callbacks;
     callbacks.appeared = ^(rsvc_disc_type_t type, const char* path){
         if (show) {
-            rsvc_outf("+\t%s\t%s\n", path, rsvc_disc_type_name[type]);
+            outf("+\t%s\t%s\n", path, rsvc_disc_type_name[type]);
         }
     };
     callbacks.disappeared = ^(rsvc_disc_type_t type, const char* path){
-        rsvc_outf("-\t%s\t%s\n", path, rsvc_disc_type_name[type]);
+        outf("-\t%s\t%s\n", path, rsvc_disc_type_name[type]);
     };
     callbacks.initialized = ^(rsvc_stop_t stop){
         show = true;

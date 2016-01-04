@@ -25,6 +25,7 @@
 #include <rsvc/common.h>
 #include <rsvc/format.h>
 
+#include "../rsvc/common.h"
 #include "../rsvc/options.h"
 
 typedef struct rsvc_command* rsvc_command_t;

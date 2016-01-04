@@ -25,12 +25,11 @@
 #include <stdio.h>
 
 #include <rsvc/disc.h>
-#include "../rsvc/progress.h"
 
 void rsvc_command_ls(rsvc_done_t done) {
     rsvc_disc_watch_callbacks_t callbacks;
     callbacks.appeared = ^(rsvc_disc_type_t type, const char* path){
-        rsvc_outf("%s\t%s\n", path, rsvc_disc_type_name[type]);
+        outf("%s\t%s\n", path, rsvc_disc_type_name[type]);
     };
     callbacks.disappeared = ^(rsvc_disc_type_t type, const char* path){};
     callbacks.initialized = ^(rsvc_stop_t stop){

@@ -32,8 +32,12 @@ void                    rsvc_outf(const char* format, ...)
 void                    rsvc_errf(const char* format, ...)
                         __attribute__((format(printf, 1, 2)));
 
-#define memdup rsvc_memdup
-void* memdup(const void* data, size_t size);
+void*                   rsvc_memdup(const void* data, size_t size);
+
+// Keep "rsvc_" in the symbol names, but shorten for convenience.
+#define                 memdup      rsvc_memdup
+#define                 outf        rsvc_outf
+#define                 errf        rsvc_errf
 
 #define DOWN_CAST(TYPE, PTR) \
     ((TYPE*)((void*)PTR - offsetof(TYPE, super)))

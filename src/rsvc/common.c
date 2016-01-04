@@ -144,11 +144,11 @@ void rsvc_logf(int level, const char* format, ...) {
         rsvc_vasprintf(&message, format, vl);
         va_end(vl);
 
-        rsvc_errf(format, "%s log: %s\n", time, message);
+        errf(format, "%s log: %s\n", time, message);
     }
 }
 
-void* memdup(const void* data, size_t size) {
+void* rsvc_memdup(const void* data, size_t size) {
     void* copy = malloc(size);
     memcpy(copy, data, size);
     return copy;

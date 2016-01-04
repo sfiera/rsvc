@@ -26,7 +26,6 @@
 #include <stdlib.h>
 
 #include <rsvc/cd.h>
-#include "../rsvc/progress.h"
 
 static void print_track(rsvc_cd_session_t session, size_t n);
 static void print_session(rsvc_cd_t cd, size_t n);
@@ -50,7 +49,7 @@ void rsvc_command_print(char* disk, rsvc_done_t done) {
         }
         const char* mcn = rsvc_cd_mcn(cd);
         if (*mcn) {
-            rsvc_outf("MCN: %s\n", mcn);
+            outf("MCN: %s\n", mcn);
         }
         print_session(cd, 0);
 
@@ -64,7 +63,7 @@ static void print_session(rsvc_cd_t cd, size_t n) {
         return;
     }
     rsvc_cd_session_t session = rsvc_cd_session(cd, n);
-    rsvc_outf("- Session: %zu\n", rsvc_cd_session_number(session));
+    outf("- Session: %zu\n", rsvc_cd_session_number(session));
     print_track(session, 0);
     print_session(cd, n + 1);
 }
@@ -74,18 +73,18 @@ static void print_track(rsvc_cd_session_t session, size_t n) {
         return;
     }
     rsvc_cd_track_t track = rsvc_cd_session_track(session, n);
-    rsvc_outf("  - Track: %zu\n", rsvc_cd_track_number(track));
+    outf("  - Track: %zu\n", rsvc_cd_track_number(track));
     size_t sectors = rsvc_cd_track_nsectors(track);
     switch (rsvc_cd_track_type(track)) {
         case RSVC_CD_TRACK_DATA: {
-            rsvc_outf("    Type: data\n");
-            rsvc_outf("    Sectors: %zu\n", sectors);
+            outf("    Type: data\n");
+            outf("    Sectors: %zu\n", sectors);
         }
         break;
         case RSVC_CD_TRACK_AUDIO: {
-            rsvc_outf("    Type: audio\n");
-            rsvc_outf("    Channels: %zu\n", rsvc_cd_track_nchannels(track));
-            rsvc_outf("    Duration: %zu:%02zu.%03zu\n",
+            outf("    Type: audio\n");
+            outf("    Channels: %zu\n", rsvc_cd_track_nchannels(track));
+            outf("    Duration: %zu:%02zu.%03zu\n",
                    sectors / (75 * 60),
                    (sectors / 75) % 60,
                    ((sectors % 75) * 1000) / 75);
