@@ -138,15 +138,12 @@ static bool jpeg_info(
     return false;
 }
 
-void rsvc_jpeg_format_register() {
-    struct rsvc_format jpeg = {
-        .super = RSVC_IMAGE,
-        .name = "jpeg",
-        .mime = "image/jpeg",
-        .magic = {"??????JFIF"},
-        .magic_size = 10,
-        .extension = "jpg",
-        .image_info = jpeg_info,
-    };
-    rsvc_format_register(&jpeg);
-}
+const struct rsvc_format rsvc_jpeg = {
+    .super = RSVC_IMAGE,
+    .name = "jpeg",
+    .mime = "image/jpeg",
+    .magic = {"??????JFIF"},
+    .magic_size = 10,
+    .extension = "jpg",
+    .image_info = jpeg_info,
+};

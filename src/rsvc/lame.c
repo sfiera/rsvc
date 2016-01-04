@@ -18,7 +18,7 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#include <rsvc/lame.h>
+#include "audio.h"
 
 #include <lame/lame.h>
 #include <rsvc/audio.h>
@@ -80,18 +80,4 @@ void rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
         free(mp3buf);
         done(NULL);
     });
-}
-
-void rsvc_lame_format_register() {
-    struct rsvc_format lame = {
-        .super = RSVC_AUDIO,
-        .name = "mp3",
-        .mime = "audio/mpeg",
-        .magic = "ID3",
-        .magic_size = 3,
-        .extension = "mp3",
-        .lossless = false,
-        .encode = rsvc_lame_encode,
-    };
-    rsvc_format_register(&lame);
 }

@@ -38,10 +38,12 @@ typedef bool (*rsvc_image_info_f)(
         const char* path, const uint8_t* data, size_t size,
         struct rsvc_image_info* info, rsvc_done_t fail);
 
+/// Formats
+/// -------
 void rsvc_image_formats_register();
 
-void rsvc_gif_format_register();
-void rsvc_jpeg_format_register();
-void rsvc_png_format_register();
+extern const struct rsvc_format rsvc_gif;
+extern const struct rsvc_format rsvc_jpeg;
+extern const struct rsvc_format rsvc_png;
 
 #endif  // RSVC_IMAGE_H_

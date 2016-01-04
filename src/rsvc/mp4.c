@@ -20,7 +20,7 @@
 
 #define _POSIX_C_SOURCE 200809L
 
-#include <rsvc/mp4.h>
+#include "audio.h"
 
 #include <Block.h>
 #include <mp4v2/mp4v2.h>
@@ -678,16 +678,16 @@ static bool rsvc_mp4_tags_image_each(
         rsvc_format_t format = NULL;
         switch (data->typeCode) {
             case MP4_ITMF_BT_GIF:
-                format = rsvc_format_named("gif", 0);
+                format = &rsvc_gif;
                 break;
             case MP4_ITMF_BT_JPEG:
-                format = rsvc_format_named("jpeg", 0);
+                format = &rsvc_jpeg;
                 break;
             case MP4_ITMF_BT_PNG:
-                format = rsvc_format_named("png", 0);
+                format = &rsvc_png;
                 break;
             case MP4_ITMF_BT_BMP:
-                format = rsvc_format_named("bmp", 0);
+                format = NULL;  // TODO(sfiera): &rsvc_bmp;
                 break;
             default:
                 continue;
@@ -800,30 +800,4 @@ bool rsvc_mp4_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_don
     rsvc_mp4_tags_t copy = memdup(&mp4, sizeof(mp4));
     *tags = &copy->super;
     return true;
-}
-
-void rsvc_mp4_format_register() {
-    struct rsvc_format m4a = {
-        .super = RSVC_AUDIO,
-        .name = "m4a",
-        .mime = "audio/mp4",
-        .magic = {"????ftypM4A "},
-        .magic_size = 12,
-        .extension = "m4a",
-        .open_tags = rsvc_mp4_open_tags,
-    };
-    struct rsvc_format m4v = {
-        .super = RSVC_VIDEO,
-        .name = "m4v",
-        .mime = "video/mp4",
-        .magic = {
-            "????ftypM4V ",
-            "????ftypmp42",
-        },
-        .magic_size = 12,
-        .extension = "m4v",
-        .open_tags = rsvc_mp4_open_tags,
-    };
-    rsvc_format_register(&m4a);
-    rsvc_format_register(&m4v);
 }

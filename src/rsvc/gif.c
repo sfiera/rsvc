@@ -40,15 +40,12 @@ static bool gif_info(
     return true;
 }
 
-void rsvc_gif_format_register() {
-    struct rsvc_format gif = {
-        .super = RSVC_IMAGE,
-        .name = "gif",
-        .mime = "image/gif",
-        .magic = {"GIF87a", "GIF89a"},
-        .magic_size = 6,
-        .extension = "gif",
-        .image_info = gif_info,
-    };
-    rsvc_format_register(&gif);
-}
+const struct rsvc_format rsvc_gif = {
+    .super = RSVC_IMAGE,
+    .name = "gif",
+    .mime = "image/gif",
+    .magic = {"GIF87a", "GIF89a"},
+    .magic_size = 6,
+    .extension = "gif",
+    .image_info = gif_info,
+};

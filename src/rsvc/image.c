@@ -22,8 +22,10 @@
 
 #include <rsvc/image.h>
 
+#include <rsvc/format.h>
+
 void rsvc_image_formats_register() {
-    rsvc_gif_format_register();
-    rsvc_jpeg_format_register();
-    rsvc_png_format_register();
+    rsvc_format_register(&rsvc_gif);
+    rsvc_format_register(&rsvc_jpeg);
+    rsvc_format_register(&rsvc_png);
 }

@@ -21,7 +21,7 @@
 #define _BSD_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
-#include <rsvc/vorbis.h>
+#include "audio.h"
 
 #include <Block.h>
 #include <dispatch/dispatch.h>
@@ -503,17 +503,14 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
 
 #undef FAIL
 
-void rsvc_vorbis_format_register() {
-    struct rsvc_format vorbis = {
-        .super = RSVC_AUDIO,
-        .name = "vorbis",
-        .mime = "application/ogg",
-        .magic = {"OggS"},
-        .magic_size = 4,
-        .extension = "ogv",
-        .lossless = false,
-        .open_tags = rsvc_vorbis_open_tags,
-        .encode = rsvc_vorbis_encode,
-    };
-    rsvc_format_register(&vorbis);
-}
+const struct rsvc_format rsvc_vorbis = {
+    .super = RSVC_AUDIO,
+    .name = "vorbis",
+    .mime = "application/ogg",
+    .magic = {"OggS"},
+    .magic_size = 4,
+    .extension = "ogv",
+    .lossless = false,
+    .open_tags = rsvc_vorbis_open_tags,
+    .encode = rsvc_vorbis_encode,
+};

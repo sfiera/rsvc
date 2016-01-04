@@ -40,23 +40,17 @@
   , { "target_name": "librsvc"
     , "type": "static_library"
     , "sources":
-      [ "include/rsvc/cancel.h"
+      [ "include/rsvc/audio.h"
+      , "include/rsvc/cancel.h"
       , "include/rsvc/cd.h"
       , "include/rsvc/common.h"
-      , "include/rsvc/decode.h"
       , "include/rsvc/disc.h"
-      , "include/rsvc/encode.h"
-      , "include/rsvc/flac.h"
       , "include/rsvc/format.h"
-      , "include/rsvc/id3.h"
       , "include/rsvc/image.h"
-      , "include/rsvc/lame.h"
-      , "include/rsvc/mad.h"
-      , "include/rsvc/mp4.h"
       , "include/rsvc/musicbrainz.h"
       , "include/rsvc/tag.h"
-      , "include/rsvc/vorbis.h"
 
+      , "src/rsvc/audio.h"
       , "src/rsvc/common.h"
       , "src/rsvc/disc.h"
       , "src/rsvc/encoding.h"
@@ -68,6 +62,7 @@
       , "src/rsvc/progress.h"
       , "src/rsvc/unix.h"
 
+      , "src/rsvc/audio.c"
       , "src/rsvc/cancel.c"
       , "src/rsvc/common.c"
       , "src/rsvc/disc.c"
@@ -113,9 +108,7 @@
     , "conditions":
       [ [ "OS == 'mac'"
         , { "sources":
-            [ "include/rsvc/core-audio.h"
-
-            , "src/rsvc/cd_darwin.c"
+            [ "src/rsvc/cd_darwin.c"
             , "src/rsvc/core-audio.c"
             , "src/rsvc/disc_darwin.c"
             , "src/rsvc/unix_darwin.c"

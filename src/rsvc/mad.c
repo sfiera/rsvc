@@ -20,14 +20,13 @@
 
 #define _POSIX_C_SOURCE 200809L
 
-#include <rsvc/mad.h>
+#include "audio.h"
 
 #include <Block.h>
 #include <mad.h>
 #include <dispatch/dispatch.h>
 #include <rsvc/common.h>
 #include <rsvc/format.h>
-#include <rsvc/id3.h>
 #include <stdbool.h>
 #include <string.h>
 #include <sys/types.h>
@@ -212,18 +211,4 @@ void rsvc_mad_decode(int src_fd, int dst_fd,
             done(NULL);
         }
     });
-}
-
-void rsvc_mad_format_register() {
-    struct rsvc_format mad = {
-        .super = RSVC_AUDIO,
-        .name = "mp3",
-        .mime = "audio/mpeg",
-        .magic = "ID3",
-        .magic_size = 3,
-        .extension = "mp3",
-        .lossless = false,
-        .decode = rsvc_mad_decode,
-    };
-    rsvc_format_register(&mad);
 }

@@ -25,7 +25,7 @@
 #include <stdbool.h>
 #include <rsvc/common.h>
 
-typedef struct rsvc_format* rsvc_format_t;
+typedef const struct rsvc_format* rsvc_format_t;
 typedef struct rsvc_tags* rsvc_tags_t;
 struct rsvc_tags_methods {
     bool (*remove)(rsvc_tags_t tags, const char* name, rsvc_done_t fail);

@@ -130,15 +130,12 @@ static bool png_info(
     return false;
 }
 
-void rsvc_png_format_register() {
-    struct rsvc_format png = {
-        .super = RSVC_IMAGE,
-        .name = "png",
-        .mime = "image/png",
-        .magic = {"\211PNG\015\012\032\012"},
-        .magic_size = 8,
-        .extension = "png",
-        .image_info = png_info,
-    };
-    rsvc_format_register(&png);
-}
+const struct rsvc_format rsvc_png = {
+    .super = RSVC_IMAGE,
+    .name = "png",
+    .mime = "image/png",
+    .magic = {"\211PNG\015\012\032\012"},
+    .magic_size = 8,
+    .extension = "png",
+    .image_info = png_info,
+};

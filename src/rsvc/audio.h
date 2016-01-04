@@ -1,7 +1,7 @@
 //
 // This file is part of Rip Service.
 //
-// Copyright (C) 2012 Chris Pickel <sfiera@sfzmail.com>
+// Copyright (C) 2016 Chris Pickel <sfiera@sfzmail.com>
 //
 // Rip Service is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -18,15 +18,30 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#ifndef RSVC_ID3_H_
-#define RSVC_ID3_H_
+#ifndef SRC_RSVC_AUDIO_H_
+#define SRC_RSVC_AUDIO_H_
 
+#include <rsvc/audio.h>
 #include <rsvc/tag.h>
+
+#ifdef __APPLE__
+void rsvc_aac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done);
+void rsvc_alac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done);
+#else
+else
+#define rsvc_aac_encode NULL
+#define rsvc_alac_encode NULL
+#endif
+
+bool                    rsvc_mp4_open_tags(const char* path, int flags,
+                                           rsvc_tags_t* tags, rsvc_done_t fail);
 
 bool                    rsvc_id3_open_tags(const char* path, int flags,
                                            rsvc_tags_t* tags, rsvc_done_t fail);
 bool                    rsvc_id3_skip_tags(int fd, rsvc_done_t fail);
+void                    rsvc_lame_encode(int src_fd, int dst_fd,
+                                         rsvc_encode_options_t options, rsvc_done_t done);
+void                    rsvc_mad_decode(int src_fd, int dst_fd,
+                                        rsvc_decode_metadata_f metadata, rsvc_done_t done);
 
-void                    rsvc_id3_format_register();
-
-#endif  // RSVC_ID3_H_
+#endif  // RSVC_AUDIO_H_

@@ -37,16 +37,11 @@
 #include <sysexits.h>
 #include <unistd.h>
 
-#include <rsvc/tag.h>
-#include <rsvc/flac.h>
+#include <rsvc/audio.h>
 #include <rsvc/format.h>
-#include <rsvc/gif.h>
-#include <rsvc/id3.h>
-#include <rsvc/jpeg.h>
-#include <rsvc/mp4.h>
+#include <rsvc/image.h>
 #include <rsvc/musicbrainz.h>
-#include <rsvc/png.h>
-#include <rsvc/vorbis.h>
+#include <rsvc/tag.h>
 
 #include "../rsvc/common.h"
 #include "../rsvc/list.h"

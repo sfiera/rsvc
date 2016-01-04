@@ -21,7 +21,7 @@
 #define _BSD_SOURCE
 #define _POSIX_C_SOURCE 200809L
 
-#include <rsvc/id3.h>
+#include "audio.h"
 
 #include <Block.h>
 #include <dispatch/dispatch.h>
@@ -501,20 +501,6 @@ static struct rsvc_tags_methods id3_vptr = {
     .save           = rsvc_id3_tags_save,
     .destroy        = rsvc_id3_tags_destroy,
 };
-
-void rsvc_id3_format_register() {
-    struct rsvc_format id3 = {
-        .super = RSVC_AUDIO,
-        .name = "id3",
-        .mime = "audio/mpeg",
-        .magic = "ID3",
-        .magic_size = 3,
-        .extension = "mp3",
-        .lossless = false,
-        .open_tags = rsvc_id3_open_tags,
-    };
-    rsvc_format_register(&id3);
-}
 
 ////////////////////////////////////////////////////////////////////////
 

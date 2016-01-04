@@ -20,8 +20,6 @@
 
 #define _POSIX_C_SOURCE 200809L
 
-#include <rsvc/flac.h>
-
 #include <Block.h>
 #include <FLAC/metadata.h>
 #include <FLAC/stream_encoder.h>
@@ -39,6 +37,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "audio.h"
 #include "common.h"
 #include "unix.h"
 
@@ -616,18 +615,15 @@ static void flac_decode_error(const FLAC__StreamDecoder* decoder,
     }
 }
 
-void rsvc_flac_format_register() {
-    struct rsvc_format flac = {
-        .super = RSVC_AUDIO,
-        .name = "flac",
-        .mime = "audio/x-flac",
-        .magic = {"fLaC"},
-        .magic_size = 4,
-        .extension = "flac",
-        .lossless = true,
-        .open_tags = rsvc_flac_open_tags,
-        .encode = rsvc_flac_encode,
-        .decode = rsvc_flac_decode,
-    };
-    rsvc_format_register(&flac);
-}
+const struct rsvc_format rsvc_flac = {
+    .super = RSVC_AUDIO,
+    .name = "flac",
+    .mime = "audio/x-flac",
+    .magic = {"fLaC"},
+    .magic_size = 4,
+    .extension = "flac",
+    .lossless = true,
+    .open_tags = rsvc_flac_open_tags,
+    .encode = rsvc_flac_encode,
+    .decode = rsvc_flac_decode,
+};

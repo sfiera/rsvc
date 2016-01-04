@@ -29,10 +29,7 @@ static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done);
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done);
 
 static void register_all_formats() {
-    rsvc_flac_format_register();
-    rsvc_vorbis_format_register();
-    rsvc_mp4_format_register();
-    rsvc_id3_format_register();
+    rsvc_audio_formats_register();
     rsvc_image_formats_register();
 }
 

@@ -28,16 +28,8 @@
 #include <string.h>
 #include <sysexits.h>
 
-#include <rsvc/core-audio.h>
+#include <rsvc/audio.h>
 #include <rsvc/disc.h>
-#include <rsvc/flac.h>
-#include <rsvc/id3.h>
-#include <rsvc/jpeg.h>
-#include <rsvc/lame.h>
-#include <rsvc/mad.h>
-#include <rsvc/mp4.h>
-#include <rsvc/png.h>
-#include <rsvc/vorbis.h>
 
 const char*                 rsvc_progname;
 rsvc_option_callbacks_t     callbacks;
@@ -55,16 +47,7 @@ static bool read_si_number(const char* in, int64_t* out);
 
 static void rsvc_main(int argc, char* const* argv) {
     rsvc_jobs = rsvc_jobs_default();
-#ifdef __APPLE__
-    rsvc_core_audio_format_register();
-#endif
-    rsvc_flac_format_register();
-    rsvc_id3_format_register();
-    rsvc_lame_format_register();
-    rsvc_mad_format_register();
-    rsvc_mp4_format_register();
-    rsvc_vorbis_format_register();
-
+    rsvc_audio_formats_register();
     rsvc_image_formats_register();
 
     rsvc_progname = strdup(basename(argv[0]));
@@ -429,9 +412,9 @@ static bool format_option(struct encode_options* encode, rsvc_option_value_t get
 bool validate_encode_options(struct encode_options* encode, rsvc_done_t fail) {
     if (!encode->format) {
         if (encode->bitrate) {
-            encode->format = rsvc_format_named("vorbis", RSVC_FORMAT_ENCODE);
+            encode->format = &rsvc_vorbis;
         } else {
-            encode->format = rsvc_format_named("flac", RSVC_FORMAT_ENCODE);
+            encode->format = &rsvc_flac;
         }
     }
 

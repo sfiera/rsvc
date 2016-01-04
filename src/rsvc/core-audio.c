@@ -18,7 +18,7 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#include <rsvc/core-audio.h>
+#include "audio.h"
 
 #include <AudioToolbox/AudioConverter.h>
 #include <AudioToolbox/AudioFile.h>
@@ -242,25 +242,4 @@ void rsvc_aac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc
 
 void rsvc_alac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done) {
     core_audio_encode(src_fd, dst_fd, options, kAudioFileM4AType, kAudioFormatAppleLossless, done);
-}
-
-void rsvc_core_audio_format_register() {
-    struct rsvc_format aac = {
-        .super = RSVC_AUDIO,
-        .name = "aac",
-        .mime = "audio/mp4",
-        .extension = "m4a",
-        .lossless = false,
-        .encode = rsvc_aac_encode,
-    };
-    struct rsvc_format alac = {
-        .super = RSVC_AUDIO,
-        .name = "alac",
-        .mime = "audio/mp4",
-        .extension = "m4a",
-        .lossless = true,
-        .encode = rsvc_alac_encode,
-    };
-    rsvc_format_register(&aac);
-    rsvc_format_register(&alac);
 }
