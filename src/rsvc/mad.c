@@ -216,6 +216,7 @@ void rsvc_mad_decode(int src_fd, int dst_fd,
 
 void rsvc_mad_format_register() {
     struct rsvc_format mad = {
+        .super = RSVC_AUDIO,
         .name = "mp3",
         .mime = "audio/mpeg",
         .magic = "ID3",

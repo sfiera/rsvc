@@ -505,6 +505,7 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
 
 void rsvc_vorbis_format_register() {
     struct rsvc_format vorbis = {
+        .super = RSVC_AUDIO,
         .name = "vorbis",
         .mime = "application/ogg",
         .magic = {"OggS"},

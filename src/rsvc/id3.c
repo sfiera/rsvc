@@ -504,6 +504,7 @@ static struct rsvc_tags_methods id3_vptr = {
 
 void rsvc_id3_format_register() {
     struct rsvc_format id3 = {
+        .super = RSVC_AUDIO,
         .name = "id3",
         .mime = "audio/mpeg",
         .magic = "ID3",

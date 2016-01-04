@@ -221,23 +221,17 @@ static bool help_option(const char* progname) {
 }
 
 static bool formats_option(const char* progname) {
-    __block void* previous = NULL;
-    rsvc_errf("audio:");
-    rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
-        if (format->open_tags && (format->open_tags != previous)) {
-            rsvc_errf(" %s", format->name);
-            previous = format->open_tags;
-        }
-    });
-    rsvc_errf("\nimage:");
-    previous = NULL;
-    rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
-        if (format->image_info && (format->image_info != previous)) {
-            rsvc_errf(" %s", format->name);
-            previous = format->image_info;
-        }
-    });
-    rsvc_errf("\n");
+    enum rsvc_super supers[3] = {RSVC_AUDIO, RSVC_VIDEO, RSVC_IMAGE};
+    for (int i = 0; i < 3; ++i) {
+        enum rsvc_super super = supers[i];
+        rsvc_outf("%s:", rsvc_super_name(super));
+        rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+            if (format->super == super) {
+                rsvc_outf(" %s", format->name);
+            }
+        });
+        rsvc_outf("\n");
+    }
     exit(0);
 }
 

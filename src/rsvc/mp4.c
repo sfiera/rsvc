@@ -804,6 +804,7 @@ bool rsvc_mp4_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_don
 
 void rsvc_mp4_format_register() {
     struct rsvc_format m4a = {
+        .super = RSVC_AUDIO,
         .name = "m4a",
         .mime = "audio/mp4",
         .magic = {"????ftypM4A "},
@@ -812,6 +813,7 @@ void rsvc_mp4_format_register() {
         .open_tags = rsvc_mp4_open_tags,
     };
     struct rsvc_format m4v = {
+        .super = RSVC_VIDEO,
         .name = "m4v",
         .mime = "video/mp4",
         .magic = {

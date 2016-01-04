@@ -42,6 +42,7 @@ static bool gif_info(
 
 void rsvc_gif_format_register() {
     struct rsvc_format gif = {
+        .super = RSVC_IMAGE,
         .name = "gif",
         .mime = "image/gif",
         .magic = {"GIF87a", "GIF89a"},

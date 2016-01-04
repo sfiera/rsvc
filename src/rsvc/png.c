@@ -132,6 +132,7 @@ static bool png_info(
 
 void rsvc_png_format_register() {
     struct rsvc_format png = {
+        .super = RSVC_IMAGE,
         .name = "png",
         .mime = "image/png",
         .magic = {"\211PNG\015\012\032\012"},

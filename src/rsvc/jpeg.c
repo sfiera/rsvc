@@ -140,6 +140,7 @@ static bool jpeg_info(
 
 void rsvc_jpeg_format_register() {
     struct rsvc_format jpeg = {
+        .super = RSVC_IMAGE,
         .name = "jpeg",
         .mime = "image/jpeg",
         .magic = {"??????JFIF"},

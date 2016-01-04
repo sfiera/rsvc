@@ -246,6 +246,7 @@ void rsvc_alac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
 
 void rsvc_core_audio_format_register() {
     struct rsvc_format aac = {
+        .super = RSVC_AUDIO,
         .name = "aac",
         .mime = "audio/mp4",
         .extension = "m4a",
@@ -253,6 +254,7 @@ void rsvc_core_audio_format_register() {
         .encode = rsvc_aac_encode,
     };
     struct rsvc_format alac = {
+        .super = RSVC_AUDIO,
         .name = "alac",
         .mime = "audio/mp4",
         .extension = "m4a",

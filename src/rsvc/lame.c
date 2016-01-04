@@ -84,6 +84,7 @@ void rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
 
 void rsvc_lame_format_register() {
     struct rsvc_format lame = {
+        .super = RSVC_AUDIO,
         .name = "mp3",
         .mime = "audio/mpeg",
         .magic = "ID3",

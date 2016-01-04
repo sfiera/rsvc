@@ -47,6 +47,7 @@ static struct {
 void rsvc_format_register(rsvc_format_t format) {
     struct rsvc_format_node node = {
         .format = {
+            .super      = format->super,
             .name       = strdup(format->name),
             .mime       = strdup(format->mime),
             .magic = {
@@ -198,4 +199,9 @@ bool rsvc_format_detect(const char* path, int fd, int flags,
     }
     rsvc_errorf(fail, __FILE__, __LINE__, "couldn't detect file type");
     return false;
+}
+
+const char* rsvc_super_name(enum rsvc_super super) {
+    static const char names[3][6] = {"audio", "video", "image"};
+    return names[super];
 }
