@@ -28,7 +28,6 @@
 void rsvc_aac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done);
 void rsvc_alac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done);
 #else
-else
 #define rsvc_aac_encode NULL
 #define rsvc_alac_encode NULL
 #endif
