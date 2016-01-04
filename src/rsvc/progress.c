@@ -43,14 +43,23 @@ static struct {
     rsvc_progress_t tail;
 } progress;
 
-// main queue only.
+static dispatch_queue_t io_queue() {
+    static dispatch_once_t init;
+    static dispatch_queue_t queue;
+    dispatch_once(&init, ^{
+        queue = dispatch_queue_create("net.sfiera.ripservice.io", NULL);
+    });
+    return queue;
+}
+
+// io queue only.
 static void progress_hide() {
     for (rsvc_progress_t curr = progress.head; curr; curr = curr->next) {
         printf("\033[1A\033[2K");
     }
 }
 
-// main queue only.
+// io queue only.
 static void progress_show() {
     struct winsize sz;
     if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &sz) != 0) {
@@ -73,7 +82,7 @@ rsvc_progress_t rsvc_progress_start(const char* name) {
     };
     rsvc_progress_t item = memdup(&item_data, sizeof(item_data));
 
-    dispatch_async(dispatch_get_main_queue(), ^{
+    dispatch_async(io_queue(), ^{
         progress_hide();
         RSVC_LIST_PUSH(&progress, item);
         progress_show();
@@ -83,7 +92,7 @@ rsvc_progress_t rsvc_progress_start(const char* name) {
 
 void rsvc_progress_update(rsvc_progress_t item, double fraction) {
     int percent = fraction * 100;
-    dispatch_async(dispatch_get_main_queue(), ^{
+    dispatch_async(io_queue(), ^{
         if (item->percent == percent) {
             return;
         }
@@ -98,7 +107,7 @@ void rsvc_progress_update(rsvc_progress_t item, double fraction) {
 }
 
 void rsvc_progress_done(rsvc_progress_t item) {
-    dispatch_async(dispatch_get_main_queue(), ^{
+    dispatch_async(io_queue(), ^{
         progress_hide();
         if (item->percent >= 100) {
             printf(" done   %s\n", item->name);
@@ -112,15 +121,9 @@ void rsvc_progress_done(rsvc_progress_t item) {
 }
 
 static void rsvc_vfprintf(FILE* file, const char* format, va_list vl) {
-    static dispatch_once_t init;
-    static dispatch_queue_t io;
-    dispatch_once(&init, ^{
-        io = dispatch_queue_create("net.sfiera.ripservice.io", NULL);
-    });
-
     char* str;
     rsvc_vasprintf(&str, format, vl);
-    dispatch_sync(io, ^{
+    dispatch_sync(io_queue(), ^{
         progress_hide();
         fprintf(file, "%s", str);
         progress_show();
