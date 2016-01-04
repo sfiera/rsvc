@@ -77,7 +77,19 @@ static enum mad_flow mad_header(void* v, struct mad_header const* header) {
     struct mad_userdata* userdata = v;
     userdata->bitrate = header->bitrate;
     userdata->sample_rate = header->samplerate;
-    userdata->channels = 2;
+
+    switch (header->mode) {
+        case MAD_MODE_SINGLE_CHANNEL:
+            userdata->channels = 1;
+            break;
+
+        case MAD_MODE_DUAL_CHANNEL:
+        case MAD_MODE_STEREO:
+        case MAD_MODE_JOINT_STEREO:
+        default:
+            userdata->channels = 2;
+            break;
+    }
 
     return MAD_FLOW_CONTINUE;
 }

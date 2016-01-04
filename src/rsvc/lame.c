@@ -54,8 +54,14 @@ void rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
                 return;
             } else if (nsamples) {
                 samples_per_channel_read += nsamples;
-                int mp3buf_written = lame_encode_buffer_interleaved(
+                int mp3buf_written = -1;
+                if (meta.channels == 2) {
+                    mp3buf_written = lame_encode_buffer_interleaved(
                             lame, buffer, nsamples, mp3buf, kMp3BufSize);
+                } else {
+                    mp3buf_written = lame_encode_buffer(
+                            lame, buffer, NULL, nsamples * 2, mp3buf, kMp3BufSize);
+                }
                 if (mp3buf_written < 0) {
                     rsvc_errorf(done, __FILE__, __LINE__, "encode error");
                     return;
@@ -63,7 +69,7 @@ void rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
                 if (!rsvc_write("pipe", dst_fd, mp3buf, mp3buf_written, NULL, NULL, done)) {
                     return;
                 }
-                progress(samples_per_channel_read * 1.0 / meta.samples_per_channel);
+                progress(samples_per_channel_read * 2.0 / meta.channels / meta.samples_per_channel);
             }
         }
         if (lame_encode_flush(lame, mp3buf, kMp3BufSize) < 0) {
