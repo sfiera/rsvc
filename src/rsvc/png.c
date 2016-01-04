@@ -25,9 +25,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#define PNG_IHDR "IHDR"
-#define PNG_PLTE "PLTE"
-#define PNG_IDAT "IDAT"
+#define PNG_IHDR 0x49484452
+#define PNG_PLTE 0x504c5445
 
 #define PNG_HEADER_SIZE     8
 #define PNG_CHECKSUM_SIZE   4
@@ -36,10 +35,7 @@
 #define PNG_PALETTE_USED 0x01
 
 static size_t read_size(const uint8_t data[4]) {
-    return ((uint8_t)data[0] << 24)
-        + ((uint8_t)data[1] << 16)
-        + ((uint8_t)data[2] << 8)
-        + ((uint8_t)data[3] << 0);
+    return (data[0] << 24) + (data[1] << 16) + (data[2] << 8) + (data[3] << 0);
 }
 
 static bool png_consume_file_header(
@@ -55,14 +51,13 @@ static bool png_consume_file_header(
 
 static bool png_consume_block_header(
         const char* path, const uint8_t** data, size_t* size,
-        char block_type[5], size_t* block_size, rsvc_done_t fail) {
+        size_t* block_type, size_t* block_size, rsvc_done_t fail) {
     if (*size < PNG_HEADER_SIZE) {
         rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
         return false;
     }
-    *block_size = read_size(*data);
-    memcpy(block_type, *data + 4, 4);
-    block_type[5] = '\0';
+    *block_size = read_size(0 + *data);
+    *block_type = read_size(4 + *data);
     *data += PNG_HEADER_SIZE;
     *size -= PNG_HEADER_SIZE;
     return true;
@@ -77,15 +72,14 @@ static bool png_info(
 
     bool got_ihdr = false;
     while (size) {
-        char block_type[5];
-        size_t block_size;
-        if (!png_consume_block_header(path, &data, &size, block_type, &block_size, fail)) {
+        size_t block_type, block_size;
+        if (!png_consume_block_header(path, &data, &size, &block_type, &block_size, fail)) {
             return false;
         }
-        rsvc_logf(3, "png header %s", block_type);
+        rsvc_logf(3, "png header %08zx", block_type);
 
         if (!got_ihdr) {
-            if (strcmp(block_type, PNG_IHDR) != 0) {
+            if (block_type != PNG_IHDR) {
                 rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid png (IHDR not first)", path);
                 return false;
             }
@@ -110,7 +104,7 @@ static bool png_info(
                 return true;
             }
         } else {
-            if (strcmp(block_type, PNG_PLTE) == 0) {
+            if (block_type == PNG_PLTE) {
                 if ((block_size % 3) != 0) {
                     rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid png (bad PLTE size)", path);
                     return false;
