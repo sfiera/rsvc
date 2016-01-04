@@ -804,30 +804,24 @@ bool rsvc_mp4_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_don
 
 void rsvc_mp4_format_register() {
     struct rsvc_format m4a = {
-        .name = "mp4",
+        .name = "m4a",
         .mime = "audio/mp4",
-        .magic = "????ftypM4A ",
+        .magic = {"????ftypM4A "},
         .magic_size = 12,
         .extension = "m4a",
         .open_tags = rsvc_mp4_open_tags,
     };
     struct rsvc_format m4v = {
-        .name = "mp4",
+        .name = "m4v",
         .mime = "video/mp4",
-        .magic = "????ftypM4V ",
-        .magic_size = 12,
-        .extension = "m4v",
-        .open_tags = rsvc_mp4_open_tags,
-    };
-    struct rsvc_format mp42 = {
-        .name = "mp4",
-        .mime = "video/mp4",
-        .magic = "????ftypmp42",
+        .magic = {
+            "????ftypM4V ",
+            "????ftypmp42",
+        },
         .magic_size = 12,
         .extension = "m4v",
         .open_tags = rsvc_mp4_open_tags,
     };
     rsvc_format_register(&m4a);
     rsvc_format_register(&m4v);
-    rsvc_format_register(&mp42);
 }

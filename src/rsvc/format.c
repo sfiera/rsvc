@@ -49,7 +49,12 @@ void rsvc_format_register(rsvc_format_t format) {
         .format = {
             .name       = strdup(format->name),
             .mime       = strdup(format->mime),
-            .magic      = format->magic ? memdup(format->magic, format->magic_size) : NULL,
+            .magic = {
+                format->magic[0] ? strdup(format->magic[0]) : NULL,
+                format->magic[1] ? strdup(format->magic[1]) : NULL,
+                format->magic[2] ? strdup(format->magic[2]) : NULL,
+                format->magic[3] ? strdup(format->magic[3]) : NULL,
+            },
             .magic_size = format->magic_size,
             .extension  = format->extension ? strdup(format->extension) : NULL,
             .lossless   = format->lossless,
@@ -113,26 +118,33 @@ static bool check_magic(rsvc_format_t format, int fd,
         return true;
     }
     uint8_t* data = malloc(format->magic_size);
+
     ssize_t size = pread(fd, data, format->magic_size, 0);
     if (size < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
-        goto failure;
-    } else if (size < format->magic_size) {
-        goto success;
-    }
-    for (size_t i = 0; i < format->magic_size; ++i) {
-        if ((format->magic[i] != '?') && (format->magic[i] != data[i])) {
-            goto success;
+        free(data);
+        return false;
+    } else if (size >= format->magic_size) {
+        for (size_t i = 0; i < 4; ++i) {
+            const char* magic = format->magic[i];
+            if (!magic) {
+                break;
+            }
+            for (size_t j = 0; j < format->magic_size; ++j) {
+                if ((magic[j] != '?') && (magic[j] != data[j])) {
+                    goto next_format;
+                }
+            }
+            *matches = true;
+            *out = format;
+            break;
+next_format:
+            continue;
         }
     }
-    *matches = true;
-    *out = format;
-success:
+
     free(data);
     return true;
-failure:
-    free(data);
-    return false;
 }
 
 static const char* get_extension(const char* path) {

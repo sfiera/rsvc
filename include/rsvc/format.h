@@ -37,8 +37,8 @@ struct rsvc_format {
     const char*         name;
     const char*         mime;
 
+    const char*         magic[4];
     size_t              magic_size;
-    const char*         magic;
     const char*         extension;
     bool                lossless;
 

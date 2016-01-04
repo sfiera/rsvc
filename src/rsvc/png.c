@@ -134,7 +134,7 @@ void rsvc_png_format_register() {
     struct rsvc_format png = {
         .name = "png",
         .mime = "image/png",
-        .magic = "\211PNG\015\012\032\012",
+        .magic = {"\211PNG\015\012\032\012"},
         .magic_size = 8,
         .extension = "png",
         .image_info = png_info,

@@ -142,7 +142,7 @@ void rsvc_jpeg_format_register() {
     struct rsvc_format jpeg = {
         .name = "jpeg",
         .mime = "image/jpeg",
-        .magic = "??????JFIF",
+        .magic = {"??????JFIF"},
         .magic_size = 10,
         .extension = "jpg",
         .image_info = jpeg_info,

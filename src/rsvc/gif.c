@@ -41,22 +41,13 @@ static bool gif_info(
 }
 
 void rsvc_gif_format_register() {
-    struct rsvc_format gif87a = {
+    struct rsvc_format gif = {
         .name = "gif",
         .mime = "image/gif",
-        .magic = "GIF87a",
+        .magic = {"GIF87a", "GIF89a"},
         .magic_size = 6,
         .extension = "gif",
         .image_info = gif_info,
     };
-    struct rsvc_format gif89a = {
-        .name = "gif",
-        .mime = "image/gif",
-        .magic = "GIF89a",
-        .magic_size = 6,
-        .extension = "gif",
-        .image_info = gif_info,
-    };
-    rsvc_format_register(&gif87a);
-    rsvc_format_register(&gif89a);
+    rsvc_format_register(&gif);
 }

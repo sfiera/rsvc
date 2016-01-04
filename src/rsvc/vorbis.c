@@ -507,7 +507,7 @@ void rsvc_vorbis_format_register() {
     struct rsvc_format vorbis = {
         .name = "vorbis",
         .mime = "application/ogg",
-        .magic = "OggS",
+        .magic = {"OggS"},
         .magic_size = 4,
         .extension = "ogv",
         .lossless = false,

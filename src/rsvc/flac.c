@@ -620,7 +620,7 @@ void rsvc_flac_format_register() {
     struct rsvc_format flac = {
         .name = "flac",
         .mime = "audio/x-flac",
-        .magic = "fLaC",
+        .magic = {"fLaC"},
         .magic_size = 4,
         .extension = "flac",
         .lossless = true,
