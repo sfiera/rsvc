@@ -37,6 +37,14 @@
     , "dependencies": ["librsvc"]
     }
 
+  , { "target_name": "rsvctest"
+    , "type": "executable"
+    , "sources":
+      [ "src/rsvc/unix.test.c"
+      ]
+    , "dependencies": ["librsvc"]
+    }
+
   , { "target_name": "librsvc"
     , "type": "static_library"
     , "sources":

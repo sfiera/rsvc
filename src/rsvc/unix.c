@@ -260,7 +260,7 @@ void rsvc_trimdirs(const char* path) {
     }
 }
 
-void rsvc_dirname(const char* path, char* dirname) {
+char* rsvc_dirname(const char* path, char* dirname) {
     char* slash = strrchr(path, '/');
     if (slash == NULL) {
         strcpy(dirname, ".");
@@ -275,6 +275,47 @@ void rsvc_dirname(const char* path, char* dirname) {
         strncpy(dirname, path, slash - path);
         dirname[slash - path] = '\0';
     }
+    return dirname;
+}
+
+char* rsvc_basename(const char* path, char* basename) {
+    const char* end = path + strlen(path);
+    if (path == end) {
+        *basename = '\0';
+        return basename;
+    }
+    while ((end > path) && (*(end - 1) == '/')) {
+        --end;
+    }
+    if (path == end) {
+        strcpy(basename, "/");
+        return basename;
+    }
+    const char* begin = end - 1;
+    while ((begin > path) && (*(begin - 1) != '/')) {
+        --begin;
+    }
+    size_t len = end - begin;
+    memcpy(basename, begin, len);
+    basename[len] = '\0';
+    return basename;
+}
+
+char* rsvc_ext(const char* path, char* ext) {
+    rsvc_basename(path, ext);
+    const char* base = ext;
+    const char* end = base + strlen(base);
+    base += strspn(base, ".");
+    char* begin = strrchr(base, '.');
+    if (begin) {
+        ++begin;
+        size_t len = end - begin;
+        memmove(ext, begin, len);
+        ext[len] = '\0';
+        return ext;
+    }
+    *ext = '\0';
+    return NULL;
 }
 
 bool rsvc_pipe(int* read_pipe, int* write_pipe, rsvc_done_t fail) {

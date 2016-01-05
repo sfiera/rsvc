@@ -54,16 +54,6 @@ static void cloak_main(int argc, char* const* argv) {
     }
 }
 
-// TODO(sfiera): more robust extension-finding.
-static const char* get_extension(const char* path) {
-    const char* dot = strrchr(path, '.');
-    if (!dot || strchr(dot, '/')) {
-        return NULL;
-    } else {
-        return dot + 1;
-    }
-}
-
 static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
     int fd;
     if (!rsvc_open(path, O_RDONLY, 0644, &fd, done)) {
@@ -322,7 +312,8 @@ bool same_file(const char* x, const char* y) {
 bool move_file(const char* path, rsvc_tags_t tags, ops_t ops, rsvc_done_t fail) {
     bool success = false;
     const char* format = ops->move_format ? ops->move_format : DEFAULT_PATH;
-    const char* extension = get_extension(path);
+    char extension_scratch[MAXPATHLEN];
+    char* extension = rsvc_ext(path, extension_scratch);
     char* parent = NULL;
     char* new_path = NULL;
     char* new_parent = NULL;
@@ -407,7 +398,8 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
                     strcat(image_path, parent);
                     strcat(image_path, "/cover");
                 }
-                if (!get_extension(image_path)) {
+                char scratch[MAXPATHLEN];
+                if (!rsvc_ext(image_path, scratch)) {
                     strcat(image_path, ".");
                     strcat(image_path, format->extension);
                 }

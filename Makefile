@@ -3,6 +3,10 @@ NINJA=ninja -C out/cur
 all:
 	@$(NINJA)
 
+test:
+	@$(NINJA)
+	scripts/unix-test.sh
+
 clean:
 	@$(NINJA) -t clean
 
