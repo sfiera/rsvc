@@ -35,7 +35,7 @@
 #include "list.h"
 #include "common.h"
 
-static bool get_type(const char* name, rsvc_disc_type_t* type) {
+static bool get_type(const char* name, enum rsvc_disc_type* type) {
     if (strcmp(name, kIOCDMediaClass) == 0) {
         *type = RSVC_DISC_TYPE_CD;
         return true;
@@ -54,7 +54,7 @@ static void send_io_object(struct rsvc_watch_context* watch, io_object_t object)
     if (IOObjectGetClass(object, type_string) != KERN_SUCCESS) {
         return;
     }
-    rsvc_disc_type_t type;
+    enum rsvc_disc_type type;
     if (!get_type(type_string, &type)) {
         return;
     }

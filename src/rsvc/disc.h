@@ -34,11 +34,11 @@ struct rsvc_watch_context {
 
 struct disc_node {
     char* name;
-    rsvc_disc_type_t type;
+    enum rsvc_disc_type type;
     struct disc_node* prev;
     struct disc_node* next;
 };
 
-void rsvc_send_disc(struct rsvc_watch_context* watch, const char* name, rsvc_disc_type_t type);
+void rsvc_send_disc(struct rsvc_watch_context* watch, const char* name, enum rsvc_disc_type type);
 
 #endif  // SRC_RSVC_DISC_H_

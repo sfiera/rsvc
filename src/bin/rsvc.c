@@ -355,13 +355,13 @@ void rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk)) {
     __block int ndisks = 0;
     __block char* disk = NULL;
     struct rsvc_disc_watch_callbacks callbacks;
-    callbacks.appeared = ^(rsvc_disc_type_t type, const char* path){
+    callbacks.appeared = ^(enum rsvc_disc_type type, const char* path){
         ++ndisks;
         if (!disk) {
             disk = strdup(path);
         }
     };
-    callbacks.disappeared = ^(rsvc_disc_type_t type, const char* path){};
+    callbacks.disappeared = ^(enum rsvc_disc_type type, const char* path){};
     callbacks.initialized = ^(rsvc_stop_t stop){
         stop();
         rsvc_done_t fail = ^(rsvc_error_t error){

@@ -62,7 +62,7 @@ struct rsvc_cd_track {
     size_t number;
     rsvc_cd_t cd;
     rsvc_cd_session_t session;
-    rsvc_cd_track_type_t type;
+    enum rsvc_cd_track_type type;
     size_t sector_begin;
     size_t sector_end;
     int nchannels;
@@ -280,7 +280,7 @@ size_t rsvc_cd_track_number(rsvc_cd_track_t track) {
     return track->number;
 }
 
-rsvc_cd_track_type_t rsvc_cd_track_type(rsvc_cd_track_t track) {
+enum rsvc_cd_track_type rsvc_cd_track_type(rsvc_cd_track_t track) {
     return track->type;
 }
 

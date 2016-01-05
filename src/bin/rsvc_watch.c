@@ -31,12 +31,12 @@ void rsvc_command_watch(rsvc_done_t done) {
     __block bool show = false;
 
     struct rsvc_disc_watch_callbacks callbacks;
-    callbacks.appeared = ^(rsvc_disc_type_t type, const char* path){
+    callbacks.appeared = ^(enum rsvc_disc_type type, const char* path){
         if (show) {
             outf("+\t%s\t%s\n", path, rsvc_disc_type_name[type]);
         }
     };
-    callbacks.disappeared = ^(rsvc_disc_type_t type, const char* path){
+    callbacks.disappeared = ^(enum rsvc_disc_type type, const char* path){
         outf("-\t%s\t%s\n", path, rsvc_disc_type_name[type]);
     };
     callbacks.initialized = ^(rsvc_stop_t stop){

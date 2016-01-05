@@ -30,8 +30,8 @@
 ///
 ///     cd.h
 ///
-/// ..  type:: enum rsvc_disc_type_t
-typedef enum rsvc_disc_type {
+/// ..  type:: enum rsvc_disc_type
+enum rsvc_disc_type {
     /// ..  var:: RSVC_DISC_TYPE_NONE
     ///
     ///     Denotes the absence of a disc.
@@ -56,17 +56,17 @@ typedef enum rsvc_disc_type {
     ///
     ///     Denotes a HD-DVD disc.
     RSVC_DISC_TYPE_HDDVD,
-} rsvc_disc_type_t;
+};
 
 extern const char* rsvc_disc_type_name[];
 
 struct rsvc_disc_watch_callbacks {
-    void (^appeared)(rsvc_disc_type_t, const char*);
-    void (^disappeared)(rsvc_disc_type_t, const char*);
+    void (^appeared)(enum rsvc_disc_type, const char*);
+    void (^disappeared)(enum rsvc_disc_type, const char*);
     void (^initialized)(rsvc_stop_t);
 };
 
-/// ..  function:: void rsvc_disc_watch(void (^appeared)(rsvc_disc_type_t, const char*), void (^disappeared)(rsvc_disc_type_t, const char*), void (^initialized)())
+/// ..  function:: void rsvc_disc_watch(struct rsvc_disc_watch_callbacks callbacks)
 ///
 ///     When first called, invokes `callbacks.appeared` for every disc
 ///     which is currently available, then invokes

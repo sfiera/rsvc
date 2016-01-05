@@ -35,7 +35,7 @@ const char* rsvc_disc_type_name[] = {
     [RSVC_DISC_TYPE_HDDVD]  = "hddvd",
 };
 
-void rsvc_send_disc(struct rsvc_watch_context* watch, const char* name, rsvc_disc_type_t type) {
+void rsvc_send_disc(struct rsvc_watch_context* watch, const char* name, enum rsvc_disc_type type) {
     if (type == RSVC_DISC_TYPE_NONE) {
         for (struct disc_node* node = watch->head; node; node = node->next) {
             if (strcmp(node->name, name) == 0) {

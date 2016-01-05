@@ -249,7 +249,7 @@ rsvc_tags_t rsvc_tags_new();
 /// ..  var:: RSVC_MUSICBRAINZ_DISCID
 #define RSVC_MUSICBRAINZ_DISCID     "MUSICBRAINZ_DISCID"
 
-typedef enum {
+enum rsvc_tag_code {
     RSVC_CODE_ARTIST            = 'a',
     RSVC_CODE_ALBUM             = 'A',
     RSVC_CODE_ALBUMARTIST       = 'b',
@@ -266,7 +266,7 @@ typedef enum {
     RSVC_CODE_EPISODETOTAL      = 'E',
     RSVC_CODE_SEASONNUMBER      = 'c',
     RSVC_CODE_SEASONTOTAL       = 'C',
-} rsvc_tag_code_t;
+};
 
 const char* rsvc_tag_code_get(int code);
 

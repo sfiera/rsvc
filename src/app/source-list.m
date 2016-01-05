@@ -41,7 +41,7 @@ static NSString* kDiscTypeNames[] = {
     [_source_list expandItem:nil expandChildren:YES];
     _discs = [[NSMutableDictionary alloc] init];
     rsvc_disc_watch_callbacks_t callbacks = {
-        .appeared = ^(rsvc_disc_type_t type, const char* name){
+        .appeared = ^(enum rsvc_disc_type type, const char* name){
             NSString* ns_path = [[NSString alloc] initWithUTF8String:name];
             dispatch_async(dispatch_get_main_queue(), ^{
                 NSMutableDictionary* disc = [NSMutableDictionary dictionaryWithObjectsAndKeys:
@@ -54,7 +54,7 @@ static NSString* kDiscTypeNames[] = {
                 [_source_list reloadItem:kDiscs reloadChildren:YES];
             });
         },
-        .disappeared = ^(rsvc_disc_type_t type, const char* name){
+        .disappeared = ^(enum rsvc_disc_type type, const char* name){
             NSString* ns_path = [[NSString alloc] initWithUTF8String:name];
             dispatch_async(dispatch_get_main_queue(), ^{
                 [_discs removeObjectForKey:ns_path];

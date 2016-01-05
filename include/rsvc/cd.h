@@ -177,22 +177,22 @@ bool                    rsvc_cd_session_each_track(rsvc_cd_session_t session,
 ///     :returns:   The number of the track (1-100).
 size_t                  rsvc_cd_track_number(rsvc_cd_track_t track);
 
-/// ..  type:: enum rsvc_cd_track_type_t
-typedef enum rsvc_cd_track_type_t {
+/// ..  type:: enum rsvc_cd_track_type
+enum rsvc_cd_track_type {
     /// ..  var:: RSVC_CD_TRACK_AUDIO
     RSVC_CD_TRACK_AUDIO,
     /// ..  var:: RSVC_CD_TRACK_DATA
     RSVC_CD_TRACK_DATA,
-} rsvc_cd_track_type_t;
+};
 
-/// ..  function:: rsvc_cd_track_type_t rsvc_cd_track_type(rsvc_cd_track_t track)
+/// ..  function:: rsvc_cd_track_type rsvc_cd_track_type(rsvc_cd_track_t track)
 ///
 ///     Indicates whether a particular track is an audio track or a data
 ///     track.
 ///
 ///     :returns:   :data:`RSVC_CD_TRACK_AUDIO` or
 ///                 :data:`RSVC_CD_TRACK_DATA`
-rsvc_cd_track_type_t    rsvc_cd_track_type(rsvc_cd_track_t track);
+enum rsvc_cd_track_type     rsvc_cd_track_type(rsvc_cd_track_t track);
 
 /// ..  function:: size_t rsvc_cd_track_nchannels(rsvc_cd_track_t track)
 ///

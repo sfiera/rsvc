@@ -56,7 +56,7 @@ static const char* abbrev_dev(const char* devnode) {
     return devnode;
 }
 
-static rsvc_disc_type_t profile_disc_type(int profile) {
+static enum rsvc_disc_type profile_disc_type(int profile) {
     switch (profile) {
       case 0x08:
       case 0x09:
@@ -93,7 +93,7 @@ static rsvc_disc_type_t profile_disc_type(int profile) {
     }
 }
 
-static rsvc_disc_type_t fd_to_disc_type(int fd) {
+static enum rsvc_disc_type fd_to_disc_type(int fd) {
     unsigned char buf[8] = {};
     unsigned char command[10] = {
         [0] = 0x46,
@@ -120,13 +120,13 @@ static rsvc_disc_type_t fd_to_disc_type(int fd) {
     return profile_disc_type(profile);
 }
 
-static rsvc_disc_type_t path_to_disc_type(const char* path) {
+static enum rsvc_disc_type path_to_disc_type(const char* path) {
     int fd;
     rsvc_done_t fail = ^(rsvc_error_t error){};
     if (!rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, fail)) {
         return RSVC_DISC_TYPE_NONE;
     }
-    rsvc_disc_type_t type = fd_to_disc_type(fd);
+    enum rsvc_disc_type type = fd_to_disc_type(fd);
     close(fd);
     return type;
 }
@@ -153,7 +153,7 @@ static void disc_watch(struct rsvc_watch_context* context, rsvc_done_t done) {
 		const char *path = udev_list_entry_get_name(dev_list_entry);
 		struct udev_device* dev = udev_device_new_from_syspath(udev, path);
         const char* devnode = udev_device_get_devnode(dev);
-        rsvc_disc_type_t type = path_to_disc_type(devnode);
+        enum rsvc_disc_type type = path_to_disc_type(devnode);
         rsvc_send_disc(context, abbrev_dev(devnode), type);
 		udev_device_unref(dev);
 	}
@@ -186,7 +186,7 @@ static void disc_watch(struct rsvc_watch_context* context, rsvc_done_t done) {
                 struct udev_device* dev = udev_monitor_receive_device(monitor);
                 if (dev) {
                     const char* devnode = udev_device_get_devnode(dev);
-                    rsvc_disc_type_t type = path_to_disc_type(devnode);
+                    enum rsvc_disc_type type = path_to_disc_type(devnode);
                     rsvc_send_disc(context, abbrev_dev(devnode), type);
                     udev_device_unref(dev);
                 }
