@@ -36,7 +36,7 @@
 
 typedef struct rsvc_format_node* rsvc_format_node_t;
 struct rsvc_format_node {
-    struct rsvc_format format;
+    rsvc_format_t format;
     rsvc_format_node_t prev, next;
 };
 
@@ -46,24 +46,7 @@ static struct {
 
 void rsvc_format_register(rsvc_format_t format) {
     struct rsvc_format_node node = {
-        .format = {
-            .super      = format->super,
-            .name       = strdup(format->name),
-            .mime       = strdup(format->mime),
-            .magic = {
-                format->magic[0] ? strdup(format->magic[0]) : NULL,
-                format->magic[1] ? strdup(format->magic[1]) : NULL,
-                format->magic[2] ? strdup(format->magic[2]) : NULL,
-                format->magic[3] ? strdup(format->magic[3]) : NULL,
-            },
-            .magic_size = format->magic_size,
-            .extension  = format->extension ? strdup(format->extension) : NULL,
-            .lossless   = format->lossless,
-            .open_tags  = format->open_tags,
-            .encode     = format->encode,
-            .decode     = format->decode,
-            .image_info = format->image_info,
-        },
+        .format = format,
     };
     RSVC_LIST_PUSH(&formats, memdup(&node, sizeof(node)));
 }
@@ -106,7 +89,7 @@ rsvc_format_t rsvc_format_with_mime(const char* mime, int flags) {
 bool rsvc_formats_each(void (^block)(rsvc_format_t format, rsvc_stop_t stop)) {
     __block bool loop = true;
     for (rsvc_format_node_t curr = formats.head; curr && loop; curr = curr->next) {
-        block(&curr->format, ^{
+        block(curr->format, ^{
             loop = false;
         });
     }
@@ -186,12 +169,12 @@ bool rsvc_format_detect(const char* path, int fd, int flags,
     }
 
     for (rsvc_format_node_t curr = formats.head; curr; curr = curr->next) {
-        if (!check_flags(flags, &curr->format)) {
+        if (!check_flags(flags, curr->format)) {
             continue;
         }
         bool matches = false;
-        if (!(check_magic(&curr->format, fd, &matches, format, fail) &&
-              check_extension(&curr->format, path, &matches, format, fail))) {
+        if (!(check_magic(curr->format, fd, &matches, format, fail) &&
+              check_extension(curr->format, path, &matches, format, fail))) {
             return false;
         } else if (matches) {
             return true;
