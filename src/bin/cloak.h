@@ -96,11 +96,11 @@ enum short_flag {
     PATH                = 'p',
 };
 
-typedef enum list_mode {
+enum list_mode {
     LIST_MODE_NONE = 0,
     LIST_MODE_SHORT,
     LIST_MODE_LONG,
-} list_mode_t;
+};
 
 struct string_list {
     size_t nstrings;
@@ -153,7 +153,7 @@ struct ops {
 
     bool            dry_run;
 
-    list_mode_t     list_mode;
+    enum list_mode  list_mode;
     bool            list_tags;
     bool            list_images;
 
