@@ -33,14 +33,15 @@
 
 typedef bool (*rsvc_open_tags_f)(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail);
 
-enum rsvc_super {
+enum rsvc_format_group {
     RSVC_AUDIO,
     RSVC_VIDEO,
     RSVC_IMAGE,
 };
 
 struct rsvc_format {
-    enum rsvc_super     super;
+    enum rsvc_format_group
+                        format_group;
     const char*         name;
     const char*         mime;
 
@@ -63,6 +64,6 @@ rsvc_format_t           rsvc_format_with_mime(const char* mime);
 bool                    rsvc_format_detect(const char* path, int fd,
                                            rsvc_format_t* format, rsvc_done_t fail);
 bool                    rsvc_formats_each(void (^block)(rsvc_format_t format, rsvc_stop_t stop));
-const char*             rsvc_super_name(enum rsvc_super super);
+const char*             rsvc_format_group_name(enum rsvc_format_group format_group);
 
 #endif  // RSVC_FORMAT_H_

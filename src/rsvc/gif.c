@@ -41,7 +41,7 @@ static bool gif_info(
 }
 
 const struct rsvc_format rsvc_gif = {
-    .super = RSVC_IMAGE,
+    .format_group = RSVC_IMAGE,
     .name = "gif",
     .mime = "image/gif",
     .magic = {"GIF87a", "GIF89a"},

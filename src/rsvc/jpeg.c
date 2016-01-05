@@ -139,7 +139,7 @@ static bool jpeg_info(
 }
 
 const struct rsvc_format rsvc_jpeg = {
-    .super = RSVC_IMAGE,
+    .format_group = RSVC_IMAGE,
     .name = "jpeg",
     .mime = "image/jpeg",
     .magic = {"??????JFIF"},

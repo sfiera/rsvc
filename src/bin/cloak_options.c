@@ -221,12 +221,12 @@ static bool help_option(const char* progname) {
 }
 
 static bool formats_option(const char* progname) {
-    enum rsvc_super supers[3] = {RSVC_AUDIO, RSVC_VIDEO, RSVC_IMAGE};
+    enum rsvc_format_group format_groups[3] = {RSVC_AUDIO, RSVC_VIDEO, RSVC_IMAGE};
     for (int i = 0; i < 3; ++i) {
-        enum rsvc_super super = supers[i];
-        outf("%s:", rsvc_super_name(super));
+        enum rsvc_format_group format_group = format_groups[i];
+        outf("%s:", rsvc_format_group_name(format_group));
         rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
-            if (format->super == super) {
+            if (format->format_group == format_group) {
                 outf(" %s", format->name);
             }
         });

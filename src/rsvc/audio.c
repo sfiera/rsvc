@@ -23,7 +23,7 @@
 #include <rsvc/format.h>
 
 const struct rsvc_format rsvc_mp3 = {
-    .super = RSVC_AUDIO,
+    .format_group = RSVC_AUDIO,
     .name = "mp3",
     .mime = "audio/mpeg",
     .magic = {"ID3"},
@@ -37,7 +37,7 @@ const struct rsvc_format rsvc_mp3 = {
 
 // TODO(sfiera): allow alac encoding too.
 const struct rsvc_format rsvc_m4a = {
-    .super = RSVC_AUDIO,
+    .format_group = RSVC_AUDIO,
     .name = "m4a",
     .mime = "audio/mp4",
     .magic = {"????ftypM4A "},
@@ -49,7 +49,7 @@ const struct rsvc_format rsvc_m4a = {
 };
 
 const struct rsvc_format rsvc_m4v = {
-    .super = RSVC_VIDEO,
+    .format_group = RSVC_VIDEO,
     .name = "m4v",
     .mime = "video/mp4",
     .magic = {

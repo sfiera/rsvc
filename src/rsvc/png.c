@@ -131,7 +131,7 @@ static bool png_info(
 }
 
 const struct rsvc_format rsvc_png = {
-    .super = RSVC_IMAGE,
+    .format_group = RSVC_IMAGE,
     .name = "png",
     .mime = "image/png",
     .magic = {"\211PNG\015\012\032\012"},

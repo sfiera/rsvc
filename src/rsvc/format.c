@@ -164,7 +164,7 @@ bool rsvc_format_detect(const char* path, int fd,
     return false;
 }
 
-const char* rsvc_super_name(enum rsvc_super super) {
+const char* rsvc_format_group_name(enum rsvc_format_group format_group) {
     static const char names[3][6] = {"audio", "video", "image"};
-    return names[super];
+    return names[format_group];
 }

@@ -504,7 +504,7 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
 #undef FAIL
 
 const struct rsvc_format rsvc_vorbis = {
-    .super = RSVC_AUDIO,
+    .format_group = RSVC_AUDIO,
     .name = "vorbis",
     .mime = "application/ogg",
     .magic = {"OggS"},

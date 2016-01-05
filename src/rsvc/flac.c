@@ -616,7 +616,7 @@ static void flac_decode_error(const FLAC__StreamDecoder* decoder,
 }
 
 const struct rsvc_format rsvc_flac = {
-    .super = RSVC_AUDIO,
+    .format_group = RSVC_AUDIO,
     .name = "flac",
     .mime = "audio/x-flac",
     .magic = {"fLaC"},
