@@ -341,15 +341,19 @@ static void convert_write(convert_options_t options, rsvc_audio_meta_t meta,
 static void decode_file(convert_options_t options, int write_fd,
                         rsvc_decode_metadata_f start, rsvc_done_t done) {
     rsvc_format_t format;
-    if (!rsvc_format_detect(options->input, options->input_fd, RSVC_FORMAT_DECODE, &format,
-                            ^(rsvc_error_t error){
+    rsvc_done_t cant_decode = ^(rsvc_error_t error){
         if (options->skip_unknown) {
             outf(" skip   %s\n", options->output);
             done(NULL);
         } else {
             done(error);
         }
-    })) {
+    };
+    if (!rsvc_format_detect(options->input, options->input_fd, &format, cant_decode)) {
+        return;
+    } else if (!format->decode) {
+        rsvc_errorf(cant_decode, __FILE__, __LINE__,
+                    "%s: can't decode %s file", options->input, format->name);
         return;
     }
     format->decode(options->input_fd, write_fd, start, done);
@@ -406,10 +410,10 @@ static void copy_tags(convert_options_t options, const char* tmp_path, rsvc_done
     // formats (e.g. conversion to/from WAV), then silently do nothing.
     rsvc_format_t read_fmt, write_fmt;
     rsvc_done_t ignore = ^(rsvc_error_t error){ /* do nothing */ };
-    if (!(rsvc_format_detect(options->input, options->input_fd, RSVC_FORMAT_OPEN_TAGS,
-                             &read_fmt, ignore)
-          && rsvc_format_detect(tmp_path, options->output_fd, RSVC_FORMAT_OPEN_TAGS,
-                                &write_fmt, ignore))) {
+    if (!(rsvc_format_detect(options->input, options->input_fd, &read_fmt, ignore)
+          && read_fmt->open_tags
+          && rsvc_format_detect(tmp_path, options->output_fd, &write_fmt, ignore)
+          && write_fmt->open_tags)) {
         done(NULL);
         return;
     }

@@ -1175,8 +1175,8 @@ static void id3_image_yield(
         id3_frame_node_t node,
         void (^block)(rsvc_format_t format, const uint8_t* data, size_t size)) {
     struct id3_image_data* d = (void*)node->data;
-    rsvc_format_t format = rsvc_format_with_mime((const char*)d->data, 0);
-    if (format) {
+    rsvc_format_t format = rsvc_format_with_mime((const char*)d->data);
+    if (format && format->image_info) {
         block(format, d->data + d->description_end, d->payload_end - d->description_end);
     }
 }

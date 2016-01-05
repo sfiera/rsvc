@@ -327,8 +327,8 @@ static bool rsvc_flac_tags_image_each(
         }
         FLAC__StreamMetadata* metadata = FLAC__metadata_iterator_get_block(it);
         FLAC__StreamMetadata_Picture* picture = &metadata->data.picture;
-        rsvc_format_t format = rsvc_format_with_mime(picture->mime_type, RSVC_FORMAT_IMAGE_INFO);
-        if (!format) {
+        rsvc_format_t format = rsvc_format_with_mime(picture->mime_type);
+        if (!format || !format->image_info) {
             continue;
         }
         block(format, picture->data, picture->data_length, ^{

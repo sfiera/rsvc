@@ -307,7 +307,11 @@ static bool image_option(ops_t ops, rsvc_option_value_t get_value, enum short_fl
         rsvc_format_t format;
         if (!(get_value(&path, fail)
               && rsvc_open(path, O_RDONLY, 0644, &fd, fail)
-              && rsvc_format_detect(path, fd, RSVC_FORMAT_IMAGE_INFO, &format, fail))) {
+              && rsvc_format_detect(path, fd, &format, fail))) {
+            return false;
+        }
+        if (!format->image_info) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "%s: not an image file", path);
             return false;
         }
         if (flag == IMAGE) {

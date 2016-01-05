@@ -56,18 +56,11 @@ struct rsvc_format {
     rsvc_image_info_f   image_info;
 };
 
-enum rsvc_format_detect_flags {
-    RSVC_FORMAT_OPEN_TAGS   = 1 << 0,
-    RSVC_FORMAT_ENCODE      = 1 << 1,
-    RSVC_FORMAT_DECODE      = 1 << 2,
-    RSVC_FORMAT_IMAGE_INFO  = 1 << 3,
-};
-
 void                    rsvc_format_register(rsvc_format_t format);
 
-rsvc_format_t           rsvc_format_named(const char* name, int flags);
-rsvc_format_t           rsvc_format_with_mime(const char* mime, int flags);
-bool                    rsvc_format_detect(const char* path, int fd, int flags,
+rsvc_format_t           rsvc_format_named(const char* name);
+rsvc_format_t           rsvc_format_with_mime(const char* mime);
+bool                    rsvc_format_detect(const char* path, int fd,
                                            rsvc_format_t* format, rsvc_done_t fail);
 bool                    rsvc_formats_each(void (^block)(rsvc_format_t format, rsvc_stop_t stop));
 const char*             rsvc_super_name(enum rsvc_super super);

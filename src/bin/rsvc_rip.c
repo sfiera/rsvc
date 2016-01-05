@@ -230,8 +230,14 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
 static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {
     rsvc_format_t format;
     rsvc_tags_t tags;
-    if (!(rsvc_format_detect(path, fd, RSVC_FORMAT_OPEN_TAGS, &format, done)
-          && format->open_tags(path, RSVC_TAG_RDWR, &tags, done))) {
+    if (!rsvc_format_detect(path, fd, &format, done)) {
+        return;
+    }
+    if (!format->open_tags) {
+        rsvc_errorf(done, __FILE__, __LINE__, "%s: can't tag %s file", path, format->name);
+        return;
+    }
+    if (!format->open_tags(path, RSVC_TAG_RDWR, &tags, done)) {
         return;
     }
     done = ^(rsvc_error_t error){

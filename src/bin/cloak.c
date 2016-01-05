@@ -71,7 +71,10 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
     };
 
     rsvc_format_t format;
-    if (!rsvc_format_detect(path, fd, RSVC_FORMAT_OPEN_TAGS, &format, done)) {
+    if (!rsvc_format_detect(path, fd, &format, done)) {
+        return;
+    } else if (!format->open_tags) {
+        rsvc_errorf(done, __FILE__, __LINE__, "%s: can't tag %s file", path, format->name);
         return;
     }
 

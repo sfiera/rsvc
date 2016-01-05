@@ -401,8 +401,8 @@ static bool format_option(struct encode_options* encode, rsvc_option_value_t get
     if (!get_value(&value, fail)) {
         return false;
     }
-    encode->format = rsvc_format_named(value, RSVC_FORMAT_ENCODE);
-    if (!encode->format) {
+    encode->format = rsvc_format_named(value);
+    if (!encode->format || !encode->format->encode) {
         rsvc_errorf(fail, __FILE__, __LINE__, "invalid format: %s", value);
         return false;
     }

@@ -51,39 +51,22 @@ void rsvc_format_register(rsvc_format_t format) {
     RSVC_LIST_PUSH(&formats, memdup(&node, sizeof(node)));
 }
 
-static bool check_flags(int flags, rsvc_format_t format) {
-    return ((flags & RSVC_FORMAT_OPEN_TAGS)  ? !!format->open_tags  : true)
-        && ((flags & RSVC_FORMAT_ENCODE)     ? !!format->encode     : true)
-        && ((flags & RSVC_FORMAT_DECODE)     ? !!format->decode     : true)
-        && ((flags & RSVC_FORMAT_IMAGE_INFO) ? !!format->image_info : true);
+rsvc_format_t rsvc_format_named(const char* name) {
+    for (rsvc_format_node_t curr = formats.head; curr; curr = curr->next) {
+        if (strcmp(curr->format->name, name) == 0) {
+            return curr->format;
+        }
+    }
+    return NULL;
 }
 
-rsvc_format_t rsvc_format_named(const char* name, int flags) {
-    __block rsvc_format_t result = NULL;
-    rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
-        if (!check_flags(flags, format)) {
-            return;
+rsvc_format_t rsvc_format_with_mime(const char* mime) {
+    for (rsvc_format_node_t curr = formats.head; curr; curr = curr->next) {
+        if (strcmp(curr->format->mime, mime) == 0) {
+            return curr->format;
         }
-        if (strcmp(format->name, name) == 0) {
-            result = format;
-            stop();
-        }
-    });
-    return result;
-}
-
-rsvc_format_t rsvc_format_with_mime(const char* mime, int flags) {
-    __block rsvc_format_t result = NULL;
-    rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
-        if (!check_flags(flags, format)) {
-            return;
-        }
-        if (strcmp(format->mime, mime) == 0) {
-            result = format;
-            stop();
-        }
-    });
-    return result;
+    }
+    return NULL;
 }
 
 bool rsvc_formats_each(void (^block)(rsvc_format_t format, rsvc_stop_t stop)) {
@@ -155,7 +138,7 @@ static bool check_extension(rsvc_format_t format, const char* path,
     return true;
 }
 
-bool rsvc_format_detect(const char* path, int fd, int flags,
+bool rsvc_format_detect(const char* path, int fd,
                         rsvc_format_t* format, rsvc_done_t fail) {
     // Don't open directories.
     struct stat st;
@@ -169,9 +152,6 @@ bool rsvc_format_detect(const char* path, int fd, int flags,
     }
 
     for (rsvc_format_node_t curr = formats.head; curr; curr = curr->next) {
-        if (!check_flags(flags, curr->format)) {
-            continue;
-        }
         bool matches = false;
         if (!(check_magic(curr->format, fd, &matches, format, fail) &&
               check_extension(curr->format, path, &matches, format, fail))) {
