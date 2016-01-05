@@ -199,7 +199,7 @@ static void disc_watch(struct rsvc_watch_context* context, rsvc_done_t done) {
     done(NULL);
 }
 
-void rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
+void rsvc_disc_watch(struct rsvc_disc_watch_callbacks callbacks) {
     struct rsvc_watch_context build_context = {
         .queue = dispatch_queue_create("net.sfiera.ripservice.disc", NULL),
         .callbacks = {

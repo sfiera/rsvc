@@ -354,7 +354,7 @@ static int rsvc_jobs_default() {
 void rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk)) {
     __block int ndisks = 0;
     __block char* disk = NULL;
-    rsvc_disc_watch_callbacks_t callbacks;
+    struct rsvc_disc_watch_callbacks callbacks;
     callbacks.appeared = ^(rsvc_disc_type_t type, const char* path){
         ++ndisks;
         if (!disk) {

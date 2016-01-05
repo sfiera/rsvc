@@ -60,11 +60,11 @@ typedef enum rsvc_disc_type {
 
 extern const char* rsvc_disc_type_name[];
 
-typedef struct rsvc_disc_callbacks {
+struct rsvc_disc_watch_callbacks {
     void (^appeared)(rsvc_disc_type_t, const char*);
     void (^disappeared)(rsvc_disc_type_t, const char*);
     void (^initialized)(rsvc_stop_t);
-} rsvc_disc_watch_callbacks_t;
+};
 
 /// ..  function:: void rsvc_disc_watch(void (^appeared)(rsvc_disc_type_t, const char*), void (^disappeared)(rsvc_disc_type_t, const char*), void (^initialized)())
 ///
@@ -78,7 +78,7 @@ typedef struct rsvc_disc_callbacks {
 ///
 ///     All callbacks are serialized on an internal, single-threaded
 ///     dispatch queue to maintain consistency.
-void                    rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks);
+void                    rsvc_disc_watch(struct rsvc_disc_watch_callbacks callbacks);
 
 void                    rsvc_disc_eject(const char* path, rsvc_done_t done);
 

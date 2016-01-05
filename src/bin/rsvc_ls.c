@@ -27,7 +27,7 @@
 #include <rsvc/disc.h>
 
 void rsvc_command_ls(rsvc_done_t done) {
-    rsvc_disc_watch_callbacks_t callbacks;
+    struct rsvc_disc_watch_callbacks callbacks;
     callbacks.appeared = ^(rsvc_disc_type_t type, const char* path){
         outf("%s\t%s\n", path, rsvc_disc_type_name[type]);
     };

@@ -26,7 +26,7 @@
 struct rsvc_watch_context {
     dispatch_queue_t queue;
     bool enable;
-    rsvc_disc_watch_callbacks_t callbacks;
+    struct rsvc_disc_watch_callbacks callbacks;
 
     struct disc_node* head;
     struct disc_node* tail;

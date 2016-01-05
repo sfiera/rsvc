@@ -115,7 +115,7 @@ static void disappeared_callback(DADiskRef disk, void* userdata) {
     }
 }
 
-void rsvc_disc_watch(rsvc_disc_watch_callbacks_t callbacks) {
+void rsvc_disc_watch(struct rsvc_disc_watch_callbacks callbacks) {
     struct rsvc_watch_context build_userdata = {
         .queue = dispatch_queue_create("net.sfiera.ripservice.disc", NULL),
         .enable = false,
