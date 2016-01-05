@@ -26,12 +26,12 @@ static bool help_option(const char* progname);
 static bool formats_option(const char* progname);
 static bool verbosity_option();
 static bool version_option();
-static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
+static bool tag_option(ops_t ops, rsvc_option_value_f get_value, enum short_flag flag,
                        rsvc_done_t fail);
-static bool image_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
+static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_flag flag,
                          rsvc_done_t fail);
-static bool path_option(ops_t ops, rsvc_option_value_t get_value, rsvc_done_t fail);
-static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_t get_value, rsvc_done_t fail);
+static bool path_option(ops_t ops, rsvc_option_value_f get_value, rsvc_done_t fail);
+static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_f get_value, rsvc_done_t fail);
 static bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail);
 
 struct rsvc_long_option_name kLongFlags[] = {
@@ -96,7 +96,7 @@ bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t* files,
     const char* progname = strdup(basename(argv[0]));
     __block struct rsvc_option_callbacks callbacks;
 
-    callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+    callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
         switch (opt) {
           case HELP:                return help_option(progname);
           case FORMATS:             return formats_option(progname);
@@ -123,7 +123,7 @@ bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t* files,
         }
     };
 
-    callbacks.long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+    callbacks.long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
         return rsvc_long_option(kLongFlags, callbacks.short_option, opt, get_value, fail);
     };
 
@@ -269,7 +269,7 @@ static bool split_assignment(const char* assignment, char** name, char** value,
     return true;
 }
 
-static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
+static bool tag_option(ops_t ops, rsvc_option_value_f get_value, enum short_flag flag,
                        rsvc_done_t fail) {
     if (flag == REMOVE) {
         char* value;
@@ -299,7 +299,7 @@ static bool tag_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag
     return true;
 }
 
-static bool image_option(ops_t ops, rsvc_option_value_t get_value, enum short_flag flag,
+static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_flag flag,
                          rsvc_done_t fail) {
     if ((flag == IMAGE) || (flag == ADD_IMAGE)) {
         char* path;
@@ -348,14 +348,14 @@ static bool image_option(ops_t ops, rsvc_option_value_t get_value, enum short_fl
     return false;
 }
 
-static bool path_option(ops_t ops, rsvc_option_value_t get_value, rsvc_done_t fail) {
+static bool path_option(ops_t ops, rsvc_option_value_f get_value, rsvc_done_t fail) {
     if (rsvc_string_option(&ops->move_format, get_value, fail)) {
         rsvc_tags_validate_strf(ops->move_format, fail);
     }
     return true;
 }
 
-static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_t get_value,
+static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_f get_value,
         rsvc_done_t fail) {
     if (rsvc_tag_code_get(opt)) {
         const char* tag_name = rsvc_tag_code_get(opt);

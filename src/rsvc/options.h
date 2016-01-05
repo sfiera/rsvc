@@ -28,15 +28,15 @@
 /// Option Parsing
 /// --------------
 ///
-/// ..  type:: rsvc_option_value_t
-typedef bool (^rsvc_option_value_t)(char** value, rsvc_done_t fail);
+/// ..  type:: rsvc_option_value_f
+typedef bool (^rsvc_option_value_f)(char** value, rsvc_done_t fail);
 
 /// ..  type:: rsvc_option_callbacks_t
 ///
 ///     A struct of blocks that can be used with :func:`rsvc_options()`.
 typedef struct rsvc_option_callbacks* rsvc_option_callbacks_t;
 struct rsvc_option_callbacks {
-    /// ..  member:: bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail)
+    /// ..  member:: bool (^short_option)(int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail)
     ///
     ///     Called for each short option (-o) in the command-line.  May
     ///     return false to indicate that `opt` is not a valid option.
@@ -45,9 +45,9 @@ struct rsvc_option_callbacks {
     ///     :param value:   A block which may optionally be invoked to
     ///                     retrieve the value of the option.
     ///     :returns:       true iff `opt` is a valid option.
-    bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail);
+    bool (^short_option)(int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail);
 
-    /// ..  member:: bool (^long_option)(char* opt, rsvc_option_value_t get_value, rsvc_done_t fail)
+    /// ..  member:: bool (^long_option)(char* opt, rsvc_option_value_f get_value, rsvc_done_t fail)
     ///
     ///     Called for each long option (--option) in the command-line.
     ///     May return false to indicate that `opt` is not a valid
@@ -57,7 +57,7 @@ struct rsvc_option_callbacks {
     ///     :param value:   A block which may optionally be invoked to
     ///                     retrieve the value of the option.
     ///     :returns:       true iff `opt` is a valid option.
-    bool (^long_option)(char* opt, rsvc_option_value_t get_value, rsvc_done_t fail);
+    bool (^long_option)(char* opt, rsvc_option_value_f get_value, rsvc_done_t fail);
 
     /// ..  member:: bool (^argument)(char *arg)
     ///
@@ -88,13 +88,13 @@ struct rsvc_long_option_name {
 
 bool rsvc_long_option(
         struct rsvc_long_option_name table[],
-        bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail),
-        const char* opt, rsvc_option_value_t get_value, rsvc_done_t fail);
+        bool (^short_option)(int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail),
+        const char* opt, rsvc_option_value_f get_value, rsvc_done_t fail);
 
 bool rsvc_illegal_short_option(int32_t opt, rsvc_done_t fail);
 bool rsvc_illegal_long_option(const char* opt, rsvc_done_t fail);
-bool rsvc_string_option(char** string, rsvc_option_value_t get_value, rsvc_done_t fail);
-bool rsvc_integer_option(int* integer, rsvc_option_value_t get_value, rsvc_done_t fail);
+bool rsvc_string_option(char** string, rsvc_option_value_f get_value, rsvc_done_t fail);
+bool rsvc_integer_option(int* integer, rsvc_option_value_f get_value, rsvc_done_t fail);
 bool rsvc_boolean_option(bool* boolean);
 
 #endif  // RSVC_OPTIONS_H_

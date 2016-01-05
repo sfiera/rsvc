@@ -39,8 +39,8 @@ extern int rsvc_jobs;
 struct rsvc_command {
     const char* name;
 
-    bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail);
-    bool (^long_option)(char* opt, rsvc_option_value_t get_value, rsvc_done_t fail);
+    bool (^short_option)(int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail);
+    bool (^long_option)(char* opt, rsvc_option_value_f get_value, rsvc_done_t fail);
     bool (^argument)(char* arg, rsvc_done_t fail);
     void (^usage)();
 

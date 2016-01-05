@@ -111,8 +111,8 @@ bool rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t callba
 
 bool rsvc_long_option(
         struct rsvc_long_option_name table[],
-        bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail),
-        const char* opt, rsvc_option_value_t get_value, rsvc_done_t fail) {
+        bool (^short_option)(int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail),
+        const char* opt, rsvc_option_value_f get_value, rsvc_done_t fail) {
     for ( ; table->long_name; ++table) {
         if (strcmp(opt, table->long_name) == 0) {
             return short_option(table->short_name, get_value, fail);
@@ -132,7 +132,7 @@ bool rsvc_illegal_long_option(const char* opt, rsvc_done_t fail) {
     return false;
 }
 
-bool rsvc_string_option(char** string, rsvc_option_value_t get_value, rsvc_done_t fail) {
+bool rsvc_string_option(char** string, rsvc_option_value_f get_value, rsvc_done_t fail) {
     if (*string) {
         free(*string);
     }
@@ -144,7 +144,7 @@ bool rsvc_string_option(char** string, rsvc_option_value_t get_value, rsvc_done_
     return true;
 }
 
-bool rsvc_integer_option(int* integer, rsvc_option_value_t get_value, rsvc_done_t fail) {
+bool rsvc_integer_option(int* integer, rsvc_option_value_f get_value, rsvc_done_t fail) {
     char* value;
     if (!get_value(&value, fail)) {
         return false;

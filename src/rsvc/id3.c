@@ -49,18 +49,18 @@ typedef struct id3_frame_spec* id3_frame_spec_t;
 typedef struct id3_frame_node* id3_frame_node_t;
 typedef struct id3_frame_list* id3_frame_list_t;
 
-typedef bool (*id3_read_t)(id3_frame_list_t frames, id3_frame_spec_t spec,
+typedef bool (*id3_read_f)(id3_frame_list_t frames, id3_frame_spec_t spec,
                            uint8_t* data, size_t size, rsvc_done_t fail);
-typedef void (*id3_yield_t)(id3_frame_node_t node,
+typedef void (*id3_yield_f)(id3_frame_node_t node,
                             void (^block)(const char* name, const char* value));
-typedef void (*id3_image_yield_t)(
+typedef void (*id3_image_yield_f)(
                         id3_frame_node_t,
                         void (^block)(rsvc_format_t format, const uint8_t* data, size_t size));
-typedef bool (*id3_add_t)(id3_frame_list_t frames, id3_frame_spec_t spec,
+typedef bool (*id3_add_f)(id3_frame_list_t frames, id3_frame_spec_t spec,
                           const char* value, rsvc_done_t fail);
-typedef bool (*id3_remove_t)(id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail);
-typedef size_t (*id3_size_t)(id3_frame_node_t node);
-typedef void (*id3_write_t)(id3_frame_node_t node, uint8_t* data);
+typedef bool (*id3_remove_f)(id3_frame_list_t frames, id3_frame_spec_t spec, rsvc_done_t fail);
+typedef size_t (*id3_size_f)(id3_frame_node_t node);
+typedef void (*id3_write_f)(id3_frame_node_t node, uint8_t* data);
 
 static bool     id3_text_read(
                         id3_frame_list_t frames, id3_frame_spec_t spec,
@@ -119,13 +119,13 @@ static bool     id3_discard_read(
                         uint8_t* data, size_t size, rsvc_done_t fail);
 
 struct id3_frame_type {
-    id3_read_t          read;
-    id3_yield_t         yield;
-    id3_image_yield_t   image_yield;
-    id3_add_t           add;
-    id3_remove_t        remove;
-    id3_size_t          size;
-    id3_write_t         write;
+    id3_read_f          read;
+    id3_yield_f         yield;
+    id3_image_yield_f   image_yield;
+    id3_add_f           add;
+    id3_remove_f        remove;
+    id3_size_f          size;
+    id3_write_f         write;
 };
 
 static struct id3_frame_type id3_text = {

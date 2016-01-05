@@ -38,9 +38,9 @@ int                           rsvc_exit = EX_OK;
 int                           rsvc_jobs = -1;
 
 static int rsvc_jobs_default();
-static bool bitrate_option(struct encode_options* encode, rsvc_option_value_t get_value,
+static bool bitrate_option(struct encode_options* encode, rsvc_option_value_f get_value,
                            rsvc_done_t fail);
-static bool format_option(struct encode_options* encode, rsvc_option_value_t get_value,
+static bool format_option(struct encode_options* encode, rsvc_option_value_f get_value,
                           rsvc_done_t fail);
 
 static bool read_si_number(const char* in, int64_t* out);
@@ -113,7 +113,7 @@ static void rsvc_main(int argc, char* const* argv) {
     };
     __block struct rsvc_command rip = {
         .name = "rip",
-        .short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+        .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
             switch (opt) {
               case 'b': return bitrate_option(&rip_options.encode, get_value, fail);
               case 'f': return format_option(&rip_options.encode, get_value, fail);
@@ -122,7 +122,7 @@ static void rsvc_main(int argc, char* const* argv) {
               default:  return rsvc_illegal_short_option(opt, fail);
             }
         },
-        .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+        .long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
             return rsvc_long_option((struct rsvc_long_option_name[]){
                 {"bitrate",  'b'},
                 {"eject",    'e'},
@@ -168,7 +168,7 @@ static void rsvc_main(int argc, char* const* argv) {
     };
     __block struct rsvc_command convert = {
         .name = "convert",
-        .short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+        .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
             switch (opt) {
               case 'b': return bitrate_option(&convert_options.encode, get_value, fail);
               case 'f': return format_option(&convert_options.encode, get_value, fail);
@@ -178,7 +178,7 @@ static void rsvc_main(int argc, char* const* argv) {
               default:  return rsvc_illegal_short_option(opt, fail);
             }
         },
-        .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+        .long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
             return rsvc_long_option((struct rsvc_long_option_name[]){
                 {"bitrate",     'b'},
                 {"format",      'f'},
@@ -227,7 +227,7 @@ static void rsvc_main(int argc, char* const* argv) {
         },
     };
 
-    callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+    callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
         switch (opt) {
           case 'h':
             rsvc_usage(^(rsvc_error_t ignore){});
@@ -249,7 +249,7 @@ static void rsvc_main(int argc, char* const* argv) {
         return rsvc_illegal_short_option(opt, fail);
     };
 
-    callbacks.long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
+    callbacks.long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
         if (strcmp(opt, "help") == 0) {
             return callbacks.short_option('h', get_value, fail);
         } else if (strcmp(opt, "jobs") == 0) {
@@ -381,7 +381,7 @@ void rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk)) {
     rsvc_disc_watch(callbacks);
 }
 
-static bool bitrate_option(struct encode_options* encode, rsvc_option_value_t get_value,
+static bool bitrate_option(struct encode_options* encode, rsvc_option_value_f get_value,
                            rsvc_done_t fail) {
     char* value;
     if (!get_value(&value, fail)) {
@@ -395,7 +395,7 @@ static bool bitrate_option(struct encode_options* encode, rsvc_option_value_t ge
     return true;
 }
 
-static bool format_option(struct encode_options* encode, rsvc_option_value_t get_value,
+static bool format_option(struct encode_options* encode, rsvc_option_value_f get_value,
                           rsvc_done_t fail) {
     char* value;
     if (!get_value(&value, fail)) {
