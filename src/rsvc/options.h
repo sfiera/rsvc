@@ -34,7 +34,8 @@ typedef bool (^rsvc_option_value_t)(char** value, rsvc_done_t fail);
 /// ..  type:: rsvc_option_callbacks_t
 ///
 ///     A struct of blocks that can be used with :func:`rsvc_options()`.
-typedef struct option_callbacks {
+typedef struct rsvc_option_callbacks* rsvc_option_callbacks_t;
+struct rsvc_option_callbacks {
     /// ..  member:: bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail)
     ///
     ///     Called for each short option (-o) in the command-line.  May
@@ -66,7 +67,7 @@ typedef struct option_callbacks {
     ///     :param arg:     The value of the argument.
     ///     :returns:       true iff `arg` was accepted.
     bool (^argument)(char* arg, rsvc_done_t fail);
-} rsvc_option_callbacks_t;
+};
 
 /// ..  function:: rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callbacks)
 ///
@@ -78,12 +79,13 @@ typedef struct option_callbacks {
 ///     :param argv:        An array of argument strings.
 ///     :param callbacks:   A set of callbacks to invoke during parsing.
 bool                    rsvc_options(size_t argc, char* const* argv,
-                                     rsvc_option_callbacks_t* callbacks, rsvc_done_t fail);
+                                     rsvc_option_callbacks_t callbacks, rsvc_done_t fail);
 
-typedef struct rsvc_long_option_name {
+struct rsvc_long_option_name {
     const char* long_name;
     int short_name;
-} rsvc_long_option_names[];
+};
+
 bool rsvc_long_option(
         struct rsvc_long_option_name table[],
         bool (^short_option)(int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail),

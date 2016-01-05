@@ -34,7 +34,7 @@ static bool path_option(ops_t ops, rsvc_option_value_t get_value, rsvc_done_t fa
 static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_t get_value, rsvc_done_t fail);
 static bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail);
 
-rsvc_long_option_names kLongFlags = {
+struct rsvc_long_option_name kLongFlags[] = {
     {"help",                HELP},
     {"formats",             FORMATS},
     {"dry-run",             DRY_RUN},
@@ -94,7 +94,7 @@ static void add_string(string_list_t* list, const char* string) {
 
 bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t* files, rsvc_done_t fail) {
     const char* progname = strdup(basename(argv[0]));
-    __block rsvc_option_callbacks_t callbacks;
+    __block struct rsvc_option_callbacks callbacks;
 
     callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_t get_value, rsvc_done_t fail){
         switch (opt) {

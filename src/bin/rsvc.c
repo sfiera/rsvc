@@ -31,11 +31,11 @@
 #include <rsvc/audio.h>
 #include <rsvc/disc.h>
 
-const char*                 rsvc_progname;
-rsvc_option_callbacks_t     callbacks;
-rsvc_command_t              command = NULL;
-int                         rsvc_exit = EX_OK;
-int                         rsvc_jobs = -1;
+const char*                   rsvc_progname;
+struct rsvc_option_callbacks  callbacks;
+rsvc_command_t                command = NULL;
+int                           rsvc_exit = EX_OK;
+int                           rsvc_jobs = -1;
 
 static int rsvc_jobs_default();
 static bool bitrate_option(struct encode_options* encode, rsvc_option_value_t get_value,
@@ -123,7 +123,7 @@ static void rsvc_main(int argc, char* const* argv) {
             }
         },
         .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
-            return rsvc_long_option((rsvc_long_option_names){
+            return rsvc_long_option((struct rsvc_long_option_name[]){
                 {"bitrate",  'b'},
                 {"eject",    'e'},
                 {"format",   'f'},
@@ -179,7 +179,7 @@ static void rsvc_main(int argc, char* const* argv) {
             }
         },
         .long_option = ^bool (char* opt, rsvc_option_value_t get_value, rsvc_done_t fail){
-            return rsvc_long_option((rsvc_long_option_names){
+            return rsvc_long_option((struct rsvc_long_option_name[]){
                 {"bitrate",     'b'},
                 {"format",      'f'},
                 {"recursive",   'r'},

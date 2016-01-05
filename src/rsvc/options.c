@@ -25,7 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-bool rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t* callbacks,
+bool rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t callbacks,
                   rsvc_done_t fail) {
     __block size_t i = 1;
     for ( ; i < argc; ++i) {
