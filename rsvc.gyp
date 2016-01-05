@@ -54,6 +54,7 @@
       , "include/rsvc/common.h"
       , "include/rsvc/disc.h"
       , "include/rsvc/format.h"
+      , "include/rsvc/forward.h"
       , "include/rsvc/image.h"
       , "include/rsvc/musicbrainz.h"
       , "include/rsvc/tag.h"

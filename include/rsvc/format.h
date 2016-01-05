@@ -31,8 +31,6 @@
 /// Formats
 /// -------
 
-typedef bool (*rsvc_open_tags_f)(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail);
-
 enum rsvc_format_group {
     RSVC_AUDIO,
     RSVC_VIDEO,

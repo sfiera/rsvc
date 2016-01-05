@@ -1,7 +1,7 @@
 //
 // This file is part of Rip Service.
 //
-// Copyright (C) 2014 Chris Pickel <sfiera@sfzmail.com>
+// Copyright (C) 2012 Chris Pickel <sfiera@sfzmail.com>
 //
 // Rip Service is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -18,17 +18,19 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#ifndef RSVC_CANCEL_H_
-#define RSVC_CANCEL_H_
+#ifndef RSVC_FORWARD_H_
+#define RSVC_FORWARD_H_
 
-#include "common.h"
+typedef const  struct rsvc_format*          rsvc_format_t;
 
-extern struct rsvc_cancel rsvc_sigint;
+typedef        struct rsvc_audio_meta*      rsvc_audio_meta_t;
+typedef        struct rsvc_cd*              rsvc_cd_t;
+typedef        struct rsvc_cd_session*      rsvc_cd_session_t;
+typedef        struct rsvc_cd_track*        rsvc_cd_track_t;
+typedef        struct rsvc_encode_options*  rsvc_encode_options_t;
+typedef        struct rsvc_error*           rsvc_error_t;
+typedef        struct rsvc_tags*            rsvc_tags_t;
+typedef        struct rsvc_cancel*          rsvc_cancel_t;
+typedef        struct rsvc_cancel_handle*   rsvc_cancel_handle_t;
 
-rsvc_cancel_t rsvc_cancel_new();
-void rsvc_cancel_destroy(rsvc_cancel_t cancel);
-rsvc_cancel_handle_t rsvc_cancel_add(rsvc_cancel_t cancel, rsvc_stop_t fn);
-void rsvc_cancel(rsvc_cancel_t cancel);
-void rsvc_cancel_remove(rsvc_cancel_t cancel, rsvc_cancel_handle_t handle);
-
-#endif  // RSVC_CANCEL_H_
+#endif  // RSVC_FORWARD_H_

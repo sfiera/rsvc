@@ -25,10 +25,6 @@
 #include <rsvc/common.h>
 #include <rsvc/cancel.h>
 
-typedef struct rsvc_cd* rsvc_cd_t;
-typedef struct rsvc_cd_session* rsvc_cd_session_t;
-typedef struct rsvc_cd_track* rsvc_cd_track_t;
-
 /// Compact Disc
 /// ============
 ///

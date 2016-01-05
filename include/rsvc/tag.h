@@ -25,8 +25,6 @@
 #include <stdbool.h>
 #include <rsvc/common.h>
 
-typedef const struct rsvc_format* rsvc_format_t;
-typedef struct rsvc_tags* rsvc_tags_t;
 struct rsvc_tags_methods {
     bool (*remove)(rsvc_tags_t tags, const char* name, rsvc_done_t fail);
     bool (*add)(rsvc_tags_t tags, const char* name, const char* value, rsvc_done_t fail);
@@ -51,6 +49,8 @@ enum {
     RSVC_TAG_RDONLY = 0,
     RSVC_TAG_RDWR = 1,
 };
+
+typedef bool (*rsvc_open_tags_f)(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail);
 
 /// Tags
 /// ====

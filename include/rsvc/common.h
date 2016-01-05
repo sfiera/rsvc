@@ -24,6 +24,7 @@
 #include <dispatch/dispatch.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <rsvc/forward.h>
 
 /// Common Utilities
 /// ================
@@ -66,7 +67,6 @@ typedef void (^rsvc_stop_t)();
 ///     Contains error information.  Typically provided as an argument
 ///     to a completion callback; either NULL to indicate success, or a
 ///     non-NULL value indicating the type and location of an error.
-typedef struct rsvc_error* rsvc_error_t;
 struct rsvc_error {
     /// ..  member:: const char* message
     ///
