@@ -27,7 +27,7 @@
 
 void rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done) {
     struct rsvc_audio_meta meta         = options->meta;
-    rsvc_encode_progress_t progress     = options->progress;
+    rsvc_encode_progress_f progress     = options->progress;
 
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         lame_global_flags* lame = lame_init();

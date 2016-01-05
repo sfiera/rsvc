@@ -34,12 +34,12 @@ struct rsvc_audio_meta {
 
 /// Encoding
 /// --------
-/// ..  type:: void (^rsvc_encode_progress_t)(double progress)
-typedef void (^rsvc_encode_progress_t)(double progress);
+/// ..  type:: void (^rsvc_encode_progress_f)(double progress)
+typedef void (^rsvc_encode_progress_f)(double progress);
 
 struct rsvc_encode_options {
     struct rsvc_audio_meta  meta;
-    rsvc_encode_progress_t  progress;
+    rsvc_encode_progress_f  progress;
 };
 
 typedef void (*rsvc_encode_f)(
