@@ -25,7 +25,7 @@
 
 static void print_tags(rsvc_tags_t tags);
 static void print_images(rsvc_tags_t tags);
-static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done);
+static void tag_files(string_list_node_t node, ops_t ops, rsvc_done_t done);
 static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done);
 
 static void register_all_formats() {
@@ -45,11 +45,11 @@ static void cloak_main(int argc, char* const* argv) {
     };
 
     struct ops ops = {};
-    string_list_t files = {};
+    struct string_list files = {};
 
     register_all_formats();
     if (cloak_options(argc, argv, &ops, &files, fail)) {
-        tag_files(files.nstrings, files.strings, &ops, fail);
+        tag_files(files.head, &ops, fail);
         dispatch_main();
     }
 }
@@ -142,20 +142,20 @@ static void print_images(rsvc_tags_t tags) {
     });
 }
 
-static void tag_files(size_t nfiles, char** files, ops_t ops, rsvc_done_t done) {
-    if (nfiles == 0) {
+static void tag_files(string_list_node_t node, ops_t ops, rsvc_done_t done) {
+    if (!node) {
         done(NULL);
         return;
     }
-    tag_file(files[0], ops, ^(rsvc_error_t error){
+    tag_file(node->value, ops, ^(rsvc_error_t error){
         if (error) {
             done(error);
             return;
         }
-        if (ops->list_mode && (nfiles > 1)) {
+        if (ops->list_mode && node->next) {
             outf("\n");
         }
-        tag_files(nfiles - 1, files + 1, ops, done);
+        tag_files(node->next, ops, done);
     });
 }
 
@@ -353,8 +353,8 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
             return;
         }
     } else {
-        for (size_t i = 0; i < ops->remove_tags.nstrings; ++i) {
-            if (!rsvc_tags_remove(tags, ops->remove_tags.strings[i], done)) {
+        for (string_list_node_t curr = ops->remove_tags.head; curr; curr = curr->next) {
+            if (!rsvc_tags_remove(tags, curr->value, done)) {
                 return;
             }
         }
@@ -365,22 +365,21 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
             return;
         }
     } else {
-        for (struct remove_image_node* curr = ops->remove_images.head; curr; curr = curr->next) {
+        for (remove_image_list_node_t curr = ops->remove_images.head; curr; curr = curr->next) {
             if (!rsvc_tags_image_remove(tags, curr->index, done)) {
                 return;
             }
         }
     }
 
-    for (size_t i = 0; i < ops->add_tag_names.nstrings; ++i) {
-        const char* name = ops->add_tag_names.strings[i];
-        const char* value = ops->add_tag_values.strings[i];
+    for (string_list_node_t curr = ops->add_tag_names.head; curr; curr = curr->next) {
+        const char* name = curr->value;
+        const char* value = curr->value;
         if (!rsvc_tags_add(tags, done, name, value)) {
             return;
         }
     }
-
-    for (struct write_image_node* curr = ops->write_images.head; curr; curr = curr->next) {
+    for (write_image_list_node_t curr = ops->write_images.head; curr; curr = curr->next) {
         const int index = curr->index;
         rsvc_logf(1, "writing image %d to %s", index, curr->temp_path);
         if ((index < 0) || (rsvc_tags_image_size(tags) <= index)) {
@@ -417,7 +416,7 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
         }
     }
 
-    for (struct add_image_node* curr = ops->add_images.head; curr; curr = curr->next) {
+    for (add_image_list_node_t curr = ops->add_images.head; curr; curr = curr->next) {
         const char* path = curr->path;
         int fd = curr->fd;
         rsvc_format_t format = curr->format;

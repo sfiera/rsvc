@@ -102,67 +102,75 @@ enum list_mode {
     LIST_MODE_LONG,
 };
 
-struct string_list {
-    size_t nstrings;
-    char** strings;
-};
-typedef struct string_list string_list_t;
+typedef struct string_list*             string_list_t;
+typedef struct string_list_node*        string_list_node_t;
+typedef struct add_image_list*          add_image_list_t;
+typedef struct add_image_list_node*     add_image_list_node_t;
+typedef struct remove_image_list*       remove_image_list_t;
+typedef struct remove_image_list_node*  remove_image_list_node_t;
+typedef struct write_image_list*        write_image_list_t;
+typedef struct write_image_list_node*   write_image_list_node_t;
 
-struct add_image_node {
-    const char* path;
-    int fd;
-    rsvc_format_t format;
-    struct add_image_node *prev, *next;
+struct string_list {
+    struct string_list_node {
+        char*               value;
+        string_list_node_t  prev, next;
+    } *head, *tail;
 };
 
 struct add_image_list {
-    struct add_image_node *head, *tail;
+    struct add_image_list_node {
+        const char*            path;
+        int                    fd;
+        rsvc_format_t          format;
+        add_image_list_node_t  prev, next;
+    } *head, *tail;
 };
 
 struct remove_image_list {
-    struct remove_image_node {
-        int index;
-        struct remove_image_node *prev, *next;
+    struct remove_image_list_node {
+        int                       index;
+        remove_image_list_node_t  prev, next;
     } *head, *tail;
 };
 
 struct write_image_list {
-    struct write_image_node {
-        int index;
-        const char* path;
-        char temp_path[MAXPATHLEN];
-        int fd;
-        struct write_image_node *prev, *next;
+    struct write_image_list_node {
+        int                      index;
+        const char*              path;
+        char                     temp_path[MAXPATHLEN];
+        int                      fd;
+        write_image_list_node_t  prev, next;
     } *head, *tail;
 };
 
 struct ops {
-    bool            remove_all_tags;
-    string_list_t   remove_tags;
+    bool                      remove_all_tags;
+    struct string_list        remove_tags;
 
-    string_list_t   add_tag_names;
-    string_list_t   add_tag_values;
+    struct string_list        add_tag_names;
+    struct string_list        add_tag_values;
 
-    int             image_index;
-    bool            remove_all_images;
-    struct add_image_list       add_images;
-    struct remove_image_list    remove_images;
-    struct write_image_list     write_images;
+    int                       image_index;
+    bool                      remove_all_images;
+    struct add_image_list     add_images;
+    struct remove_image_list  remove_images;
+    struct write_image_list   write_images;
 
-    bool            auto_mode;
+    bool                      auto_mode;
 
-    bool            dry_run;
+    bool                      dry_run;
 
-    enum list_mode  list_mode;
-    bool            list_tags;
-    bool            list_images;
+    enum list_mode            list_mode;
+    bool                      list_tags;
+    bool                      list_images;
 
-    bool            move_mode;
-    char*           move_format;
+    bool                      move_mode;
+    char*                     move_format;
 };
 typedef struct ops* ops_t;
 
-bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t* files, rsvc_done_t fail);
+bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t files, rsvc_done_t fail);
 int cloak_mode(ops_t ops);
 
 #endif  // SRC_BIN_CLOAK_H_

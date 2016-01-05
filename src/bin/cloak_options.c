@@ -32,7 +32,7 @@ static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_fl
                          rsvc_done_t fail);
 static bool path_option(ops_t ops, rsvc_option_value_f get_value, rsvc_done_t fail);
 static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_f get_value, rsvc_done_t fail);
-static bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail);
+static bool check_options(string_list_t files, ops_t ops, rsvc_done_t fail);
 
 struct rsvc_long_option_name kLongFlags[] = {
     {"help",                HELP},
@@ -80,19 +80,13 @@ struct rsvc_long_option_name kLongFlags[] = {
     {NULL},
 };
 
-static void add_string(string_list_t* list, const char* string) {
-    char** new_strings = calloc(list->nstrings + 1, sizeof(char*));
-    for (size_t i = 0; i < list->nstrings; ++i) {
-        new_strings[i] = list->strings[i];
-    }
-    new_strings[list->nstrings++] = strdup(string);
-    if (list->strings) {
-        free(list->strings);
-    }
-    list->strings = new_strings;
+static void add_string(string_list_t list, const char* string) {
+    struct string_list_node node = {strdup(string)};
+    string_list_node_t copy = memdup(&node, sizeof(node));
+    RSVC_LIST_PUSH(list, copy);
 }
 
-bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t* files, rsvc_done_t fail) {
+bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t files, rsvc_done_t fail) {
     const char* progname = strdup(basename(argv[0]));
     __block struct rsvc_option_callbacks callbacks;
 
@@ -138,15 +132,15 @@ bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t* files,
     }
 
     if (ops->list_tags || ops->list_images) {
-        ops->list_mode = (files->nstrings > 1) ? LIST_MODE_LONG : LIST_MODE_SHORT;
+        ops->list_mode = (files->head != files->tail) ? LIST_MODE_LONG : LIST_MODE_SHORT;
     }
     return true;
 }
 
 int cloak_mode(ops_t ops) {
     if (ops->remove_all_tags
-            || ops->remove_tags.nstrings
-            || ops->add_tag_names.nstrings
+            || ops->remove_tags.head
+            || ops->add_tag_names.head
             || ops->remove_all_images
             || ops->add_images.head
             || ops->remove_images.head
@@ -317,8 +311,8 @@ static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_fl
         if (flag == IMAGE) {
             ops->remove_all_images = true;
         }
-        struct add_image_node node = {path, fd, format};
-        struct add_image_node* copy = memdup(&node, sizeof(node));
+        struct add_image_list_node node = {path, fd, format};
+        add_image_list_node_t copy = memdup(&node, sizeof(node));
         RSVC_LIST_PUSH(&ops->add_images, copy);
         return true;
     } else if ((flag == WRITE_IMAGE) || (flag == WRITE_IMAGE_DEFAULT)) {
@@ -333,14 +327,14 @@ static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_fl
         if (!rsvc_temp(path, 0644, temp_path, &fd, fail)) {
             return false;
         }
-        struct write_image_node node = {ops->image_index, path, {}, fd};
+        struct write_image_list_node node = {ops->image_index, path, {}, fd};
         memcpy(node.temp_path, temp_path, MAXPATHLEN);
-        struct write_image_node* copy = memdup(&node, sizeof(node));
+        write_image_list_node_t copy = memdup(&node, sizeof(node));
         RSVC_LIST_PUSH(&ops->write_images, copy);
         return true;
     } else if (flag == REMOVE_IMAGE) {
-        struct remove_image_node node = {ops->image_index};
-        struct remove_image_node* copy = memdup(&node, sizeof(node));
+        struct remove_image_list_node node = {ops->image_index};
+        remove_image_list_node_t copy = memdup(&node, sizeof(node));
         RSVC_LIST_PUSH(&ops->remove_images, copy);
         return true;
     }
@@ -373,8 +367,8 @@ static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_f get_value,
     return rsvc_illegal_short_option(opt, fail);
 }
 
-static bool check_options(string_list_t* files, ops_t ops, rsvc_done_t fail) {
-    if (files->nstrings == 0) {
+static bool check_options(string_list_t files, ops_t ops, rsvc_done_t fail) {
+    if (!files->head) {
         rsvc_errorf(fail, __FILE__, __LINE__, "no input files");
         return false;
     } else if (cloak_mode(ops) < 0) {
