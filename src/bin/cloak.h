@@ -77,6 +77,8 @@ enum short_flag {
     DISC                = 'd',
     DISC_TOTAL          = 'D',
 
+    MOVIE               = -6,
+    TV                  = -7,
     SHOW                = 'S',
     EPISODE             = 'e',
     EPISODE_TOTAL       = 'E',

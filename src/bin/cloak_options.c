@@ -26,6 +26,7 @@ static bool help_option(const char* progname);
 static bool formats_option(const char* progname);
 static bool verbosity_option();
 static bool version_option();
+static bool literal_tag_option(ops_t ops, const char* tag_name, const char* tag_value);
 static bool tag_option(ops_t ops, rsvc_option_value_f get_value, enum short_flag flag,
                        rsvc_done_t fail);
 static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_flag flag,
@@ -61,6 +62,8 @@ struct rsvc_long_option_name kLongFlags[] = {
     {"tracktotal",          RSVC_CODE_TRACKTOTAL},
     {"discnumber",          RSVC_CODE_DISCNUMBER},
     {"disctotal",           RSVC_CODE_DISCTOTAL},
+    {"movie",               MOVIE},
+    {"tv",                  TV},
     {"show",                RSVC_CODE_SHOW},
     {"episodenumber",       RSVC_CODE_EPISODENUMBER},
     {"episodetotal",        RSVC_CODE_EPISODETOTAL},
@@ -105,6 +108,8 @@ bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t files, 
           case SET:                 return tag_option(ops, get_value, opt, fail);
           case REMOVE:              return tag_option(ops, get_value, opt, fail);
           case REMOVE_ALL:          return rsvc_boolean_option(&ops->remove_all_tags);
+          case MOVIE:               return literal_tag_option(ops, RSVC_MEDIAKIND, "Movie");
+          case TV:                  return literal_tag_option(ops, RSVC_MEDIAKIND, "TV Show");
           case IMAGE:               return image_option(ops, get_value, opt, fail);
           case WRITE_IMAGE:         return image_option(ops, get_value, opt, fail);
           case WRITE_IMAGE_DEFAULT: return image_option(ops, get_value, opt, fail);
@@ -194,6 +199,8 @@ static bool help_option(const char* progname) {
             "    -K, --track-total NUM   set the track total\n"
             "    -d, --disc NUM          set the disc number\n"
             "    -D, --disc-total NUM    set the disc total\n"
+            "        --movie             set MEDIAKIND=Movie\n"
+            "        --tv                set MEDIAKIND=TV Show\n"
             "    -S, --show NUM          set the show name\n"
             "    -e, --episode NUM       set the episode number\n"
             "    -E, --episode-total NUM set the episode total\n"
@@ -269,6 +276,13 @@ static bool split_assignment(const char* assignment, char** name, char** value,
     }
     *name = strndup(assignment, eq - assignment);
     *value = strdup(eq + 1);
+    return true;
+}
+
+static bool literal_tag_option(ops_t ops, const char* tag_name, const char* tag_value) {
+    add_string(&ops->remove_tags, tag_name);
+    add_string(&ops->add_tag_names, tag_name);
+    add_string(&ops->add_tag_values, tag_value);
     return true;
 }
 
