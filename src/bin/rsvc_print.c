@@ -27,39 +27,55 @@
 
 #include <rsvc/cd.h>
 
-char* print_disk;
+static char* print_disk;
 
 static void print_track(rsvc_cd_session_t session, size_t n);
 static void print_session(rsvc_cd_t cd, size_t n);
 
-void rsvc_command_print(rsvc_done_t done) {
-    if (print_disk == NULL) {
-        rsvc_default_disk(^(rsvc_error_t error, char* disk){
-            if (error) {
-                done(error);
-            } else {
-                print_disk = disk;
-                rsvc_command_print(done);
-            }
-        });
-        return;
-    }
+struct rsvc_command rsvc_print = {
+    .name = "print",
 
-    rsvc_cd_create(print_disk, ^(rsvc_cd_t cd, rsvc_error_t error){
-        if (error) {
-            done(error);
+    .usage = ^{
+        errf("usage: %s print [DEVICE]\n", rsvc_progname);
+    },
+
+    .run = ^(rsvc_done_t done){
+        if (print_disk == NULL) {
+            rsvc_default_disk(^(rsvc_error_t error, char* disk){
+                if (error) {
+                    done(error);
+                } else {
+                    print_disk = disk;
+                    rsvc_print.run(done);
+                }
+            });
             return;
         }
-        const char* mcn = rsvc_cd_mcn(cd);
-        if (*mcn) {
-            outf("MCN: %s\n", mcn);
-        }
-        print_session(cd, 0);
 
-        rsvc_cd_destroy(cd);
-        done(NULL);
-    });
-}
+        rsvc_cd_create(print_disk, ^(rsvc_cd_t cd, rsvc_error_t error){
+            if (error) {
+                done(error);
+                return;
+            }
+            const char* mcn = rsvc_cd_mcn(cd);
+            if (*mcn) {
+                outf("MCN: %s\n", mcn);
+            }
+            print_session(cd, 0);
+
+            rsvc_cd_destroy(cd);
+            done(NULL);
+        });
+    },
+
+    .argument = ^bool (char* arg, rsvc_done_t fail) {
+        if (!print_disk) {
+            print_disk = arg;
+            return true;
+        }
+        return false;
+    },
+};
 
 static void print_session(rsvc_cd_t cd, size_t n) {
     if (n == rsvc_cd_nsessions(cd)) {

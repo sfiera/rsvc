@@ -35,7 +35,12 @@
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
 
-struct rip_options rip_options;
+struct rip_options {
+    char* disk;
+    struct encode_options encode;
+    bool eject;
+    char* path_format;
+} rip_options;
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
 static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_t options,
@@ -44,43 +49,97 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
                      void (^done)(rsvc_error_t error, rsvc_tags_t tags));
 static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done);
 
-void rsvc_command_rip(rsvc_done_t done) {
-    if (rip_options.disk == NULL) {
-        rsvc_default_disk(^(rsvc_error_t error, char* disk){
-            if (error) {
-                done(error);
-            } else {
-                rip_options.disk = strdup(disk);
-                rsvc_command_rip(done);
+struct rsvc_command rsvc_rip = {
+    .name = "rip",
+
+    .usage = ^{
+        errf(
+                "usage: %s rip [OPTIONS] [DEVICE]\n"
+                "\n"
+                "Options:\n"
+                "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
+                "  -e, --eject             eject CD after ripping\n"
+                "  -f, --format FMT        output format (default: flac or vorbis)\n"
+                "  -h, --help              show this help page\n"
+                "  -p, --path PATH         format string for output (default %%k)\n"
+                "\n"
+                "Formats:\n",
+                rsvc_progname);
+        rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+            if (format->encode) {
+                errf("  %s\n", format->name);
             }
         });
-        return;
-    }
-    if (!rip_options.path_format) {
-        rip_options.path_format = "%k";
-    }
+    },
 
-    if (!validate_encode_options(&rip_options.encode, done)) {
-        return;
-    }
-
-    rsvc_cd_create(rip_options.disk, ^(rsvc_cd_t cd, rsvc_error_t error){
-        if (error) {
-            done(error);
+    .run = ^(rsvc_done_t done){
+        if (rip_options.disk == NULL) {
+            rsvc_default_disk(^(rsvc_error_t error, char* disk){
+                if (error) {
+                    done(error);
+                } else {
+                    rip_options.disk = strdup(disk);
+                    rsvc_rip.run(done);
+                }
+            });
             return;
         }
-        rip_all(cd, &rip_options, ^(rsvc_error_t error){
-            rsvc_cd_destroy(cd);
+        if (!rip_options.path_format) {
+            rip_options.path_format = "%k";
+        }
+
+        if (!validate_encode_options(&rip_options.encode, done)) {
+            return;
+        }
+
+        rsvc_cd_create(rip_options.disk, ^(rsvc_cd_t cd, rsvc_error_t error){
             if (error) {
                 done(error);
-            } else if (rip_options.eject) {
-                rsvc_disc_eject(rip_options.disk, done);
-            } else {
-                done(NULL);
+                return;
             }
+            rip_all(cd, &rip_options, ^(rsvc_error_t error){
+                rsvc_cd_destroy(cd);
+                if (error) {
+                    done(error);
+                } else if (rip_options.eject) {
+                    rsvc_disc_eject(rip_options.disk, done);
+                } else {
+                    done(NULL);
+                }
+            });
         });
-    });
-}
+    },
+
+    .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
+        switch (opt) {
+          case 'b': return bitrate_option(&rip_options.encode, get_value, fail);
+          case 'f': return format_option(&rip_options.encode, get_value, fail);
+          case 'p': return path_option(&rip_options.path_format, get_value, fail);
+          case 'e': return rsvc_boolean_option(&rip_options.eject);
+          default:  return rsvc_illegal_short_option(opt, fail);
+        }
+    },
+
+    .long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
+        return rsvc_long_option((struct rsvc_long_option_name[]){
+            {"bitrate",  'b'},
+            {"eject",    'e'},
+            {"format",   'f'},
+            {"path",     'p'},
+            {NULL}
+        }, callbacks.short_option, opt, get_value, fail);
+    },
+
+    .argument = ^bool (char* arg, rsvc_done_t fail) {
+        if (!rip_options.disk) {
+            rip_options.disk = arg;
+            return true;
+        } else {
+            rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
+            return false;
+        }
+    },
+};
 
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
     outf("Ripping…\n");

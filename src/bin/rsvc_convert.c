@@ -36,7 +36,19 @@
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
 
-struct convert_options convert_options;
+struct convert_options {
+    char* input;
+    int input_fd;
+    char* output;
+    int output_fd;
+
+    bool recursive;
+    bool update;
+    bool delete_;
+    bool skip_unknown;
+    bool makedirs;
+    struct encode_options encode;
+} convert_options;
 
 static void convert(struct convert_options* options, rsvc_done_t done);
 static void convert_recursive(struct convert_options* options, rsvc_done_t done);
@@ -53,15 +65,77 @@ static bool change_extension(const char* path, const char* extension, char* new_
                              rsvc_done_t fail);
 static void copy_tags(struct convert_options* options, const char* tmp_path, rsvc_done_t done);
 
-void rsvc_command_convert(rsvc_done_t done) {
-    if (!validate_convert_options(done)) {
-        return;
-    } else if (convert_options.recursive) {
-        convert_recursive(&convert_options, done);
-    } else {
-        convert(&convert_options, done);
-    }
-}
+struct rsvc_command rsvc_convert = {
+    .name = "convert",
+
+    .usage = ^{
+        errf(
+                "usage: %s convert [OPTIONS] IN [OUT]\n"
+                "\n"
+                "Options:\n"
+                "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
+                "  -f, --format FMT        output format (default: flac or vorbis)\n"
+                "  -r, --recursive         convert folder recursively\n"
+                "  -u, --update            skip files that are newer than the source\n"
+                "      --delete            delete extraneous files from destination\n"
+                "\n"
+                "Formats:\n",
+                rsvc_progname);
+        rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+            if (format->encode && format->decode) {
+                errf("  %s (in, out)\n", format->name);
+            } else if (format->encode) {
+                errf("  %s (out)\n", format->name);
+            } else if (format->decode) {
+                errf("  %s (in)\n", format->name);
+            }
+        });
+    },
+
+    .run = ^(rsvc_done_t done){
+        if (!validate_convert_options(done)) {
+            return;
+        } else if (convert_options.recursive) {
+            convert_recursive(&convert_options, done);
+        } else {
+            convert(&convert_options, done);
+        }
+    },
+
+    .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
+        switch (opt) {
+          case 'b': return bitrate_option(&convert_options.encode, get_value, fail);
+          case 'f': return format_option(&convert_options.encode, get_value, fail);
+          case 'r': return rsvc_boolean_option(&convert_options.recursive);
+          case 'u': return rsvc_boolean_option(&convert_options.update);
+          case -1: return rsvc_boolean_option(&convert_options.delete_);
+          default:  return rsvc_illegal_short_option(opt, fail);
+        }
+    },
+
+    .long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
+        return rsvc_long_option((struct rsvc_long_option_name[]){
+            {"bitrate",     'b'},
+            {"format",      'f'},
+            {"recursive",   'r'},
+            {"update",      'u'},
+            {"delete",      -1},
+            {NULL}
+        }, callbacks.short_option, opt, get_value, fail);
+    },
+
+    .argument = ^bool (char* arg, rsvc_done_t fail) {
+        if (!convert_options.input) {
+            convert_options.input = arg;
+        } else if (!convert_options.output) {
+            convert_options.output = arg;
+        } else {
+            rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
+            return false;
+        }
+        return true;
+    },
+};
 
 static void convert(struct convert_options* options, rsvc_done_t done) {
     options = memdup(options, sizeof(*options));

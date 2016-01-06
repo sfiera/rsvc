@@ -27,21 +27,29 @@
 
 #include <rsvc/disc.h>
 
-void rsvc_command_watch(rsvc_done_t done) {
-    __block bool show = false;
+struct rsvc_command rsvc_watch = {
+    .name = "watch",
 
-    struct rsvc_disc_watch_callbacks callbacks;
-    callbacks.appeared = ^(enum rsvc_disc_type type, const char* path){
-        if (show) {
-            outf("+\t%s\t%s\n", path, rsvc_disc_type_name[type]);
-        }
-    };
-    callbacks.disappeared = ^(enum rsvc_disc_type type, const char* path){
-        outf("-\t%s\t%s\n", path, rsvc_disc_type_name[type]);
-    };
-    callbacks.initialized = ^(rsvc_stop_t stop){
-        show = true;
-    };
+    .usage = ^{
+        errf("usage: %s watch\n", rsvc_progname);
+    },
 
-    rsvc_disc_watch(callbacks);
-}
+    .run = ^(rsvc_done_t done){
+        __block bool show = false;
+
+        struct rsvc_disc_watch_callbacks callbacks;
+        callbacks.appeared = ^(enum rsvc_disc_type type, const char* path){
+            if (show) {
+                outf("+\t%s\t%s\n", path, rsvc_disc_type_name[type]);
+            }
+        };
+        callbacks.disappeared = ^(enum rsvc_disc_type type, const char* path){
+            outf("-\t%s\t%s\n", path, rsvc_disc_type_name[type]);
+        };
+        callbacks.initialized = ^(rsvc_stop_t stop){
+            show = true;
+        };
+
+        rsvc_disc_watch(callbacks);
+    },
+};

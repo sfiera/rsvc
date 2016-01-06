@@ -24,19 +24,36 @@
 
 #include <rsvc/disc.h>
 
-char* eject_disk;
+static char* eject_disk;
 
-void rsvc_command_eject(rsvc_done_t done) {
-    if (eject_disk == NULL) {
-        rsvc_default_disk(^(rsvc_error_t error, char* disk){
-            if (error) {
-                done(error);
-            } else {
-                rsvc_disc_eject(disk, done);
-            }
-        });
-        return;
-    }
+struct rsvc_command rsvc_eject = {
+    .name = "eject",
 
-    rsvc_disc_eject(eject_disk, done);
-}
+    .usage = ^{
+        errf("usage: %s eject [DEVICE]\n", rsvc_progname);
+    },
+
+    .run = ^(rsvc_done_t done){
+        if (eject_disk == NULL) {
+            rsvc_default_disk(^(rsvc_error_t error, char* disk){
+                if (error) {
+                    done(error);
+                } else {
+                    eject_disk = disk;
+                    rsvc_eject.run(done);
+                }
+            });
+            return;
+        }
+
+        rsvc_disc_eject(eject_disk, done);
+    },
+
+    .argument = ^bool (char* arg, rsvc_done_t fail) {
+        if (!eject_disk) {
+            eject_disk = arg;
+            return true;
+        }
+        return false;
+    },
+};
