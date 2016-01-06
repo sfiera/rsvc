@@ -31,12 +31,12 @@
 #include <rsvc/audio.h>
 #include <rsvc/disc.h>
 
-const char*                   rsvc_progname;
-rsvc_command_t                command = NULL;
-int                           rsvc_exit = EX_OK;
-int                           rsvc_jobs = -1;
+const char*  rsvc_progname;
+int          rsvc_jobs = -1;
 
-static struct rsvc_command* commands[] = {
+static int             rsvc_exit   = EX_OK;
+static rsvc_command_t  command     = NULL;
+static rsvc_command_t  commands[]  = {
     &rsvc_ls,
     &rsvc_watch,
     &rsvc_print,
@@ -47,7 +47,6 @@ static struct rsvc_command* commands[] = {
 };
 
 static int rsvc_jobs_default();
-
 static bool read_si_number(const char* in, int64_t* out);
 
 struct rsvc_option_callbacks callbacks = {

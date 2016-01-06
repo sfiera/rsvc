@@ -28,13 +28,12 @@
 #include "../rsvc/common.h"
 #include "../rsvc/options.h"
 
-typedef struct rsvc_command* rsvc_command_t;
-typedef struct rip_options* rip_options_t;
+typedef struct rsvc_command*         rsvc_command_t;
+typedef struct rip_options*          rip_options_t;
 
-extern const char* rsvc_progname;
-extern struct rsvc_option_callbacks callbacks;
-extern rsvc_command_t command;
-extern int rsvc_jobs;
+extern const char*                   rsvc_progname;
+extern struct rsvc_option_callbacks  callbacks;
+extern int                           rsvc_jobs;
 
 struct rsvc_command {
     const char* name;
@@ -58,14 +57,14 @@ struct encode_options {
     rsvc_format_t format;
     int64_t bitrate;
 };
-bool validate_encode_options(struct encode_options* encode, rsvc_done_t fail);
+bool  validate_encode_options(struct encode_options* encode, rsvc_done_t fail);
 
-void rsvc_usage(rsvc_done_t done);
-void rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk));
-bool bitrate_option(struct encode_options* encode, rsvc_option_value_f get_value,
-                           rsvc_done_t fail);
-bool format_option(struct encode_options* encode, rsvc_option_value_f get_value,
-                          rsvc_done_t fail);
-bool path_option(char** string, rsvc_option_value_f get_value, rsvc_done_t fail);
+void  rsvc_usage(rsvc_done_t done);
+void  rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk));
+bool  bitrate_option(struct encode_options* encode, rsvc_option_value_f get_value,
+                     rsvc_done_t fail);
+bool  format_option(struct encode_options* encode, rsvc_option_value_f get_value,
+                    rsvc_done_t fail);
+bool  path_option(char** string, rsvc_option_value_f get_value, rsvc_done_t fail);
 
 #endif  // SRC_BIN_RSVC_H_
