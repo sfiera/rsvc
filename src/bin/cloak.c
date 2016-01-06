@@ -391,10 +391,9 @@ static void apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
         }
     }
 
-    for (string_list_node_t curr = ops->add_tag_names.head; curr; curr = curr->next) {
-        const char* name = curr->value;
-        const char* value = curr->value;
-        if (!rsvc_tags_add(tags, done, name, value)) {
+    for (string_list_node_t name = ops->add_tag_names.head, value = ops->add_tag_values.head;
+         name && value; name = name->next, value = value->next) {
+        if (!rsvc_tags_add(tags, done, name->value, value->value)) {
             return;
         }
     }
