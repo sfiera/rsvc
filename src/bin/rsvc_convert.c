@@ -37,6 +37,7 @@
 #include "../rsvc/list.h"
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
+#include "strlist.h"
 
 struct file_pair {
     char*  input;
@@ -46,15 +47,16 @@ struct file_pair {
 };
 
 static struct convert_options {
-    struct file_pair files;
-    bool recursive;
-    bool update;
-    bool delete_;
-    struct encode_options encode;
+    struct string_list     input;
+    struct string_list     output;
+    bool                   recursive;
+    bool                   update;
+    bool                   delete_;
+    struct encode_options  encode;
 } options;
 
 static void convert(struct file_pair f, rsvc_done_t done);
-static void convert_recursive(struct file_pair f, rsvc_done_t done);
+static void convert_recursive(struct file_pair f, dispatch_semaphore_t sema, rsvc_group_t group);
 static bool validate_convert_options(rsvc_done_t fail);
 static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
                          void (^start)(bool ok, rsvc_audio_meta_t meta));
@@ -67,15 +69,19 @@ static void encode_file(struct file_pair f, int read_fd, const char* path,
 static bool change_extension(const char* path, const char* extension, char* new_path,
                              rsvc_done_t fail);
 static void copy_tags(struct file_pair f, const char* tmp_path, rsvc_done_t done);
+static void push_string(struct string_list* list, const char* value);
+static bool push_string_option(struct string_list* list, rsvc_option_value_f get_value,
+                               rsvc_done_t fail);
 
 struct rsvc_command rsvc_convert = {
     .name = "convert",
 
     .usage = ^{
         errf(
-                "usage: %s convert [OPTIONS] IN [-o OUT]\n"
+                "usage: %s convert [OPTIONS] IN... [-o OUT]...\n"
                 "\n"
                 "Options:\n"
+                "  -o, --output PATH       output path name (default: change ext of source)\n"
                 "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
                 "  -f, --format FMT        output format (default: flac or vorbis)\n"
                 "  -r, --recursive         convert folder recursively\n"
@@ -98,18 +104,39 @@ struct rsvc_command rsvc_convert = {
     .run = ^(rsvc_done_t done){
         if (!validate_convert_options(done)) {
             return;
-        } else if (options.recursive) {
-            convert_recursive(options.files, done);
-        } else {
-            convert(options.files, done);
         }
+
+        rsvc_group_t group = rsvc_group_create(done);
+        dispatch_semaphore_t sema = dispatch_semaphore_create(rsvc_jobs);
+        for (string_list_node_t input = options.input.head, output = options.output.head;
+             input && output; input = input->next, output = output->next) {
+            struct file_pair files = {
+                .input = input->value,
+                .output = output->value,
+            };
+
+            if (options.recursive) {
+                convert_recursive(files, sema, group);
+            } else {
+                rsvc_done_t done = rsvc_group_add(group);
+                dispatch_retain(sema);
+                dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
+                convert(files, ^(rsvc_error_t error){
+                    done(error);
+                    dispatch_semaphore_signal(sema);
+                    dispatch_release(sema);
+                });
+            }
+        }
+        rsvc_group_ready(group);
+        dispatch_release(sema);
     },
 
     .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
         switch (opt) {
           case 'b': return bitrate_option(&options.encode, get_value, fail);
           case 'f': return format_option(&options.encode, get_value, fail);
-          case 'o': return rsvc_string_option(&options.files.output, get_value, fail);
+          case 'o': return push_string_option(&options.output, get_value, fail);
           case 'r': return rsvc_boolean_option(&options.recursive);
           case 'u': return rsvc_boolean_option(&options.update);
           case -1: return rsvc_boolean_option(&options.delete_);
@@ -129,37 +156,19 @@ struct rsvc_command rsvc_convert = {
     },
 
     .argument = ^bool (char* arg, rsvc_done_t fail) {
-        if (!options.files.input) {
-            options.files.input = arg;
-        } else {
-            rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
-            return false;
-        }
+        push_string(&options.input, arg);
         return true;
     },
 };
 
 static void convert(struct file_pair f, rsvc_done_t done) {
     f.input = strdup(f.input);
-    f.output = f.output ? strdup(f.output) : NULL;
+    f.output = strdup(f.output);
     done = ^(rsvc_error_t error){
-        if (f.output) {
-            free(f.output);
-        }
         free(f.input);
+        free(f.output);
         done(error);
     };
-
-    // Pick the output file name.  If it was explicitly specified, use
-    // that; otherwise, generate it by changing the extension on the
-    // input file name.
-    char path_storage[MAXPATHLEN];
-    if (!f.output) {
-        if (!change_extension(f.input, options.encode.format->extension, path_storage, done)) {
-            return;
-        }
-        f.output = strdup(path_storage);
-    }
 
     if (!rsvc_open(f.input, O_RDONLY, 0644, &f.input_fd, done)) {
         return;
@@ -201,6 +210,7 @@ static void convert(struct file_pair f, rsvc_done_t done) {
     }
 
     // Open a temporary file next to the output path.
+    char path_storage[MAXPATHLEN];
     if (!rsvc_temp(f.output, 0644, path_storage, &f.output_fd, done)) {
         return;
     }
@@ -248,10 +258,8 @@ struct path_list {
     } *head, *tail;
 };
 
-static void convert_recursive(struct file_pair f, rsvc_done_t done) {
-    rsvc_group_t group = rsvc_group_create(done);
+static void convert_recursive(struct file_pair f, dispatch_semaphore_t sema, rsvc_group_t group) {
     rsvc_done_t walk_done = rsvc_group_add(group);
-    dispatch_semaphore_t sema = dispatch_semaphore_create(rsvc_jobs);
 
     __block struct path_list outputs = {};
     if (options.delete_) {
@@ -344,23 +352,40 @@ static void convert_recursive(struct file_pair f, rsvc_done_t done) {
     })) {
         walk_done(NULL);
     }
-    dispatch_release(sema);
-    rsvc_group_ready(group);
 }
 
 static bool validate_convert_options(rsvc_done_t fail) {
     if (!validate_encode_options(&options.encode, fail)) {
         return false;
-    } else if (!options.files.input) {
-        rsvc_usage(fail);
+    } else if (!options.input.head) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "no input files");
         return false;
-    } else if (!options.files.output) {
-        if (options.recursive) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "-r requires output path");
-            return false;
-        }
+    } else if (options.recursive && !options.output.head) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "-r requires output path");
+        return false;
     }
 
+    if (options.output.head) {
+        // If output paths were specified, ensure that the same number
+        // of input and output paths were given.
+        for (string_list_node_t input = options.input.head, output = options.output.head;
+             input || output; input = input->next, output = output->next) {
+            if (!input) {
+                rsvc_errorf(fail, __FILE__, __LINE__, "too many output paths");
+            } else if (!output) {
+                rsvc_errorf(fail, __FILE__, __LINE__, "not enough output paths");
+            }
+        }
+    } else {
+        // If they weren't, change the extensions of the input files.
+        char path_storage[MAXPATHLEN];
+        for (string_list_node_t curr = options.input.head; curr; curr = curr->next) {
+            if (!change_extension(curr->value, options.encode.format->extension, path_storage, fail)) {
+                return false;
+            }
+            push_string(&options.output, path_storage);
+        }
+    }
     return true;
 }
 
@@ -516,4 +541,21 @@ static void copy_tags(struct file_pair f, const char* tmp_path, rsvc_done_t done
         return;
     }
     done(NULL);
+}
+
+static void push_string(struct string_list* list, const char* value) {
+    struct string_list_node tmp = {
+        .value = strdup(value),
+    };
+    RSVC_LIST_PUSH(list, memdup(&tmp, sizeof(tmp)));
+}
+
+static bool push_string_option(struct string_list* list, rsvc_option_value_f get_value,
+                               rsvc_done_t fail) {
+    char* value;
+    if (!get_value(&value, fail)) {
+        return false;
+    }
+    push_string(list, value);
+    return true;
 }
