@@ -35,6 +35,8 @@
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
 
+struct rip_options rip_options;
+
 static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
 static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_t options,
                       rsvc_cd_t cd, rsvc_cd_session_t session);
@@ -42,34 +44,37 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
                      void (^done)(rsvc_error_t error, rsvc_tags_t tags));
 static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done);
 
-void rsvc_command_rip(rip_options_t options, rsvc_done_t done) {
-    if (options->disk == NULL) {
+void rsvc_command_rip(rsvc_done_t done) {
+    if (rip_options.disk == NULL) {
         rsvc_default_disk(^(rsvc_error_t error, char* disk){
             if (error) {
                 done(error);
             } else {
-                options->disk = strdup(disk);
-                rsvc_command_rip(options, done);
+                rip_options.disk = strdup(disk);
+                rsvc_command_rip(done);
             }
         });
         return;
     }
+    if (!rip_options.path_format) {
+        rip_options.path_format = "%k";
+    }
 
-    if (!validate_encode_options(&options->encode, done)) {
+    if (!validate_encode_options(&rip_options.encode, done)) {
         return;
     }
 
-    rsvc_cd_create(options->disk, ^(rsvc_cd_t cd, rsvc_error_t error){
+    rsvc_cd_create(rip_options.disk, ^(rsvc_cd_t cd, rsvc_error_t error){
         if (error) {
             done(error);
             return;
         }
-        rip_all(cd, options, ^(rsvc_error_t error){
+        rip_all(cd, &rip_options, ^(rsvc_error_t error){
             rsvc_cd_destroy(cd);
             if (error) {
                 done(error);
-            } else if (options->eject) {
-                rsvc_disc_eject(options->disk, done);
+            } else if (rip_options.eject) {
+                rsvc_disc_eject(rip_options.disk, done);
             } else {
                 done(NULL);
             }

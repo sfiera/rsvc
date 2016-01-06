@@ -36,32 +36,34 @@
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
 
-static void convert(convert_options_t options, rsvc_done_t done);
-static void convert_recursive(convert_options_t options, rsvc_done_t done);
-static bool validate_convert_options(convert_options_t options, rsvc_done_t fail);
-static void convert_read(convert_options_t options, int write_fd, rsvc_done_t done,
+struct convert_options convert_options;
+
+static void convert(struct convert_options* options, rsvc_done_t done);
+static void convert_recursive(struct convert_options* options, rsvc_done_t done);
+static bool validate_convert_options(rsvc_done_t fail);
+static void convert_read(struct convert_options* options, int write_fd, rsvc_done_t done,
                          void (^start)(bool ok, rsvc_audio_meta_t meta));
-static void convert_write(convert_options_t options, rsvc_audio_meta_t meta,
+static void convert_write(struct convert_options* options, rsvc_audio_meta_t meta,
                           int read_fd, const char* tmp_path, rsvc_done_t done);
-static void decode_file(convert_options_t options, int write_fd,
+static void decode_file(struct convert_options* options, int write_fd,
                         rsvc_decode_metadata_f start, rsvc_done_t done);
-static void encode_file(convert_options_t options, int read_fd, const char* path,
+static void encode_file(struct convert_options* options, int read_fd, const char* path,
                         rsvc_audio_meta_t meta, rsvc_done_t done);
 static bool change_extension(const char* path, const char* extension, char* new_path,
                              rsvc_done_t fail);
-static void copy_tags(convert_options_t options, const char* tmp_path, rsvc_done_t done);
+static void copy_tags(struct convert_options* options, const char* tmp_path, rsvc_done_t done);
 
-void rsvc_command_convert(convert_options_t options, rsvc_done_t done) {
-    if (!validate_convert_options(options, done)) {
+void rsvc_command_convert(rsvc_done_t done) {
+    if (!validate_convert_options(done)) {
         return;
-    } else if (options->recursive) {
-        convert_recursive(options, done);
+    } else if (convert_options.recursive) {
+        convert_recursive(&convert_options, done);
     } else {
-        convert(options, done);
+        convert(&convert_options, done);
     }
 }
 
-static void convert(convert_options_t options, rsvc_done_t done) {
+static void convert(struct convert_options* options, rsvc_done_t done) {
     options = memdup(options, sizeof(*options));
     options->input = strdup(options->input);
     options->output = options->output ? strdup(options->output) : NULL;
@@ -174,7 +176,7 @@ struct path_list {
     } *head, *tail;
 };
 
-static void convert_recursive(convert_options_t options, rsvc_done_t done) {
+static void convert_recursive(struct convert_options* options, rsvc_done_t done) {
     rsvc_group_t group = rsvc_group_create(done);
     rsvc_done_t walk_done = rsvc_group_add(group);
     dispatch_semaphore_t sema = dispatch_semaphore_create(rsvc_jobs);
@@ -279,14 +281,14 @@ static void convert_recursive(convert_options_t options, rsvc_done_t done) {
     rsvc_group_ready(group);
 }
 
-static bool validate_convert_options(convert_options_t options, rsvc_done_t fail) {
-    if (!validate_encode_options(&options->encode, fail)) {
+static bool validate_convert_options(rsvc_done_t fail) {
+    if (!validate_encode_options(&convert_options.encode, fail)) {
         return false;
-    } else if (!options->input) {
+    } else if (!convert_options.input) {
         rsvc_usage(fail);
         return false;
-    } else if (!options->output) {
-        if (options->recursive) {
+    } else if (!convert_options.output) {
+        if (convert_options.recursive) {
             rsvc_errorf(fail, __FILE__, __LINE__, "-r requires output path");
             return false;
         }
@@ -295,7 +297,7 @@ static bool validate_convert_options(convert_options_t options, rsvc_done_t fail
     return true;
 }
 
-static void convert_read(convert_options_t options, int write_fd, rsvc_done_t done,
+static void convert_read(struct convert_options* options, int write_fd, rsvc_done_t done,
                          void (^start)(bool ok, rsvc_audio_meta_t meta)) {
     __block bool got_metadata = false;
     done = ^(rsvc_error_t error){
@@ -313,7 +315,7 @@ static void convert_read(convert_options_t options, int write_fd, rsvc_done_t do
     decode_file(options, write_fd, metadata, done);
 }
 
-static void convert_write(convert_options_t options, rsvc_audio_meta_t meta,
+static void convert_write(struct convert_options* options, rsvc_audio_meta_t meta,
                           int read_fd, const char* tmp_path, rsvc_done_t done) {
     done = ^(rsvc_error_t error){
         close(read_fd);
@@ -338,7 +340,7 @@ static void convert_write(convert_options_t options, rsvc_audio_meta_t meta,
     });
 }
 
-static void decode_file(convert_options_t options, int write_fd,
+static void decode_file(struct convert_options* options, int write_fd,
                         rsvc_decode_metadata_f start, rsvc_done_t done) {
     rsvc_format_t format;
     rsvc_done_t cant_decode = ^(rsvc_error_t error){
@@ -359,7 +361,7 @@ static void decode_file(convert_options_t options, int write_fd,
     format->decode(options->input_fd, write_fd, start, done);
 }
 
-static void encode_file(convert_options_t options, int read_fd, const char* path,
+static void encode_file(struct convert_options* options, int read_fd, const char* path,
                         rsvc_audio_meta_t meta, rsvc_done_t done) {
     rsvc_progress_t node = rsvc_progress_start(path);
     struct rsvc_encode_options encode_options = {
@@ -405,7 +407,7 @@ static bool change_extension(const char* path, const char* extension, char* new_
     return true;
 }
 
-static void copy_tags(convert_options_t options, const char* tmp_path, rsvc_done_t done) {
+static void copy_tags(struct convert_options* options, const char* tmp_path, rsvc_done_t done) {
     // If we don't have tag support for both the input and output
     // formats (e.g. conversion to/from WAV), then silently do nothing.
     rsvc_format_t read_fmt, write_fmt;

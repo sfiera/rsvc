@@ -32,7 +32,6 @@
 #include <rsvc/disc.h>
 
 const char*                   rsvc_progname;
-struct rsvc_option_callbacks  callbacks;
 rsvc_command_t                command = NULL;
 int                           rsvc_exit = EX_OK;
 int                           rsvc_jobs = -1;
@@ -45,189 +44,176 @@ static bool format_option(struct encode_options* encode, rsvc_option_value_f get
 
 static bool read_si_number(const char* in, int64_t* out);
 
-static void rsvc_main(int argc, char* const* argv) {
-    rsvc_jobs = rsvc_jobs_default();
-    rsvc_audio_formats_register();
-    rsvc_image_formats_register();
-
-    rsvc_progname = strdup(basename(argv[0]));
-
-    __block char* print_disk = NULL;
-    __block struct rsvc_command print = {
-        .name = "print",
-        .argument = ^bool (char* arg, rsvc_done_t fail) {
-            if (!print_disk) {
-                print_disk = arg;
-                return true;
-            }
-            return false;
-        },
-        .usage = ^{
-            errf("usage: %s print [DEVICE]\n", rsvc_progname);
-        },
-        .run = ^(rsvc_done_t done){
-            rsvc_command_print(print_disk, done);
-        },
-    };
-
-    __block struct rsvc_command ls = {
-        .name = "ls",
-        .usage = ^{
-            errf("usage: %s ls\n", rsvc_progname);
-        },
-        .run = ^(rsvc_done_t done){
-            rsvc_command_ls(done);
-        },
-    };
-
-    __block struct rsvc_command watch = {
-        .name = "watch",
-        .usage = ^{
-            errf("usage: %s watch\n", rsvc_progname);
-        },
-        .run = ^(rsvc_done_t done){
-            rsvc_command_watch(done);
-        },
-    };
-
-    __block char* eject_disk = NULL;
-    __block struct rsvc_command eject = {
-        .name = "eject",
-        .argument = ^bool (char* arg, rsvc_done_t fail) {
-            if (!eject_disk) {
-                eject_disk = arg;
-                return true;
-            }
-            return false;
-        },
-        .usage = ^{
-            errf("usage: %s eject [DEVICE]\n", rsvc_progname);
-        },
-        .run = ^(rsvc_done_t done){
-            rsvc_command_eject(eject_disk, done);
-        },
-    };
-
-    __block struct rip_options rip_options = {
-        .path_format  = strdup("%k"),
-    };
-    __block struct rsvc_command rip = {
-        .name = "rip",
-        .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
-            switch (opt) {
-              case 'b': return bitrate_option(&rip_options.encode, get_value, fail);
-              case 'f': return format_option(&rip_options.encode, get_value, fail);
-              case 'p': return rsvc_string_option(&rip_options.disk, get_value, fail);
-              case 'e': return rsvc_boolean_option(&rip_options.eject);
-              default:  return rsvc_illegal_short_option(opt, fail);
-            }
-        },
-        .long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
-            return rsvc_long_option((struct rsvc_long_option_name[]){
-                {"bitrate",  'b'},
-                {"eject",    'e'},
-                {"format",   'f'},
-                {"path",     'p'},
-                {NULL}
-            }, callbacks.short_option, opt, get_value, fail);
-        },
-        .argument = ^bool (char* arg, rsvc_done_t fail) {
-            if (!rip_options.disk) {
-                rip_options.disk = arg;
-                return true;
-            } else {
-                rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
-                return false;
-            }
-        },
-        .usage = ^{
-            errf(
-                    "usage: %s rip [OPTIONS] [DEVICE]\n"
-                    "\n"
-                    "Options:\n"
-                    "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
-                    "  -e, --eject             eject CD after ripping\n"
-                    "  -f, --format FMT        output format (default: flac or vorbis)\n"
-                    "  -h, --help              show this help page\n"
-                    "  -p, --path PATH         format string for output (default %%k)\n"
-                    "\n"
-                    "Formats:\n",
-                    rsvc_progname);
-            rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
-                if (format->encode) {
-                    errf("  %s\n", format->name);
-                }
-            });
-        },
-        .run = ^(rsvc_done_t done){
-            rsvc_command_rip(&rip_options, done);
-        },
-    };
-
-    __block struct convert_options convert_options = {
-    };
-    __block struct rsvc_command convert = {
-        .name = "convert",
-        .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
-            switch (opt) {
-              case 'b': return bitrate_option(&convert_options.encode, get_value, fail);
-              case 'f': return format_option(&convert_options.encode, get_value, fail);
-              case 'r': return rsvc_boolean_option(&convert_options.recursive);
-              case 'u': return rsvc_boolean_option(&convert_options.update);
-              case -1: return rsvc_boolean_option(&convert_options.delete_);
-              default:  return rsvc_illegal_short_option(opt, fail);
-            }
-        },
-        .long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
-            return rsvc_long_option((struct rsvc_long_option_name[]){
-                {"bitrate",     'b'},
-                {"format",      'f'},
-                {"recursive",   'r'},
-                {"update",      'u'},
-                {"delete",      -1},
-                {NULL}
-            }, callbacks.short_option, opt, get_value, fail);
-        },
-        .argument = ^bool (char* arg, rsvc_done_t fail) {
-            if (!convert_options.input) {
-                convert_options.input = arg;
-            } else if (!convert_options.output) {
-                convert_options.output = arg;
-            } else {
-                rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
-                return false;
-            }
+struct rsvc_command print = {
+    .name = "print",
+    .argument = ^bool (char* arg, rsvc_done_t fail) {
+        if (!print_disk) {
+            print_disk = arg;
             return true;
-        },
-        .usage = ^{
-            errf(
-                    "usage: %s convert [OPTIONS] IN [OUT]\n"
-                    "\n"
-                    "Options:\n"
-                    "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
-                    "  -f, --format FMT        output format (default: flac or vorbis)\n"
-                    "  -r, --recursive         convert folder recursively\n"
-                    "  -u, --update            skip files that are newer than the source\n"
-                    "      --delete            delete extraneous files from destination\n"
-                    "\n"
-                    "Formats:\n",
-                    rsvc_progname);
-            rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
-                if (format->encode && format->decode) {
-                    errf("  %s (in, out)\n", format->name);
-                } else if (format->encode) {
-                    errf("  %s (out)\n", format->name);
-                } else if (format->decode) {
-                    errf("  %s (in)\n", format->name);
-                }
-            });
-        },
-        .run = ^(rsvc_done_t done){
-            rsvc_command_convert(&convert_options, done);
-        },
-    };
+        }
+        return false;
+    },
+    .usage = ^{
+        errf("usage: %s print [DEVICE]\n", rsvc_progname);
+    },
+    .run = ^(rsvc_done_t done){
+        rsvc_command_print(done);
+    },
+};
 
-    callbacks.short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
+struct rsvc_command ls = {
+    .name = "ls",
+    .usage = ^{
+        errf("usage: %s ls\n", rsvc_progname);
+    },
+    .run = ^(rsvc_done_t done){
+        rsvc_command_ls(done);
+    },
+};
+
+struct rsvc_command watch = {
+    .name = "watch",
+    .usage = ^{
+        errf("usage: %s watch\n", rsvc_progname);
+    },
+    .run = ^(rsvc_done_t done){
+        rsvc_command_watch(done);
+    },
+};
+
+struct rsvc_command eject = {
+    .name = "eject",
+    .argument = ^bool (char* arg, rsvc_done_t fail) {
+        if (!eject_disk) {
+            eject_disk = arg;
+            return true;
+        }
+        return false;
+    },
+    .usage = ^{
+        errf("usage: %s eject [DEVICE]\n", rsvc_progname);
+    },
+    .run = ^(rsvc_done_t done){
+        rsvc_command_eject(done);
+    },
+};
+
+struct rsvc_command rip = {
+    .name = "rip",
+    .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
+        switch (opt) {
+          case 'b': return bitrate_option(&rip_options.encode, get_value, fail);
+          case 'f': return format_option(&rip_options.encode, get_value, fail);
+          case 'p': return rsvc_string_option(&rip_options.disk, get_value, fail);
+          case 'e': return rsvc_boolean_option(&rip_options.eject);
+          default:  return rsvc_illegal_short_option(opt, fail);
+        }
+    },
+    .long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
+        return rsvc_long_option((struct rsvc_long_option_name[]){
+            {"bitrate",  'b'},
+            {"eject",    'e'},
+            {"format",   'f'},
+            {"path",     'p'},
+            {NULL}
+        }, callbacks.short_option, opt, get_value, fail);
+    },
+    .argument = ^bool (char* arg, rsvc_done_t fail) {
+        if (!rip_options.disk) {
+            rip_options.disk = arg;
+            return true;
+        } else {
+            rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
+            return false;
+        }
+    },
+    .usage = ^{
+        errf(
+                "usage: %s rip [OPTIONS] [DEVICE]\n"
+                "\n"
+                "Options:\n"
+                "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
+                "  -e, --eject             eject CD after ripping\n"
+                "  -f, --format FMT        output format (default: flac or vorbis)\n"
+                "  -h, --help              show this help page\n"
+                "  -p, --path PATH         format string for output (default %%k)\n"
+                "\n"
+                "Formats:\n",
+                rsvc_progname);
+        rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+            if (format->encode) {
+                errf("  %s\n", format->name);
+            }
+        });
+    },
+    .run = ^(rsvc_done_t done){
+        rsvc_command_rip(done);
+    },
+};
+
+struct rsvc_command convert = {
+    .name = "convert",
+    .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
+        switch (opt) {
+          case 'b': return bitrate_option(&convert_options.encode, get_value, fail);
+          case 'f': return format_option(&convert_options.encode, get_value, fail);
+          case 'r': return rsvc_boolean_option(&convert_options.recursive);
+          case 'u': return rsvc_boolean_option(&convert_options.update);
+          case -1: return rsvc_boolean_option(&convert_options.delete_);
+          default:  return rsvc_illegal_short_option(opt, fail);
+        }
+    },
+    .long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
+        return rsvc_long_option((struct rsvc_long_option_name[]){
+            {"bitrate",     'b'},
+            {"format",      'f'},
+            {"recursive",   'r'},
+            {"update",      'u'},
+            {"delete",      -1},
+            {NULL}
+        }, callbacks.short_option, opt, get_value, fail);
+    },
+    .argument = ^bool (char* arg, rsvc_done_t fail) {
+        if (!convert_options.input) {
+            convert_options.input = arg;
+        } else if (!convert_options.output) {
+            convert_options.output = arg;
+        } else {
+            rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
+            return false;
+        }
+        return true;
+    },
+    .usage = ^{
+        errf(
+                "usage: %s convert [OPTIONS] IN [OUT]\n"
+                "\n"
+                "Options:\n"
+                "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
+                "  -f, --format FMT        output format (default: flac or vorbis)\n"
+                "  -r, --recursive         convert folder recursively\n"
+                "  -u, --update            skip files that are newer than the source\n"
+                "      --delete            delete extraneous files from destination\n"
+                "\n"
+                "Formats:\n",
+                rsvc_progname);
+        rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+            if (format->encode && format->decode) {
+                errf("  %s (in, out)\n", format->name);
+            } else if (format->encode) {
+                errf("  %s (out)\n", format->name);
+            } else if (format->decode) {
+                errf("  %s (in)\n", format->name);
+            }
+        });
+    },
+    .run = ^(rsvc_done_t done){
+        rsvc_command_convert(done);
+    },
+};
+
+struct rsvc_option_callbacks callbacks = {
+    .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
         switch (opt) {
           case 'h':
             rsvc_usage(^(rsvc_error_t ignore){});
@@ -247,9 +233,9 @@ static void rsvc_main(int argc, char* const* argv) {
             break;
         }
         return rsvc_illegal_short_option(opt, fail);
-    };
+    },
 
-    callbacks.long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
+    .long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
         if (strcmp(opt, "help") == 0) {
             return callbacks.short_option('h', get_value, fail);
         } else if (strcmp(opt, "jobs") == 0) {
@@ -263,9 +249,9 @@ static void rsvc_main(int argc, char* const* argv) {
         } else {
             return rsvc_illegal_long_option(opt, fail);
         }
-    };
+    },
 
-    callbacks.argument = ^bool (char* arg, rsvc_done_t fail){
+    .argument = ^bool (char* arg, rsvc_done_t fail){
         if (command == NULL) {
             if (strcmp(arg, "print") == 0) {
                 command = &print;
@@ -290,7 +276,15 @@ static void rsvc_main(int argc, char* const* argv) {
             rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
             return false;
         }
-    };
+    },
+};
+
+static void rsvc_main(int argc, char* const* argv) {
+    rsvc_jobs = rsvc_jobs_default();
+    rsvc_audio_formats_register();
+    rsvc_image_formats_register();
+
+    rsvc_progname = strdup(basename(argv[0]));
 
     rsvc_done_t done = ^(rsvc_error_t error){
         if (error) {

@@ -47,10 +47,10 @@ struct rsvc_command {
     void (^run)(rsvc_done_t done);
 };
 
-void rsvc_command_print(char* disk, rsvc_done_t done);
+void rsvc_command_print(rsvc_done_t done);
 void rsvc_command_ls(rsvc_done_t done);
 void rsvc_command_watch(rsvc_done_t done);
-void rsvc_command_eject(char* disk, rsvc_done_t done);
+void rsvc_command_eject(rsvc_done_t done);
 
 struct encode_options {
     rsvc_format_t format;
@@ -58,16 +58,18 @@ struct encode_options {
 };
 bool validate_encode_options(struct encode_options* encode, rsvc_done_t fail);
 
-struct rip_options {
+extern char* print_disk;
+extern char* eject_disk;
+
+extern struct rip_options {
     char* disk;
     struct encode_options encode;
     bool eject;
     char* path_format;
-};
-void rsvc_command_rip(rip_options_t options, rsvc_done_t done);
+} rip_options;
+void rsvc_command_rip(rsvc_done_t done);
 
-typedef struct convert_options* convert_options_t;
-struct convert_options {
+extern struct convert_options {
     char* input;
     int input_fd;
     char* output;
@@ -79,8 +81,8 @@ struct convert_options {
     bool skip_unknown;
     bool makedirs;
     struct encode_options encode;
-};
-void rsvc_command_convert(convert_options_t options, rsvc_done_t done);
+} convert_options;
+void rsvc_command_convert(rsvc_done_t done);
 
 void rsvc_usage(rsvc_done_t done);
 void rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk));

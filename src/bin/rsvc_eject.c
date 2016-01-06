@@ -24,17 +24,19 @@
 
 #include <rsvc/disc.h>
 
-void rsvc_command_eject(char* disk, rsvc_done_t done) {
-    if (disk == NULL) {
+char* eject_disk;
+
+void rsvc_command_eject(rsvc_done_t done) {
+    if (eject_disk == NULL) {
         rsvc_default_disk(^(rsvc_error_t error, char* disk){
             if (error) {
                 done(error);
             } else {
-                rsvc_command_eject(disk, done);
+                rsvc_disc_eject(disk, done);
             }
         });
         return;
     }
 
-    rsvc_disc_eject(disk, done);
+    rsvc_disc_eject(eject_disk, done);
 }

@@ -27,22 +27,25 @@
 
 #include <rsvc/cd.h>
 
+char* print_disk;
+
 static void print_track(rsvc_cd_session_t session, size_t n);
 static void print_session(rsvc_cd_t cd, size_t n);
 
-void rsvc_command_print(char* disk, rsvc_done_t done) {
-    if (disk == NULL) {
+void rsvc_command_print(rsvc_done_t done) {
+    if (print_disk == NULL) {
         rsvc_default_disk(^(rsvc_error_t error, char* disk){
             if (error) {
                 done(error);
             } else {
-                rsvc_command_print(disk, done);
+                print_disk = disk;
+                rsvc_command_print(done);
             }
         });
         return;
     }
 
-    rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
+    rsvc_cd_create(print_disk, ^(rsvc_cd_t cd, rsvc_error_t error){
         if (error) {
             done(error);
             return;
