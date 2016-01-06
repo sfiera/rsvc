@@ -109,6 +109,8 @@ typedef struct remove_image_list*       remove_image_list_t;
 typedef struct remove_image_list_node*  remove_image_list_node_t;
 typedef struct write_image_list*        write_image_list_t;
 typedef struct write_image_list_node*   write_image_list_node_t;
+typedef struct format_path_list*        format_path_list_t;
+typedef struct format_path_list_node*   format_path_list_node_t;
 
 struct add_image_list {
     struct add_image_list_node {
@@ -136,6 +138,22 @@ struct write_image_list {
     } *head, *tail;
 };
 
+enum fpath_priority {
+    FPATH_DEFAULT = 0,
+    FPATH_ALL,
+    FPATH_GROUP,
+};
+
+struct format_path_list {
+    struct format_path_list_node {
+        enum fpath_priority      priority;
+        rsvc_format_t            format;
+        enum rsvc_format_group   group;
+        const char*              path;
+        format_path_list_node_t  prev, next;
+    } *head, *tail;
+};
+
 struct ops {
     bool                      remove_all_tags;
     struct string_list        remove_tags;
@@ -158,7 +176,7 @@ struct ops {
     bool                      list_images;
 
     bool                      move_mode;
-    char*                     move_format;
+    struct format_path_list   paths;
 };
 typedef struct ops* ops_t;
 

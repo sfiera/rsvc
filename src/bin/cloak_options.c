@@ -30,7 +30,9 @@ static bool tag_option(ops_t ops, rsvc_option_value_f get_value, enum short_flag
                        rsvc_done_t fail);
 static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_flag flag,
                          rsvc_done_t fail);
-static bool path_option(ops_t ops, rsvc_option_value_f get_value, rsvc_done_t fail);
+static bool all_path_option(ops_t ops, rsvc_option_value_f get_value, rsvc_done_t fail);
+static bool type_path_option(ops_t ops, const char* flag, rsvc_option_value_f get_value,
+                             bool* matched, rsvc_done_t fail);
 static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_f get_value, rsvc_done_t fail);
 static bool check_options(string_list_t files, ops_t ops, rsvc_done_t fail);
 
@@ -112,13 +114,18 @@ bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t files, 
           case ADD_IMAGE:           return image_option(ops, get_value, opt, fail);
           case AUTO:                return rsvc_boolean_option(&ops->auto_mode);
           case MOVE:                return rsvc_boolean_option(&ops->move_mode);
-          case PATH:                return path_option(ops, get_value, fail);
+          case PATH:                return all_path_option(ops, get_value, fail);
           default:                  return shorthand_option(ops, opt, get_value, fail);
         }
     };
 
     callbacks.long_option = ^bool (char* opt, rsvc_option_value_f get_value, rsvc_done_t fail){
-        return rsvc_long_option(kLongFlags, callbacks.short_option, opt, get_value, fail);
+        bool matched;
+        if (!type_path_option(ops, opt, get_value, &matched, fail)) {
+            return false;
+        }
+        return matched
+            || rsvc_long_option(kLongFlags, callbacks.short_option, opt, get_value, fail);
     };
 
     callbacks.argument = ^bool (char* arg, rsvc_done_t fail){
@@ -209,7 +216,9 @@ static bool help_option(const char* progname) {
             "\n"
             "  Organization:\n"
             "    -m, --move              move file according to new tags\n"
-            "    -p, --path PATH         format string for --move (default %s)\n",
+            "    -p, --path PATH         format string for --move (default %s)\n"
+            "        --TYPE-path PATH    override --path by type of file:\n"
+            "                            audio, video\n",
             progname, DEFAULT_PATH);
     exit(0);
 }
@@ -342,9 +351,60 @@ static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_fl
     return false;
 }
 
-static bool path_option(ops_t ops, rsvc_option_value_f get_value, rsvc_done_t fail) {
-    return rsvc_string_option(&ops->move_format, get_value, fail)
-        && rsvc_tags_validate_strf(ops->move_format, fail);
+bool starts_with(const char* str, const char* prefix) {
+    size_t str_len = strlen(str);
+    size_t prefix_len = strlen(prefix);
+    return str_len >= prefix_len
+        && (memcmp(str, prefix, prefix_len) == 0);
+}
+
+bool ends_with(const char* str, const char* suffix) {
+    size_t str_len = strlen(str);
+    size_t suffix_len = strlen(suffix);
+    return str_len >= suffix_len
+        && (memcmp(str + str_len - suffix_len, suffix, suffix_len) == 0);
+}
+
+static bool push_path(ops_t ops, format_path_list_node_t node, rsvc_option_value_f get_value,
+                      rsvc_done_t fail) {
+    char* value;
+    if (!get_value(&value, fail)
+        || !rsvc_tags_validate_strf(value, fail)) {
+        return false;
+    }
+    node->path = strdup(value);
+    RSVC_LIST_PUSH(&ops->paths, memdup(node, sizeof(*node)));
+    return true;
+}
+
+static bool all_path_option(ops_t ops, rsvc_option_value_f get_value, rsvc_done_t fail) {
+    struct format_path_list_node node = {};
+    node.priority = FPATH_ALL;
+    return push_path(ops, &node, get_value, fail);
+}
+
+static bool type_path_option(ops_t ops, const char* flag, rsvc_option_value_f get_value,
+                             bool* matched, rsvc_done_t fail) {
+    *matched = false;
+    if (ends_with(flag, "-path")) {
+        struct format_path_list_node node = {};
+        size_t flag_len = strlen(flag);  // "--path"
+        char* what = memdup(flag, flag_len - 4);
+        what[flag_len - 5] = '\0';
+
+        enum rsvc_format_group groups[] = {RSVC_AUDIO, RSVC_VIDEO};
+        for (int i = 0; i < 2; ++i) {
+            if (strcmp(what, rsvc_format_group_name(groups[i])) == 0) {
+                free(what);
+                node.priority = FPATH_GROUP;
+                node.group = groups[i];
+                *matched = true;
+                return push_path(ops, &node, get_value, fail);
+            }
+        }
+        free(what);
+    }
+    return true;
 }
 
 static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_f get_value,

@@ -62,10 +62,6 @@ static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
                          void (^start)(bool ok, rsvc_audio_meta_t meta));
 static void convert_write(struct file_pair f, rsvc_audio_meta_t meta,
                           int read_fd, const char* tmp_path, rsvc_done_t done);
-static void decode_file(struct file_pair f, int write_fd,
-                        rsvc_decode_metadata_f start, rsvc_done_t done);
-static void encode_file(struct file_pair f, int read_fd, const char* path,
-                        rsvc_audio_meta_t meta, rsvc_done_t done);
 static bool change_extension(const char* path, const char* extension, char* new_path,
                              rsvc_done_t fail);
 static void copy_tags(struct file_pair f, const char* tmp_path, rsvc_done_t done);
@@ -400,39 +396,6 @@ static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
         rsvc_prefix_error(f.input, error, done);
     };
 
-    rsvc_decode_metadata_f metadata = ^(rsvc_audio_meta_t meta){
-        got_metadata = true;
-        start(true, meta);
-    };
-    decode_file(f, write_fd, metadata, done);
-}
-
-static void convert_write(struct file_pair f, rsvc_audio_meta_t meta,
-                          int read_fd, const char* tmp_path, rsvc_done_t done) {
-    done = ^(rsvc_error_t error){
-        close(read_fd);
-        done(error);
-    };
-
-    // Start the encoder.  When it's done, copy over tags, and then move
-    // the temporary file to the final location.
-    encode_file(f, read_fd, f.output, meta, ^(rsvc_error_t error){
-        if (error) {
-            done(error);
-        } else {
-            copy_tags(f, tmp_path, ^(rsvc_error_t error){
-                if (error) {
-                    done(error);
-                } else if (rsvc_mv(tmp_path, f.output, done)) {
-                    done(NULL);
-                }
-            });
-        }
-    });
-}
-
-static void decode_file(struct file_pair f, int write_fd,
-                        rsvc_decode_metadata_f start, rsvc_done_t done) {
     rsvc_format_t format;
     rsvc_done_t cant_decode = ^(rsvc_error_t error){
         if (options.recursive) {
@@ -449,12 +412,20 @@ static void decode_file(struct file_pair f, int write_fd,
                     "%s: can't decode %s file", f.input, format->name);
         return;
     }
-    format->decode(f.input_fd, write_fd, start, done);
+    format->decode(f.input_fd, write_fd, ^(rsvc_audio_meta_t meta){
+        got_metadata = true;
+        start(true, meta);
+    }, done);
 }
 
-static void encode_file(struct file_pair f, int read_fd, const char* path,
-                        rsvc_audio_meta_t meta, rsvc_done_t done) {
-    rsvc_progress_t node = rsvc_progress_start(path);
+static void convert_write(struct file_pair f, rsvc_audio_meta_t meta,
+                          int read_fd, const char* tmp_path, rsvc_done_t done) {
+    done = ^(rsvc_error_t error){
+        close(read_fd);
+        done(error);
+    };
+
+    rsvc_progress_t node = rsvc_progress_start(f.output);
     struct rsvc_encode_options encode_options = {
         .bitrate                  = options.encode.bitrate,
         .meta = {
@@ -466,9 +437,25 @@ static void encode_file(struct file_pair f, int read_fd, const char* path,
             rsvc_progress_update(node, fraction);
         },
     };
+
     options.encode.format->encode(read_fd, f.output_fd, &encode_options, ^(rsvc_error_t error){
         rsvc_progress_done(node);
-        done(error);
+
+        if (error) {
+            done(error);
+            return;
+        }
+
+        copy_tags(f, tmp_path, ^(rsvc_error_t error){
+            if (error) {
+                done(error);
+                return;
+            } else if (!rsvc_mv(tmp_path, f.output, done)) {
+                return;
+            }
+
+            done(NULL);
+        });
     });
 }
 

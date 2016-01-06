@@ -26,7 +26,8 @@
 static void print_tags(rsvc_tags_t tags);
 static void print_images(rsvc_tags_t tags);
 static void tag_files(string_list_node_t node, ops_t ops, rsvc_done_t done);
-static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done);
+static void apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, ops_t ops,
+                      rsvc_done_t done);
 
 static void register_all_formats() {
     rsvc_audio_formats_register();
@@ -83,7 +84,7 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
         return;
     }
 
-    apply_ops(tags, path, ops, ^(rsvc_error_t error){
+    apply_ops(tags, path, format, ops, ^(rsvc_error_t error){
         if (error) {
             rsvc_tags_destroy(tags);
             done(error);
@@ -312,15 +313,32 @@ bool same_file(const char* x, const char* y) {
     return same;
 }
 
-bool move_file(const char* path, rsvc_tags_t tags, ops_t ops, rsvc_done_t fail) {
+const char* path_format_for(rsvc_format_t format, ops_t ops) {
+    enum fpath_priority priority = FPATH_DEFAULT;
+    const char* path = DEFAULT_PATH;
+    for (format_path_list_node_t curr = ops->paths.head; curr; curr = curr->next) {
+        if (curr->priority > priority) {
+            if (curr->priority == FPATH_GROUP) {
+                if (curr->group != format->format_group) {
+                    continue;
+                }
+            }
+            priority = curr->priority;
+            path = curr->path;
+        }
+    }
+    return path;
+}
+
+bool move_file(const char* path, rsvc_format_t format, rsvc_tags_t tags, ops_t ops,
+               rsvc_done_t fail) {
     bool success = false;
-    const char* format = ops->move_format ? ops->move_format : DEFAULT_PATH;
     char extension_scratch[MAXPATHLEN];
     char* extension = rsvc_ext(path, extension_scratch);
     char* parent = NULL;
     char* new_path = NULL;
     char* new_parent = NULL;
-    if (!rsvc_tags_strf(tags, format, extension, &new_path, fail)) {
+    if (!rsvc_tags_strf(tags, path_format_for(format, ops), extension, &new_path, fail)) {
         goto end;
     }
 
@@ -347,7 +365,8 @@ end:
     return success;
 }
 
-static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t done) {
+static void apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, ops_t ops,
+                      rsvc_done_t done) {
     if (ops->remove_all_tags) {
         if (!rsvc_tags_clear(tags, done)) {
             return;
@@ -441,7 +460,7 @@ static void apply_ops(rsvc_tags_t tags, const char* path, ops_t ops, rsvc_done_t
         munmap(data, size);
     }
 
-    if (!((ops->move_mode ? move_file(path, tags, ops, done) : true)
+    if (!((ops->move_mode ? move_file(path, format, tags, ops, done) : true)
           && (ops->auto_mode ? rsvc_apply_musicbrainz_tags(tags, done) : true)
           && (!ops->dry_run ? rsvc_tags_save(tags, done) : true))) {
         return;
