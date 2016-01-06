@@ -343,10 +343,8 @@ static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_fl
 }
 
 static bool path_option(ops_t ops, rsvc_option_value_f get_value, rsvc_done_t fail) {
-    if (rsvc_string_option(&ops->move_format, get_value, fail)) {
-        rsvc_tags_validate_strf(ops->move_format, fail);
-    }
-    return true;
+    return rsvc_string_option(&ops->move_format, get_value, fail)
+        && rsvc_tags_validate_strf(ops->move_format, fail);
 }
 
 static bool shorthand_option(ops_t ops, char opt, rsvc_option_value_f get_value,

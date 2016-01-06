@@ -41,6 +41,7 @@ static bool bitrate_option(struct encode_options* encode, rsvc_option_value_f ge
                            rsvc_done_t fail);
 static bool format_option(struct encode_options* encode, rsvc_option_value_f get_value,
                           rsvc_done_t fail);
+static bool path_option(char** string, rsvc_option_value_f get_value, rsvc_done_t fail);
 
 static bool read_si_number(const char* in, int64_t* out);
 
@@ -104,7 +105,7 @@ struct rsvc_command rip = {
         switch (opt) {
           case 'b': return bitrate_option(&rip_options.encode, get_value, fail);
           case 'f': return format_option(&rip_options.encode, get_value, fail);
-          case 'p': return rsvc_string_option(&rip_options.path_format, get_value, fail);
+          case 'p': return path_option(&rip_options.path_format, get_value, fail);
           case 'e': return rsvc_boolean_option(&rip_options.eject);
           default:  return rsvc_illegal_short_option(opt, fail);
         }
@@ -401,6 +402,11 @@ static bool format_option(struct encode_options* encode, rsvc_option_value_f get
         return false;
     }
     return true;
+}
+
+static bool path_option(char** string, rsvc_option_value_f get_value, rsvc_done_t fail) {
+    return rsvc_string_option(string, get_value, fail)
+        && rsvc_tags_validate_strf(*string, fail);
 }
 
 bool validate_encode_options(struct encode_options* encode, rsvc_done_t fail) {
