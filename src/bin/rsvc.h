@@ -22,16 +22,13 @@
 #define SRC_BIN_RSVC_H_
 
 #include <stdint.h>
-#include <rsvc/common.h>
-#include <rsvc/format.h>
-
-#include "../rsvc/common.h"
+#include <rsvc/forward.h>
 #include "../rsvc/options.h"
 
 typedef struct rsvc_command*         rsvc_command_t;
 typedef struct rip_options*          rip_options_t;
 
-extern const char*                   rsvc_progname;
+extern char                          rsvc_progname[];
 extern struct rsvc_option_callbacks  callbacks;
 extern int                           rsvc_jobs;
 

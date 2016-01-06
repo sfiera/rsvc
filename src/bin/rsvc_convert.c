@@ -24,13 +24,15 @@
 #include "rsvc.h"
 
 #include <fts.h>
-#include <rsvc/tag.h>
 #include <string.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <rsvc/audio.h>
+#include <rsvc/format.h>
+#include <rsvc/tag.h>
 #include "../rsvc/group.h"
 #include "../rsvc/list.h"
 #include "../rsvc/progress.h"

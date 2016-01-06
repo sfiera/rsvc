@@ -26,6 +26,7 @@
 #include <stdlib.h>
 
 #include <rsvc/cd.h>
+#include "../rsvc/common.h"
 
 static char* print_disk;
 

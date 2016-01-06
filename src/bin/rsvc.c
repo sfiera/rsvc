@@ -23,16 +23,17 @@
 #include "rsvc.h"
 
 #include <ctype.h>
-#include <libgen.h>
-#include <stdio.h>
-#include <string.h>
 #include <sysexits.h>
 
 #include <rsvc/audio.h>
 #include <rsvc/disc.h>
+#include <rsvc/format.h>
+#include <rsvc/image.h>
+#include "../rsvc/common.c"
+#include "../rsvc/unix.c"
 
-const char*  rsvc_progname;
-int          rsvc_jobs = -1;
+char  rsvc_progname[MAXPATHLEN];
+int   rsvc_jobs = -1;
 
 static int             rsvc_exit   = EX_OK;
 static rsvc_command_t  command     = NULL;
@@ -115,7 +116,7 @@ static void rsvc_main(int argc, char* const* argv) {
     rsvc_audio_formats_register();
     rsvc_image_formats_register();
 
-    rsvc_progname = strdup(basename(argv[0]));
+    rsvc_basename(argv[0], rsvc_progname);
 
     rsvc_done_t done = ^(rsvc_error_t error){
         if (error) {

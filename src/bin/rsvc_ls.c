@@ -22,9 +22,8 @@
 
 #include "rsvc.h"
 
-#include <stdio.h>
-
 #include <rsvc/disc.h>
+#include "../rsvc/common.h"
 
 struct rsvc_command rsvc_ls = {
     .name = "ls",

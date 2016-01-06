@@ -23,6 +23,7 @@
 #include "rsvc.h"
 
 #include <rsvc/disc.h>
+#include "../rsvc/common.h"
 
 static char* eject_disk;
 

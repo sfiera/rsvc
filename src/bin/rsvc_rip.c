@@ -22,15 +22,17 @@
 
 #include "rsvc.h"
 
-#include <rsvc/cd.h>
-#include <rsvc/disc.h>
-#include <rsvc/musicbrainz.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
 #include <unistd.h>
 
+#include <rsvc/audio.h>
+#include <rsvc/cd.h>
+#include <rsvc/disc.h>
+#include <rsvc/format.h>
+#include <rsvc/musicbrainz.h>
 #include "../rsvc/group.h"
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
