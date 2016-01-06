@@ -313,13 +313,24 @@ bool same_file(const char* x, const char* y) {
     return same;
 }
 
-const char* path_format_for(rsvc_format_t format, ops_t ops) {
+const char* path_format_for(rsvc_format_t format, rsvc_tags_t tags, ops_t ops) {
     enum fpath_priority priority = FPATH_DEFAULT;
     const char* path = DEFAULT_PATH;
     for (format_path_list_node_t curr = ops->paths.head; curr; curr = curr->next) {
         if (curr->priority > priority) {
             if (curr->priority == FPATH_GROUP) {
                 if (curr->group != format->format_group) {
+                    continue;
+                }
+            } else if (curr->priority == FPATH_MEDIAKIND) {
+                __block int n = 0;
+                __block bool mediakind_matches = false;
+                rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+                    if (strcmp(name, RSVC_MEDIAKIND) == 0) {
+                        mediakind_matches = (++n == 1) && (strcmp(value, curr->mediakind) == 0);
+                    }
+                });
+                if (!mediakind_matches) {
                     continue;
                 }
             }
@@ -338,7 +349,7 @@ bool move_file(const char* path, rsvc_format_t format, rsvc_tags_t tags, ops_t o
     char* parent = NULL;
     char* new_path = NULL;
     char* new_parent = NULL;
-    if (!rsvc_tags_strf(tags, path_format_for(format, ops), extension, &new_path, fail)) {
+    if (!rsvc_tags_strf(tags, path_format_for(format, tags, ops), extension, &new_path, fail)) {
         goto end;
     }
 

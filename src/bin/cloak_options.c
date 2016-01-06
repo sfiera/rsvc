@@ -218,7 +218,7 @@ static bool help_option(const char* progname) {
             "    -m, --move              move file according to new tags\n"
             "    -p, --path PATH         format string for --move (default %s)\n"
             "        --TYPE-path PATH    override --path by type of file:\n"
-            "                            audio, video\n",
+            "                            audio, video, tv, movie\n",
             progname, DEFAULT_PATH);
     exit(0);
 }
@@ -392,8 +392,8 @@ static bool type_path_option(ops_t ops, const char* flag, rsvc_option_value_f ge
         char* what = memdup(flag, flag_len - 4);
         what[flag_len - 5] = '\0';
 
-        enum rsvc_format_group groups[] = {RSVC_AUDIO, RSVC_VIDEO};
-        for (int i = 0; i < 2; ++i) {
+        static const enum rsvc_format_group groups[] = {RSVC_AUDIO, RSVC_VIDEO};
+        for (int i = 0; i < (sizeof groups / sizeof groups[0]); ++i) {
             if (strcmp(what, rsvc_format_group_name(groups[i])) == 0) {
                 free(what);
                 node.priority = FPATH_GROUP;
@@ -402,6 +402,21 @@ static bool type_path_option(ops_t ops, const char* flag, rsvc_option_value_f ge
                 return push_path(ops, &node, get_value, fail);
             }
         }
+
+        static const char mediakinds[][2][16] = {
+            {"tv",     "TV Show"},
+            {"movie",  "Movie"},
+        };
+        for (int i = 0; i < (sizeof mediakinds / sizeof mediakinds[0]); ++i) {
+            if (strcmp(what, mediakinds[i][0]) == 0) {
+                free(what);
+                node.priority = FPATH_MEDIAKIND;
+                node.mediakind = mediakinds[i][1];
+                *matched = true;
+                return push_path(ops, &node, get_value, fail);
+            }
+        }
+
         free(what);
     }
     return true;

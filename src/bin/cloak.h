@@ -142,12 +142,13 @@ enum fpath_priority {
     FPATH_DEFAULT = 0,
     FPATH_ALL,
     FPATH_GROUP,
+    FPATH_MEDIAKIND,
 };
 
 struct format_path_list {
     struct format_path_list_node {
         enum fpath_priority      priority;
-        rsvc_format_t            format;
+        const char*              mediakind;
         enum rsvc_format_group   group;
         const char*              path;
         format_path_list_node_t  prev, next;

@@ -249,6 +249,9 @@ rsvc_tags_t rsvc_tags_new();
 /// ..  var:: RSVC_MUSICBRAINZ_DISCID
 #define RSVC_MUSICBRAINZ_DISCID     "MUSICBRAINZ_DISCID"
 
+/// ..  var:: RSVC_MEDIAKIND
+#define RSVC_MEDIAKIND              "MEDIAKIND"
+
 enum rsvc_tag_code {
     RSVC_CODE_ARTIST            = 'a',
     RSVC_CODE_ALBUM             = 'A',
