@@ -104,7 +104,7 @@ struct rsvc_command rip = {
         switch (opt) {
           case 'b': return bitrate_option(&rip_options.encode, get_value, fail);
           case 'f': return format_option(&rip_options.encode, get_value, fail);
-          case 'p': return rsvc_string_option(&rip_options.disk, get_value, fail);
+          case 'p': return rsvc_string_option(&rip_options.path_format, get_value, fail);
           case 'e': return rsvc_boolean_option(&rip_options.eject);
           default:  return rsvc_illegal_short_option(opt, fail);
         }
