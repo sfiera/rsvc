@@ -47,6 +47,7 @@
 #include "../rsvc/list.h"
 #include "../rsvc/options.h"
 #include "../rsvc/unix.h"
+#include "strlist.h"
 
 #define DEFAULT_PATH "./%b/%A/%d%k%t"
 
@@ -102,21 +103,12 @@ enum list_mode {
     LIST_MODE_LONG,
 };
 
-typedef struct string_list*             string_list_t;
-typedef struct string_list_node*        string_list_node_t;
 typedef struct add_image_list*          add_image_list_t;
 typedef struct add_image_list_node*     add_image_list_node_t;
 typedef struct remove_image_list*       remove_image_list_t;
 typedef struct remove_image_list_node*  remove_image_list_node_t;
 typedef struct write_image_list*        write_image_list_t;
 typedef struct write_image_list_node*   write_image_list_node_t;
-
-struct string_list {
-    struct string_list_node {
-        char*               value;
-        string_list_node_t  prev, next;
-    } *head, *tail;
-};
 
 struct add_image_list {
     struct add_image_list_node {

@@ -16,6 +16,7 @@
     , "type": "executable"
     , "sources":
       [ "src/bin/rsvc.h"
+      , "src/bin/strlist.h"
       , "src/bin/rsvc.c"
       , "src/bin/rsvc_convert.c"
       , "src/bin/rsvc_eject.c"
@@ -31,6 +32,7 @@
     , "type": "executable"
     , "sources":
       [ "src/bin/cloak.h"
+      , "src/bin/strlist.h"
       , "src/bin/cloak.c"
       , "src/bin/cloak_options.c"
       ]
