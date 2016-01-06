@@ -161,7 +161,7 @@ void rsvc_usage(rsvc_done_t done) {
                 "  watch                 watch for CDs\n"
                 "  eject [DEVICE]        eject CD\n"
                 "  rip [DEVICE]          rip tracks to files\n"
-                "  convert IN [OUT]      convert files\n"
+                "  convert IN [-o OUT]   convert files\n"
                 "\n"
                 "Options:\n"
                 "  -h, --help            show this help page\n"

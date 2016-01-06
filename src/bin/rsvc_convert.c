@@ -38,11 +38,15 @@
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
 
+struct file_pair {
+    char*  input;
+    int    input_fd;
+    char*  output;
+    int    output_fd;
+};
+
 static struct convert_options {
-    char* input;
-    int input_fd;
-    char* output;
-    int output_fd;
+    struct file_pair f;
 
     bool recursive;
     bool update;
@@ -72,7 +76,7 @@ struct rsvc_command rsvc_convert = {
 
     .usage = ^{
         errf(
-                "usage: %s convert [OPTIONS] IN [OUT]\n"
+                "usage: %s convert [OPTIONS] IN [-o OUT]\n"
                 "\n"
                 "Options:\n"
                 "  -b, --bitrate RATE      bitrate in SI format (default: 192k)\n"
@@ -108,6 +112,7 @@ struct rsvc_command rsvc_convert = {
         switch (opt) {
           case 'b': return bitrate_option(&convert_options.encode, get_value, fail);
           case 'f': return format_option(&convert_options.encode, get_value, fail);
+          case 'o': return rsvc_string_option(&convert_options.f.output, get_value, fail);
           case 'r': return rsvc_boolean_option(&convert_options.recursive);
           case 'u': return rsvc_boolean_option(&convert_options.update);
           case -1: return rsvc_boolean_option(&convert_options.delete_);
@@ -127,10 +132,8 @@ struct rsvc_command rsvc_convert = {
     },
 
     .argument = ^bool (char* arg, rsvc_done_t fail) {
-        if (!convert_options.input) {
-            convert_options.input = arg;
-        } else if (!convert_options.output) {
-            convert_options.output = arg;
+        if (!convert_options.f.input) {
+            convert_options.f.input = arg;
         } else {
             rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
             return false;
@@ -141,13 +144,13 @@ struct rsvc_command rsvc_convert = {
 
 static void convert(struct convert_options* options, rsvc_done_t done) {
     options = memdup(options, sizeof(*options));
-    options->input = strdup(options->input);
-    options->output = options->output ? strdup(options->output) : NULL;
+    options->f.input = strdup(options->f.input);
+    options->f.output = options->f.output ? strdup(options->f.output) : NULL;
     done = ^(rsvc_error_t error){
-        if (options->output) {
-            free(options->output);
+        if (options->f.output) {
+            free(options->f.output);
         }
-        free(options->input);
+        free(options->f.input);
         free(options);
         done(error);
     };
@@ -156,19 +159,19 @@ static void convert(struct convert_options* options, rsvc_done_t done) {
     // that; otherwise, generate it by changing the extension on the
     // input file name.
     char path_storage[MAXPATHLEN];
-    if (!options->output) {
-        if (!change_extension(options->input, options->encode.format->extension, path_storage,
+    if (!options->f.output) {
+        if (!change_extension(options->f.input, options->encode.format->extension, path_storage,
                               done)) {
             return;
         }
-        options->output = strdup(path_storage);
+        options->f.output = strdup(path_storage);
     }
 
-    if (!rsvc_open(options->input, O_RDONLY, 0644, &options->input_fd, done)) {
+    if (!rsvc_open(options->f.input, O_RDONLY, 0644, &options->f.input_fd, done)) {
         return;
     }
     done = ^(rsvc_error_t error){
-        close(options->input_fd);
+        close(options->f.input_fd);
         done(error);
     };
 
@@ -180,16 +183,16 @@ static void convert(struct convert_options* options, rsvc_done_t done) {
     //
     // Then, if --update was passed, skip if the output is newer.
     struct stat st_input, st_output;
-    if ((fstat(options->input_fd, &st_input) == 0)
-        && (stat(options->output, &st_output) == 0)) {
+    if ((fstat(options->f.input_fd, &st_input) == 0)
+        && (stat(options->f.output, &st_output) == 0)) {
         if ((st_input.st_dev == st_output.st_dev)
             && (st_input.st_ino == st_output.st_ino)) {
             rsvc_errorf(done, __FILE__, __LINE__, "%s and %s are the same file",
-                        options->input, options->output);
+                        options->f.input, options->f.output);
             return;
         }
         if (options->update && (st_input.st_mtime < st_output.st_mtime)) {
-            outf(" skip   %s\n", options->output);
+            outf(" skip   %s\n", options->f.output);
             done(NULL);
             return;
         }
@@ -197,19 +200,19 @@ static void convert(struct convert_options* options, rsvc_done_t done) {
 
     if (options->makedirs) {
         char parent[MAXPATHLEN];
-        rsvc_dirname(options->output, parent);
+        rsvc_dirname(options->f.output, parent);
         if (!rsvc_makedirs(parent, 0755, done)) {
             return;
         }
     }
 
     // Open a temporary file next to the output path.
-    if (!rsvc_temp(options->output, 0644, path_storage, &options->output_fd, done)) {
+    if (!rsvc_temp(options->f.output, 0644, path_storage, &options->f.output_fd, done)) {
         return;
     }
     char* tmp_path = strdup(path_storage);
     done = ^(rsvc_error_t error){
-        close(options->output_fd);
+        close(options->f.output_fd);
         unlink(tmp_path);
         free(tmp_path);
         done(error);
@@ -259,14 +262,14 @@ static void convert_recursive(struct convert_options* options, rsvc_done_t done)
 
     __block struct path_list outputs = {};
     if (options->delete_) {
-        if (!rsvc_walk(options->output, FTS_NOCHDIR, walk_done,
+        if (!rsvc_walk(options->f.output, FTS_NOCHDIR, walk_done,
                        ^bool(unsigned short info, const char* dirname, const char* basename,
                              struct stat* st, rsvc_done_t fail){
             if (info != FTS_F) {
                 return true;
             }
             struct path_node node = {};
-            strcat(node.path, options->output);
+            strcat(node.path, options->f.output);
             if (dirname) {
                 strcat(node.path, "/");
                 strcat(node.path, dirname);
@@ -280,7 +283,7 @@ static void convert_recursive(struct convert_options* options, rsvc_done_t done)
         }
     }
 
-    if (rsvc_walk(options->input, FTS_NOCHDIR, walk_done,
+    if (rsvc_walk(options->f.input, FTS_NOCHDIR, walk_done,
                   ^bool(unsigned short info, const char* dirname, const char* basename,
                         struct stat* st, rsvc_done_t fail){
         if (info == FTS_DP) {
@@ -288,7 +291,7 @@ static void convert_recursive(struct convert_options* options, rsvc_done_t done)
                 return true;
             }
             char dir[MAXPATHLEN];
-            strcpy(dir, options->output);
+            strcpy(dir, options->f.output);
             if (dirname) {
                 strcat(dir, "/");
                 strcat(dir, dirname);
@@ -314,8 +317,8 @@ static void convert_recursive(struct convert_options* options, rsvc_done_t done)
         }
 
         char input[MAXPATHLEN], output[MAXPATHLEN];
-        build_path(input, options->input, dirname, basename);
-        build_path(output, options->output, dirname, basename);
+        build_path(input, options->f.input, dirname, basename);
+        build_path(output, options->f.output, dirname, basename);
         if (!change_extension(output, options->encode.format->extension, output, fail)) {
             return false;
         }
@@ -330,16 +333,18 @@ static void convert_recursive(struct convert_options* options, rsvc_done_t done)
         }
 
         struct convert_options inner_options = {
-            .input = input,
-            .output = output,
+            .f = {
+                .input = input,
+                .output = output,
+            },
             .recursive = false,
             .update = options->update,
             .skip_unknown = true,
             .makedirs = true,
             .encode = options->encode,
         };
-        rsvc_logf(2, "- %s", inner_options.input);
-        rsvc_logf(2, "+ %s", inner_options.output);
+        rsvc_logf(2, "- %s", inner_options.f.input);
+        rsvc_logf(2, "+ %s", inner_options.f.output);
 
         dispatch_retain(sema);
         dispatch_semaphore_wait(sema, DISPATCH_TIME_FOREVER);
@@ -360,10 +365,10 @@ static void convert_recursive(struct convert_options* options, rsvc_done_t done)
 static bool validate_convert_options(rsvc_done_t fail) {
     if (!validate_encode_options(&convert_options.encode, fail)) {
         return false;
-    } else if (!convert_options.input) {
+    } else if (!convert_options.f.input) {
         rsvc_usage(fail);
         return false;
-    } else if (!convert_options.output) {
+    } else if (!convert_options.f.output) {
         if (convert_options.recursive) {
             rsvc_errorf(fail, __FILE__, __LINE__, "-r requires output path");
             return false;
@@ -381,7 +386,7 @@ static void convert_read(struct convert_options* options, int write_fd, rsvc_don
         if (!got_metadata) {
             start(false, NULL);
         }
-        rsvc_prefix_error(options->input, error, done);
+        rsvc_prefix_error(options->f.input, error, done);
     };
 
     rsvc_decode_metadata_f metadata = ^(rsvc_audio_meta_t meta){
@@ -400,7 +405,7 @@ static void convert_write(struct convert_options* options, rsvc_audio_meta_t met
 
     // Start the encoder.  When it's done, copy over tags, and then move
     // the temporary file to the final location.
-    encode_file(options, read_fd, options->output, meta,
+    encode_file(options, read_fd, options->f.output, meta,
                 ^(rsvc_error_t error){
         if (error) {
             done(error);
@@ -408,7 +413,7 @@ static void convert_write(struct convert_options* options, rsvc_audio_meta_t met
             copy_tags(options, tmp_path, ^(rsvc_error_t error){
                 if (error) {
                     done(error);
-                } else if (rsvc_mv(tmp_path, options->output, done)) {
+                } else if (rsvc_mv(tmp_path, options->f.output, done)) {
                     done(NULL);
                 }
             });
@@ -421,20 +426,20 @@ static void decode_file(struct convert_options* options, int write_fd,
     rsvc_format_t format;
     rsvc_done_t cant_decode = ^(rsvc_error_t error){
         if (options->skip_unknown) {
-            outf(" skip   %s\n", options->output);
+            outf(" skip   %s\n", options->f.output);
             done(NULL);
         } else {
             done(error);
         }
     };
-    if (!rsvc_format_detect(options->input, options->input_fd, &format, cant_decode)) {
+    if (!rsvc_format_detect(options->f.input, options->f.input_fd, &format, cant_decode)) {
         return;
     } else if (!format->decode) {
         rsvc_errorf(cant_decode, __FILE__, __LINE__,
-                    "%s: can't decode %s file", options->input, format->name);
+                    "%s: can't decode %s file", options->f.input, format->name);
         return;
     }
-    format->decode(options->input_fd, write_fd, start, done);
+    format->decode(options->f.input_fd, write_fd, start, done);
 }
 
 static void encode_file(struct convert_options* options, int read_fd, const char* path,
@@ -451,7 +456,7 @@ static void encode_file(struct convert_options* options, int read_fd, const char
             rsvc_progress_update(node, fraction);
         },
     };
-    options->encode.format->encode(read_fd, options->output_fd, &encode_options,
+    options->encode.format->encode(read_fd, options->f.output_fd, &encode_options,
                                    ^(rsvc_error_t error){
         rsvc_progress_done(node);
         done(error);
@@ -488,16 +493,16 @@ static void copy_tags(struct convert_options* options, const char* tmp_path, rsv
     // formats (e.g. conversion to/from WAV), then silently do nothing.
     rsvc_format_t read_fmt, write_fmt;
     rsvc_done_t ignore = ^(rsvc_error_t error){ /* do nothing */ };
-    if (!(rsvc_format_detect(options->input, options->input_fd, &read_fmt, ignore)
+    if (!(rsvc_format_detect(options->f.input, options->f.input_fd, &read_fmt, ignore)
           && read_fmt->open_tags
-          && rsvc_format_detect(tmp_path, options->output_fd, &write_fmt, ignore)
+          && rsvc_format_detect(tmp_path, options->f.output_fd, &write_fmt, ignore)
           && write_fmt->open_tags)) {
         done(NULL);
         return;
     }
 
     rsvc_tags_t read_tags;
-    if (!read_fmt->open_tags(options->input, RSVC_TAG_RDONLY, &read_tags, done)) {
+    if (!read_fmt->open_tags(options->f.input, RSVC_TAG_RDONLY, &read_tags, done)) {
         return;
     }
 
@@ -515,7 +520,7 @@ static void copy_tags(struct convert_options* options, const char* tmp_path, rsv
         rsvc_tags_destroy(write_tags);
         done(error);
     };
-    rsvc_logf(1, "copying %zu images from %s", rsvc_tags_image_size(read_tags), options->input);
+    rsvc_logf(1, "copying %zu images from %s", rsvc_tags_image_size(read_tags), options->f.input);
     rsvc_tags_image_each(read_tags, ^(rsvc_format_t format, const uint8_t* data, size_t size,
                                       rsvc_stop_t stop){
         rsvc_tags_image_add(write_tags, format, data, size, ^(rsvc_error_t error){});
