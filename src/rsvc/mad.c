@@ -41,7 +41,6 @@ struct mad_userdata {
     unsigned char* end;
     size_t end_position;
     size_t sample_count;
-    size_t bitrate;
     size_t sample_rate;
     size_t channels;
     rsvc_done_t fail;
@@ -74,7 +73,6 @@ static enum mad_flow mad_input(void* v, struct mad_stream* stream) {
 
 static enum mad_flow mad_header(void* v, struct mad_header const* header) {
     struct mad_userdata* userdata = v;
-    userdata->bitrate = header->bitrate;
     userdata->sample_rate = header->samplerate;
 
     switch (header->mode) {
@@ -195,7 +193,6 @@ void rsvc_mad_decode(int src_fd, int dst_fd,
             return;
         }
         struct rsvc_audio_meta meta = {
-            .bitrate = userdata.bitrate,
             .sample_rate = userdata.sample_rate,
             .channels = userdata.channels,
             .samples_per_channel = userdata.sample_count

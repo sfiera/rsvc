@@ -363,11 +363,11 @@ static void encode_file(convert_options_t options, int read_fd, const char* path
                         rsvc_audio_meta_t meta, rsvc_done_t done) {
     rsvc_progress_t node = rsvc_progress_start(path);
     struct rsvc_encode_options encode_options = {
+        .bitrate                  = options->encode.bitrate,
         .meta = {
-            .bitrate                = options->encode.bitrate,
-            .sample_rate            = meta->sample_rate,
-            .channels               = meta->channels,
-            .samples_per_channel    = meta->samples_per_channel,
+            .sample_rate          = meta->sample_rate,
+            .channels             = meta->channels,
+            .samples_per_channel  = meta->samples_per_channel,
         },
         .progress = ^(double fraction){
             rsvc_progress_update(node, fraction);

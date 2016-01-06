@@ -509,8 +509,6 @@ static void flac_decode_metadata(const FLAC__StreamDecoder* decoder,
     }
     flac_decode_userdata_t u = (flac_decode_userdata_t)userdata;
     struct rsvc_audio_meta meta = {
-        .bitrate =
-            metadata->data.stream_info.bits_per_sample * metadata->data.stream_info.sample_rate,
         .channels = metadata->data.stream_info.channels,
         .sample_rate = metadata->data.stream_info.sample_rate,
         .samples_per_channel = metadata->data.stream_info.total_samples,

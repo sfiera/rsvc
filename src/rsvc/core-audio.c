@@ -90,8 +90,9 @@ static four_char_t fourcc(uint32_t value) {
 static void core_audio_encode(
         int src_fd, int dst_fd, rsvc_encode_options_t options,
         int container_id, int codec_id, rsvc_done_t done) {
-    struct rsvc_audio_meta meta         = options->meta;
-    rsvc_encode_progress_f progress     = options->progress;
+    int32_t                 bitrate   = options->bitrate;
+    struct rsvc_audio_meta  meta      = options->meta;
+    rsvc_encode_progress_f  progress  = options->progress;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         OSStatus err;
         AudioStreamBasicDescription asbd_out = {
@@ -164,7 +165,7 @@ static void core_audio_encode(
                 return;
             }
             err = AudioConverterSetProperty(
-                    converter, kAudioConverterEncodeBitRate, sizeof(meta.bitrate), &meta.bitrate);
+                    converter, kAudioConverterEncodeBitRate, sizeof(bitrate), &bitrate);
             if (err != noErr) {
                 cleanup();
                 rsvc_errorf(done, __FILE__, __LINE__, "some error: %s", fourcc(err).string);

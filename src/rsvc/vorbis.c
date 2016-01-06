@@ -45,8 +45,9 @@ void rsvc_vorbis_encode(
         int dst_fd,
         rsvc_encode_options_t options,
         rsvc_done_t done) {
-    struct rsvc_audio_meta meta         = options->meta;
-    rsvc_encode_progress_f progress     = options->progress;
+    int32_t                 bitrate   = options->bitrate;
+    struct rsvc_audio_meta  meta      = options->meta;
+    rsvc_encode_progress_f  progress  = options->progress;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         // Largely cribbed from libvorbis's examples/encoder_example.c.
         // Some comments there imply that it is doing things a certain
@@ -64,7 +65,7 @@ void rsvc_vorbis_encode(
 
         // Initialize the encoder.
         vorbis_info_init(&vi);
-        ret = vorbis_encode_init(&vi, meta.channels, meta.sample_rate, -1, meta.bitrate, -1);
+        ret = vorbis_encode_init(&vi, meta.channels, meta.sample_rate, -1, bitrate, -1);
         if (ret != 0 ) {
             rsvc_errorf(done, __FILE__, __LINE__, "couldn't init vorbis encoder");
             return;
