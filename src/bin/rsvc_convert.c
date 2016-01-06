@@ -38,7 +38,7 @@
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
 
-struct convert_options {
+static struct convert_options {
     char* input;
     int input_fd;
     char* output;

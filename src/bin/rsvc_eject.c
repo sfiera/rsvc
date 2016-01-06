@@ -25,7 +25,7 @@
 #include <rsvc/disc.h>
 #include "../rsvc/common.h"
 
-static char* eject_disk;
+static char* disk;
 
 struct rsvc_command rsvc_eject = {
     .name = "eject",
@@ -35,24 +35,24 @@ struct rsvc_command rsvc_eject = {
     },
 
     .run = ^(rsvc_done_t done){
-        if (eject_disk == NULL) {
-            rsvc_default_disk(^(rsvc_error_t error, char* disk){
+        if (disk == NULL) {
+            rsvc_default_disk(^(rsvc_error_t error, char* default_disk){
                 if (error) {
                     done(error);
                 } else {
-                    eject_disk = disk;
+                    disk = default_disk;
                     rsvc_eject.run(done);
                 }
             });
             return;
         }
 
-        rsvc_disc_eject(eject_disk, done);
+        rsvc_disc_eject(disk, done);
     },
 
     .argument = ^bool (char* arg, rsvc_done_t fail) {
-        if (!eject_disk) {
-            eject_disk = arg;
+        if (!disk) {
+            disk = arg;
             return true;
         }
         return false;

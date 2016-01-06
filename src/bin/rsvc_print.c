@@ -28,7 +28,7 @@
 #include <rsvc/cd.h>
 #include "../rsvc/common.h"
 
-static char* print_disk;
+static char* disk;
 
 static void print_track(rsvc_cd_session_t session, size_t n);
 static void print_session(rsvc_cd_t cd, size_t n);
@@ -41,19 +41,19 @@ struct rsvc_command rsvc_print = {
     },
 
     .run = ^(rsvc_done_t done){
-        if (print_disk == NULL) {
-            rsvc_default_disk(^(rsvc_error_t error, char* disk){
+        if (disk == NULL) {
+            rsvc_default_disk(^(rsvc_error_t error, char* default_disk){
                 if (error) {
                     done(error);
                 } else {
-                    print_disk = disk;
+                    disk = default_disk;
                     rsvc_print.run(done);
                 }
             });
             return;
         }
 
-        rsvc_cd_create(print_disk, ^(rsvc_cd_t cd, rsvc_error_t error){
+        rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
             if (error) {
                 done(error);
                 return;
@@ -70,8 +70,8 @@ struct rsvc_command rsvc_print = {
     },
 
     .argument = ^bool (char* arg, rsvc_done_t fail) {
-        if (!print_disk) {
-            print_disk = arg;
+        if (!disk) {
+            disk = arg;
             return true;
         }
         return false;

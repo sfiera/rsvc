@@ -37,15 +37,15 @@
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
 
-struct rip_options {
+static struct rip_options {
     char* disk;
     struct encode_options encode;
     bool eject;
     char* path_format;
-} rip_options;
+} opts;
 
-static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done);
-static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_t options,
+static void rip_all(rsvc_cd_t cd, rsvc_done_t done);
+static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
                       rsvc_cd_t cd, rsvc_cd_session_t session);
 static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
                      void (^done)(rsvc_error_t error, rsvc_tags_t tags));
@@ -75,36 +75,36 @@ struct rsvc_command rsvc_rip = {
     },
 
     .run = ^(rsvc_done_t done){
-        if (rip_options.disk == NULL) {
+        if (opts.disk == NULL) {
             rsvc_default_disk(^(rsvc_error_t error, char* disk){
                 if (error) {
                     done(error);
                 } else {
-                    rip_options.disk = strdup(disk);
+                    opts.disk = strdup(disk);
                     rsvc_rip.run(done);
                 }
             });
             return;
         }
-        if (!rip_options.path_format) {
-            rip_options.path_format = "%k";
+        if (!opts.path_format) {
+            opts.path_format = "%k";
         }
 
-        if (!validate_encode_options(&rip_options.encode, done)) {
+        if (!validate_encode_options(&opts.encode, done)) {
             return;
         }
 
-        rsvc_cd_create(rip_options.disk, ^(rsvc_cd_t cd, rsvc_error_t error){
+        rsvc_cd_create(opts.disk, ^(rsvc_cd_t cd, rsvc_error_t error){
             if (error) {
                 done(error);
                 return;
             }
-            rip_all(cd, &rip_options, ^(rsvc_error_t error){
+            rip_all(cd, ^(rsvc_error_t error){
                 rsvc_cd_destroy(cd);
                 if (error) {
                     done(error);
-                } else if (rip_options.eject) {
-                    rsvc_disc_eject(rip_options.disk, done);
+                } else if (opts.eject) {
+                    rsvc_disc_eject(opts.disk, done);
                 } else {
                     done(NULL);
                 }
@@ -114,10 +114,10 @@ struct rsvc_command rsvc_rip = {
 
     .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
         switch (opt) {
-          case 'b': return bitrate_option(&rip_options.encode, get_value, fail);
-          case 'f': return format_option(&rip_options.encode, get_value, fail);
-          case 'p': return path_option(&rip_options.path_format, get_value, fail);
-          case 'e': return rsvc_boolean_option(&rip_options.eject);
+          case 'b': return bitrate_option(&opts.encode, get_value, fail);
+          case 'f': return format_option(&opts.encode, get_value, fail);
+          case 'p': return path_option(&opts.path_format, get_value, fail);
+          case 'e': return rsvc_boolean_option(&opts.eject);
           default:  return rsvc_illegal_short_option(opt, fail);
         }
     },
@@ -133,8 +133,8 @@ struct rsvc_command rsvc_rip = {
     },
 
     .argument = ^bool (char* arg, rsvc_done_t fail) {
-        if (!rip_options.disk) {
-            rip_options.disk = arg;
+        if (!opts.disk) {
+            opts.disk = arg;
             return true;
         } else {
             rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
@@ -143,7 +143,7 @@ struct rsvc_command rsvc_rip = {
     },
 };
 
-static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
+static void rip_all(rsvc_cd_t cd, rsvc_done_t done) {
     outf("Ripping…\n");
     rsvc_cd_session_t session = rsvc_cd_session(cd, 0);
     const size_t ntracks = rsvc_cd_session_ntracks(session);
@@ -155,10 +155,10 @@ static void rip_all(rsvc_cd_t cd, rip_options_t options, rsvc_done_t done) {
         done(error);
     });
 
-    rip_track(0, ntracks, group, options, cd, session);
+    rip_track(0, ntracks, group, cd, session);
 }
 
-static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_t options,
+static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
                       rsvc_cd_t cd, rsvc_cd_session_t session) {
     if (n == ntracks) {
         rsvc_group_ready(group);
@@ -170,7 +170,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
     size_t track_number = rsvc_cd_track_number(track);
     if (rsvc_cd_track_type(track) == RSVC_CD_TRACK_DATA) {
         outf("skipping track %zu/%zu\n", track_number, ntracks);
-        rip_track(n + 1, ntracks, group, options, cd, session);
+        rip_track(n + 1, ntracks, group, cd, session);
         return;
     }
 
@@ -181,7 +181,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             rip_done(error);
         } else {
             rip_done(error);
-            rip_track(n + 1, ntracks, group, options, cd, session);
+            rip_track(n + 1, ntracks, group, cd, session);
         }
     };
 
@@ -192,7 +192,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
         }
 
         char* path;
-        if (!rsvc_tags_strf(tags, options->path_format, options->encode.format->extension,
+        if (!rsvc_tags_strf(tags, opts.path_format, opts.encode.format->extension,
                             &path, rip_done)) {
             rsvc_tags_destroy(tags);
             return;
@@ -231,7 +231,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
         size_t nsamples = rsvc_cd_track_nsamples(track);
 
         struct rsvc_encode_options encode_options = {
-            .bitrate                  = options->encode.bitrate,
+            .bitrate                  = opts.encode.bitrate,
             .meta = {
                 .sample_rate          = 44100,
                 .channels             = 2,
@@ -249,7 +249,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group, rip_options_
             free(path);
             encode_done(error);
         };
-        options->encode.format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
+        opts.encode.format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
             if (error) {
                 encode_done(error);
             } else {
