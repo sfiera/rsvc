@@ -37,7 +37,10 @@ struct rsvc_command rsvc_ls = {
         callbacks.appeared = ^(enum rsvc_disc_type type, const char* path){
             outf("%s\t%s\n", path, rsvc_disc_type_name[type]);
         };
-        callbacks.disappeared = ^(enum rsvc_disc_type type, const char* path){};
+        callbacks.disappeared = ^(enum rsvc_disc_type type, const char* path){
+            (void)type;
+            (void)path;
+        };
         callbacks.initialized = ^(rsvc_stop_t stop){
             stop();
             done(NULL);
