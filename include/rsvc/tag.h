@@ -39,10 +39,30 @@ struct rsvc_tags_methods {
     bool (*image_each)(rsvc_tags_t tags,
                        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size,
                                      rsvc_stop_t stop));
+
+    rsvc_tags_iter_t        (*iter_begin)(rsvc_tags_t tags);
+    bool                    (*iter_next)(rsvc_tags_iter_t it);
+    void                    (*iter_break)(rsvc_tags_iter_t it);
+
+    rsvc_tags_image_iter_t  (*image_iter_begin)(rsvc_tags_t tags);
+    bool                    (*image_iter_next)(rsvc_tags_image_iter_t it);
+    void                    (*image_iter_break)(rsvc_tags_image_iter_t it);
 };
+
 struct rsvc_tags {
     struct rsvc_tags_methods*   vptr;
     int                         flags;
+};
+
+struct rsvc_tags_iter {
+    const char*  name;
+    const char*  value;
+};
+
+struct rsvc_tags_image_iter {
+    rsvc_format_t   format;
+    const uint8_t*  data;
+    size_t          size;
 };
 
 enum {

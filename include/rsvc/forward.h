@@ -21,16 +21,18 @@
 #ifndef RSVC_FORWARD_H_
 #define RSVC_FORWARD_H_
 
-typedef const  struct rsvc_format*          rsvc_format_t;
+typedef const  struct rsvc_format*           rsvc_format_t;
 
-typedef        struct rsvc_audio_meta*      rsvc_audio_meta_t;
-typedef        struct rsvc_cd*              rsvc_cd_t;
-typedef        struct rsvc_cd_session*      rsvc_cd_session_t;
-typedef        struct rsvc_cd_track*        rsvc_cd_track_t;
-typedef        struct rsvc_encode_options*  rsvc_encode_options_t;
-typedef        struct rsvc_error*           rsvc_error_t;
-typedef        struct rsvc_tags*            rsvc_tags_t;
-typedef        struct rsvc_cancel*          rsvc_cancel_t;
-typedef        struct rsvc_cancel_handle*   rsvc_cancel_handle_t;
+typedef        struct rsvc_audio_meta*       rsvc_audio_meta_t;
+typedef        struct rsvc_cd*               rsvc_cd_t;
+typedef        struct rsvc_cd_session*       rsvc_cd_session_t;
+typedef        struct rsvc_cd_track*         rsvc_cd_track_t;
+typedef        struct rsvc_encode_options*   rsvc_encode_options_t;
+typedef        struct rsvc_error*            rsvc_error_t;
+typedef        struct rsvc_tags*             rsvc_tags_t;
+typedef        struct rsvc_tags_iter*        rsvc_tags_iter_t;
+typedef        struct rsvc_tags_image_iter*  rsvc_tags_image_iter_t;
+typedef        struct rsvc_cancel*           rsvc_cancel_t;
+typedef        struct rsvc_cancel_handle*    rsvc_cancel_handle_t;
 
 #endif  // RSVC_FORWARD_H_

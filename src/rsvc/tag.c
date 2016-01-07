@@ -141,6 +141,17 @@ bool rsvc_tags_image_add(
 
 bool rsvc_tags_each(rsvc_tags_t tags,
                     void (^block)(const char*, const char*, rsvc_stop_t)) {
+    if (tags->vptr->iter_begin) {
+        rsvc_tags_iter_t it = tags->vptr->iter_begin(tags);
+        __block bool loop = true;
+        while (loop && tags->vptr->iter_next(it)) {
+            block(it->name, it->value, ^{
+                tags->vptr->iter_break(it);
+                loop = false;
+            });
+        }
+        return loop;
+    }
     return tags->vptr->each(tags, block);
 }
 
@@ -148,7 +159,17 @@ bool rsvc_tags_image_each(
         rsvc_tags_t tags,
         void (^block)(
             rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop)) {
-    if (tags->vptr->image_each) {
+    if (tags->vptr->image_iter_begin) {
+        rsvc_tags_image_iter_t it = tags->vptr->image_iter_begin(tags);
+        __block bool loop = true;
+        while (loop && tags->vptr->image_iter_next(it)) {
+            block(it->format, it->data, it->size, ^{
+                tags->vptr->image_iter_break(it);
+                loop = false;
+            });
+        }
+        return loop;
+    } else if (tags->vptr->image_each) {
         return tags->vptr->image_each(tags, block);
     } else {
         return true;

@@ -557,148 +557,209 @@ static bool rsvc_mp4_tags_add(rsvc_tags_t tags, const char* name, const char* va
     return false;
 }
 
-static bool rsvc_mp4_tags_each(rsvc_tags_t tags,
-                         void (^block)(const char* name, const char* value, rsvc_stop_t stop)) {
+typedef struct mp4_tags_iter* mp4_tags_iter_t;
+struct mp4_tags_iter {
+    struct rsvc_tags_iter  super;
+
+    MP4ItmfItemList*       items;
+    int                    i;
+    mp4_tag_t              tag;
+    char                   short_value[16];
+    char*                  long_value;
+};
+
+static rsvc_tags_iter_t mp4_begin(rsvc_tags_t tags) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
-    __block bool loop = true;
-    rsvc_stop_t stop = ^{
-        loop = false;
+    struct mp4_tags_iter iter = {
+        .items  = MP4ItmfGetItems(self->file),
+        .i      = 0,
+        .tag    = mp4_tags - 1,
     };
-
-    MP4ItmfItemList* items = MP4ItmfGetItems(self->file);
-    for (uint32_t i = 0; loop && (i < items->size); ++i) {
-        MP4ItmfItem* item = &items->elements[i];
-        for (mp4_tag_t tag = mp4_tags; tag->vorbis_name; ++tag) {
-            if ((strcmp(item->code, tag->mp4_code) != 0)
-                    || (item->dataList.size == 0)) {
-                continue;
-            } else if (tag->mp4_name
-                    && (!item->name || (strcmp(item->name, tag->mp4_name) != 0))) {
-                continue;
-            }
-            MP4ItmfData* data = &item->dataList.elements[0];
-            switch (data->typeCode) {
-                case MP4_ITMF_BT_IMPLICIT: {
-                    uint16_t number = 0;
-                    uint16_t total = 0;
-                    if ((tag->type == &mp4_tracknumber) || (tag->type == &mp4_discnumber)) {
-                        read_trkn_or_disc(data->value, data->valueSize, &number, &total);
-                    } else if ((tag->type == &mp4_tracktotal) || (tag->type == &mp4_disctotal)) {
-                        read_trkn_or_disc(data->value, data->valueSize, &number, &total);
-                        number = total;
-                    } else if (tag->type == &mp4_genre) {
-                        if (data->valueSize == 2) {
-                            number = ((data->value[0] << 8) | data->value[1]) - 1;
-                        }
-                    }
-                    if (number) {
-                        char value[16];
-                        sprintf(value, "%hu", number);
-                        block(tag->vorbis_name, value, stop);
-                    }
-                }
-                break;
-
-                case MP4_ITMF_BT_UTF8:
-                case MP4_ITMF_BT_ISRC:
-                case MP4_ITMF_BT_MI3P:
-                case MP4_ITMF_BT_URL:
-                case MP4_ITMF_BT_UPC: {
-                    char* value = strndup((char*)data->value, data->valueSize);
-                    block(tag->vorbis_name, value, stop);
-                    free(value);
-                }
-                break;
-
-                case MP4_ITMF_BT_UTF16:
-                case MP4_ITMF_BT_SJIS: {
-                    // Unsupported encoding.
-                }
-                break;
-
-                case MP4_ITMF_BT_UUID:
-                case MP4_ITMF_BT_DURATION:
-                case MP4_ITMF_BT_DATETIME:
-                case MP4_ITMF_BT_INTEGER:
-                case MP4_ITMF_BT_RIAA_PA: {
-                    int64_t number = 0;
-                    if (data->value[0] & 0x80) {
-                        number = -1;
-                    }
-                    for (int i = 0; i < data->valueSize; ++i) {
-                        number = ((number & 0x0fffffffffffffffLL) << 8) | data->value[i];
-                    }
-                    if (tag->type == &mp4_media_kind) {
-                        for (struct media_kind* mk = kMediaKinds; mk->name; ++mk) {
-                            if (mk->value == number) {
-                                block(tag->vorbis_name, mk->name, stop);
-                                goto skip;
-                            }
-                        }
-                    }
-                    char value[16];
-                    sprintf(value, "%lld", (long long)number);
-                    block(tag->vorbis_name, value, stop);
-                }
-skip:
-                break;
-
-                case MP4_ITMF_BT_HTML:
-                case MP4_ITMF_BT_XML:
-                case MP4_ITMF_BT_GIF:
-                case MP4_ITMF_BT_JPEG:
-                case MP4_ITMF_BT_PNG:
-                case MP4_ITMF_BT_GENRES:
-                case MP4_ITMF_BT_BMP:
-                case MP4_ITMF_BT_UNDEFINED:
-                break;
-            }
-        }
-    }
-    MP4ItmfItemListFree(items);
-    return loop;
+    mp4_tags_iter_t copy = memdup(&iter, sizeof(iter));
+    return &copy->super;
 }
 
-static bool rsvc_mp4_tags_image_each(
-        rsvc_tags_t tags,
-        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop)) {
-    rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
-    __block bool loop = true;
-    rsvc_stop_t stop = ^{
-        loop = false;
-    };
+static void mp4_break(rsvc_tags_iter_t super_it) {
+    mp4_tags_iter_t it = DOWN_CAST(struct mp4_tags_iter, super_it);
+    if (it->long_value) {
+        free(it->long_value);
+    }
+    MP4ItmfItemListFree(it->items);
+    free(it);
+}
 
-    MP4ItmfItemList* items = MP4ItmfGetItems(self->file);
-    for (uint32_t i = 0; loop && (i < items->size); ++i) {
-        MP4ItmfItem* item = &items->elements[i];
+static bool mp4_next(rsvc_tags_iter_t super_it) {
+    mp4_tags_iter_t it = DOWN_CAST(struct mp4_tags_iter, super_it);
+
+    if (it->long_value) {
+        free(it->long_value);
+        it->long_value = NULL;
+    }
+    while (true) {
+        ++it->tag;
+        if (!it->tag->vorbis_name) {
+            it->tag = mp4_tags;
+            ++it->i;
+        }
+        if (it->i == it->items->size) {
+            return false;
+        }
+
+        MP4ItmfItem* item = &it->items->elements[it->i];
+        if ((strcmp(item->code, it->tag->mp4_code) != 0)
+                || (item->dataList.size == 0)) {
+            continue;
+        } else if (it->tag->mp4_name
+                && (!item->name || (strcmp(item->name, it->tag->mp4_name) != 0))) {
+            continue;
+        }
+
+        MP4ItmfData* data = &item->dataList.elements[0];
+        switch (data->typeCode) {
+            case MP4_ITMF_BT_IMPLICIT: {
+                uint16_t number = 0;
+                uint16_t total = 0;
+                if ((it->tag->type == &mp4_tracknumber) || (it->tag->type == &mp4_discnumber)) {
+                    read_trkn_or_disc(data->value, data->valueSize, &number, &total);
+                } else if ((it->tag->type == &mp4_tracktotal) || (it->tag->type == &mp4_disctotal)) {
+                    read_trkn_or_disc(data->value, data->valueSize, &number, &total);
+                    number = total;
+                } else if (it->tag->type == &mp4_genre) {
+                    if (data->valueSize == 2) {
+                        number = ((data->value[0] << 8) | data->value[1]) - 1;
+                    }
+                }
+                if (number) {
+                    it->super.name = it->tag->vorbis_name;
+                    it->super.value = it->short_value;
+                    sprintf(it->short_value, "%hu", number);
+                    return true;
+                }
+            }
+            break;
+
+            case MP4_ITMF_BT_UTF8:
+            case MP4_ITMF_BT_ISRC:
+            case MP4_ITMF_BT_MI3P:
+            case MP4_ITMF_BT_URL:
+            case MP4_ITMF_BT_UPC: {
+                it->super.name = it->tag->vorbis_name;
+                it->super.value = it->long_value = strndup((char*)data->value, data->valueSize);
+                return true;
+            }
+            break;
+
+            case MP4_ITMF_BT_UTF16:
+            case MP4_ITMF_BT_SJIS: {
+                // Unsupported encoding.
+            }
+            break;
+
+            case MP4_ITMF_BT_UUID:
+            case MP4_ITMF_BT_DURATION:
+            case MP4_ITMF_BT_DATETIME:
+            case MP4_ITMF_BT_INTEGER:
+            case MP4_ITMF_BT_RIAA_PA: {
+                int64_t number = 0;
+                if (data->value[0] & 0x80) {
+                    number = -1;
+                }
+                for (int i = 0; i < data->valueSize; ++i) {
+                    number = ((number & 0x0fffffffffffffffLL) << 8) | data->value[i];
+                }
+                if (it->tag->type == &mp4_media_kind) {
+                    for (struct media_kind* mk = kMediaKinds; mk->name; ++mk) {
+                        if (mk->value == number) {
+                            it->super.name = it->tag->vorbis_name;
+                            it->super.value = mk->name;
+                            return true;
+                        }
+                    }
+                }
+                it->super.name = it->tag->vorbis_name;
+                it->super.value = it->short_value;
+                sprintf(it->short_value, "%lld", (long long)number);
+                return true;
+            }
+            break;
+
+            case MP4_ITMF_BT_HTML:
+            case MP4_ITMF_BT_XML:
+            case MP4_ITMF_BT_GIF:
+            case MP4_ITMF_BT_JPEG:
+            case MP4_ITMF_BT_PNG:
+            case MP4_ITMF_BT_GENRES:
+            case MP4_ITMF_BT_BMP:
+            case MP4_ITMF_BT_UNDEFINED:
+            break;
+        }
+    }
+    mp4_break(super_it);
+}
+
+typedef struct mp4_tags_image_iter* mp4_tags_image_iter_t;
+struct mp4_tags_image_iter {
+    struct rsvc_tags_image_iter  super;
+
+    MP4ItmfItemList*       items;
+    int                    i;
+};
+
+static rsvc_tags_image_iter_t mp4_image_begin(rsvc_tags_t tags) {
+    rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
+    struct mp4_tags_image_iter iter = {
+        .items  = MP4ItmfGetItems(self->file),
+        .i      = -1,
+    };
+    mp4_tags_image_iter_t copy = memdup(&iter, sizeof(iter));
+    return &copy->super;
+}
+
+static void mp4_image_break(rsvc_tags_image_iter_t super_it) {
+    mp4_tags_image_iter_t it = DOWN_CAST(struct mp4_tags_image_iter, super_it);
+    MP4ItmfItemListFree(it->items);
+    free(it);
+}
+
+static bool mp4_image_next(rsvc_tags_image_iter_t super_it) {
+    mp4_tags_image_iter_t it = DOWN_CAST(struct mp4_tags_image_iter, super_it);
+
+    while (true) {
+        ++it->i;
+        if (it->i == it->items->size) {
+            return false;
+        }
+
+        MP4ItmfItem* item = &it->items->elements[it->i];
         if ((item->dataList.size == 0)
                 || (strcmp(item->code, mp4_image_tag.mp4_code) != 0)) {
             continue;
         }
+
         MP4ItmfData* data = &item->dataList.elements[0];
-        rsvc_format_t format = NULL;
         switch (data->typeCode) {
             case MP4_ITMF_BT_GIF:
-                format = &rsvc_gif;
+                super_it->format = &rsvc_gif;
                 break;
             case MP4_ITMF_BT_JPEG:
-                format = &rsvc_jpeg;
+                super_it->format = &rsvc_jpeg;
                 break;
             case MP4_ITMF_BT_PNG:
-                format = &rsvc_png;
+                super_it->format = &rsvc_png;
                 break;
             case MP4_ITMF_BT_BMP:
-                format = NULL;  // TODO(sfiera): &rsvc_bmp;
-                break;
             default:
-                continue;
+                super_it->format = NULL;  // TODO(sfiera): &rsvc_bmp;
+                break;
         }
-        if (format) {
-            block(format, data->value, data->valueSize, stop);
+        if (super_it->format) {
+            super_it->data = data->value;
+            super_it->size = data->valueSize;
+            return true;
         }
     }
-    MP4ItmfItemListFree(items);
-    return loop;
+    mp4_image_break(super_it);
+    return false;
 }
 
 static bool rsvc_mp4_tags_image_remove(
@@ -775,12 +836,18 @@ static void rsvc_mp4_tags_destroy(rsvc_tags_t tags) {
 static struct rsvc_tags_methods mp4_vptr = {
     .remove = rsvc_mp4_tags_remove,
     .add = rsvc_mp4_tags_add,
-    .each = rsvc_mp4_tags_each,
-    .image_each = rsvc_mp4_tags_image_each,
     .image_remove = rsvc_mp4_tags_image_remove,
     .image_add = rsvc_mp4_tags_image_add,
     .save = rsvc_mp4_tags_save,
     .destroy = rsvc_mp4_tags_destroy,
+
+    .iter_begin  = mp4_begin,
+    .iter_next   = mp4_next,
+    .iter_break  = mp4_break,
+
+    .image_iter_begin  = mp4_image_begin,
+    .image_iter_next   = mp4_image_next,
+    .image_iter_break  = mp4_image_break,
 };
 
 bool rsvc_mp4_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail) {
