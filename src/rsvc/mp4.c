@@ -365,6 +365,7 @@ static bool add_image_tag(
 
 static bool delete_tag(MP4FileHandle* file, mp4_tag_t tag,
                        rsvc_done_t fail) {
+    (void)fail;  // always succeeds.
     MP4ItmfItemList* items = MP4ItmfGetItems(file);
     for (int i = 0; i < items->size; ++i) {
         MP4ItmfItem* item = &items->elements[i];
