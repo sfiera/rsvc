@@ -114,14 +114,8 @@ static void     id3_image_write(id3_frame_node_t node, uint8_t* data);
 static bool     id3_passthru_read(
                         id3_frame_list_t frames, id3_frame_spec_t spec,
                         uint8_t* data, size_t size, rsvc_done_t fail);
-static void     id3_passthru_yield(
-                        id3_frame_node_t node,
-                        void (^block)(const char* name, const char* value));
 static size_t   id3_passthru_size(id3_frame_node_t node);
 static void     id3_passthru_write(id3_frame_node_t node, uint8_t* data);
-static bool     id3_discard_read(
-                        id3_frame_list_t frames, id3_frame_spec_t spec,
-                        uint8_t* data, size_t size, rsvc_done_t fail);
 
 struct id3_frame_type {
     id3_read_f          read;
@@ -167,7 +161,6 @@ static struct id3_frame_type id3_sequence_total = {
 
 static struct id3_frame_type id3_image = {
     .read       = id3_image_read,
-    .yield      = id3_passthru_yield,
     .image_yield= id3_image_yield,
     .size       = id3_image_size,
     .write      = id3_image_write,
@@ -183,14 +176,11 @@ static struct id3_frame_type id3_2_3_sequence = {
 
 static struct id3_frame_type id3_passthru = {
     .read       = id3_passthru_read,
-    .yield      = id3_passthru_yield,
     .size       = id3_passthru_size,
     .write      = id3_passthru_write,
 };
 
-static struct id3_frame_type id3_discard = {
-    .read       = id3_discard_read,
-};
+static struct id3_frame_type id3_discard = {};
 
 static struct id3_frame_spec {
     const char*         vorbis_name;
@@ -410,11 +400,13 @@ static bool rsvc_id3_tags_each(
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
     __block bool loop = true;
     for (id3_frame_node_t curr = self->frames.head; curr && loop; curr = curr->next) {
-        curr->spec->id3_2_4_type->yield(curr, ^(const char* name, const char* value){
-            block(name, value, ^{
-                loop = false;
+        if (curr->spec->id3_2_4_type->yield) {
+            curr->spec->id3_2_4_type->yield(curr, ^(const char* name, const char* value){
+                block(name, value, ^{
+                    loop = false;
+                });
             });
-        });
+        }
     }
     return loop;
 }
@@ -425,15 +417,14 @@ static bool rsvc_id3_tags_image_each(
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
     __block bool loop = true;
     for (id3_frame_node_t curr = self->frames.head; curr && loop; curr = curr->next) {
-        if (!curr->spec->id3_2_4_type->image_yield) {
-            continue;
-        }
-        curr->spec->id3_2_4_type->image_yield(
-                curr, ^(rsvc_format_t format, const uint8_t* data, size_t size){
-            block(format, data, size, ^{
-                loop = false;
+        if (curr->spec->id3_2_4_type->image_yield) {
+            curr->spec->id3_2_4_type->image_yield(
+                    curr, ^(rsvc_format_t format, const uint8_t* data, size_t size){
+                block(format, data, size, ^{
+                    loop = false;
+                });
             });
-        });
+        }
     }
     return loop;
 }
@@ -672,7 +663,9 @@ static bool read_id3_frame(rsvc_id3_tags_t tags, uint8_t** data, size_t* size, r
         case 3: type = spec->id3_2_3_type; break;
         case 4: type = spec->id3_2_4_type; break;
     }
-    if (!type->read(&tags->frames, spec, *data, frame_size, fail)) {
+    if (!type->read) {
+        return true;  // discard
+    } else if (!type->read(&tags->frames, spec, *data, frame_size, fail)) {
         return false;
     }
 
@@ -1299,28 +1292,12 @@ static bool id3_passthru_read(id3_frame_list_t frames, id3_frame_spec_t spec,
     return true;
 }
 
-static void id3_passthru_yield(id3_frame_node_t node,
-                          void (^block)(const char* name, const char* value)) {
-    (void)node;   // Keep tag around, but don't
-    (void)block;  // tell anyone it's there.
-}
-
 static size_t id3_passthru_size(id3_frame_node_t node) {
     return node->size;
 }
 
 static void id3_passthru_write(id3_frame_node_t node, uint8_t* data) {
     memcpy(data, node->data, node->size);
-}
-
-static bool id3_discard_read(id3_frame_list_t frames, id3_frame_spec_t spec,
-                             uint8_t* data, size_t size, rsvc_done_t fail) {
-    (void)frames;  // do nothing
-    (void)spec;
-    (void)data;
-    (void)size;
-    (void)fail;
-    return true;
 }
 
 bool rsvc_id3_skip_tags(int fd, rsvc_done_t fail) {
