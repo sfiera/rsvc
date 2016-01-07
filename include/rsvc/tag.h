@@ -152,7 +152,7 @@ size_t                  rsvc_tags_image_size(rsvc_tags_t tags);
 ///
 ///     *   %a: ARTIST
 ///     *   %A: ALBUM
-///     *   %b: ALBUMARTIST, or ARTIST if there is no ALBUMARTIST
+///     *   %@: ALBUMARTIST, or ARTIST if there is no ALBUMARTIST
 ///     *   %c: SEASONNUMBER, padded to the width of SEASONTOTAL if an
 ///         integer in canonical form
 ///     *   %C: SEASONTOTAL
@@ -255,7 +255,7 @@ rsvc_tags_t rsvc_tags_new();
 enum rsvc_tag_code {
     RSVC_CODE_ARTIST            = 'a',
     RSVC_CODE_ALBUM             = 'A',
-    RSVC_CODE_ALBUMARTIST       = 'b',
+    RSVC_CODE_ALBUMARTIST       = '@',
     RSVC_CODE_TITLE             = 't',
     RSVC_CODE_GENRE             = 'g',
     RSVC_CODE_GROUPING          = 'G',

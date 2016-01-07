@@ -190,7 +190,7 @@ static bool help_option(const char* progname) {
             "  Shorthand:\n"
             "    -a, --artist ARTIST     set the artist name\n"
             "    -A, --album ALBUM       set the album name\n"
-            "    -b, --album-artist AA   set the album artist name\n"
+            "    -@, --album-artist AA   set the album artist name\n"
             "    -t, --title TITLE       set the track title\n"
             "    -g, --genre GENRE       set the genre\n"
             "    -G, --grouping GROUP    set the grouping\n"

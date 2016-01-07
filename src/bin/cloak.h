@@ -49,7 +49,7 @@
 #include "../rsvc/unix.h"
 #include "strlist.h"
 
-#define DEFAULT_PATH "./%b/%A/%d%k%t"
+#define DEFAULT_PATH "./%@/%A/%d%k%t"
 
 enum short_flag {
     HELP                = 'h',
