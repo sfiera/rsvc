@@ -122,7 +122,7 @@ static enum rsvc_disc_type fd_to_disc_type(int fd) {
 
 static enum rsvc_disc_type path_to_disc_type(const char* path) {
     int fd;
-    rsvc_done_t fail = ^(rsvc_error_t error){};
+    rsvc_done_t fail = ^(rsvc_error_t error){ (void)error; };
     if (!rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, fail)) {
         return RSVC_DISC_TYPE_NONE;
     }
