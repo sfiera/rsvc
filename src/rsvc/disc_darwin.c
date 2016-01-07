@@ -159,6 +159,7 @@ void rsvc_disc_watch(struct rsvc_disc_watch_callbacks callbacks) {
 }
 
 static void da_callback(DADiskRef disk, DADissenterRef dissenter, void *userdata) {
+    (void)disk;
     rsvc_done_t done = userdata;
     bool called_done = false;
     if (dissenter) {
