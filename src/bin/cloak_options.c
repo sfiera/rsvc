@@ -134,6 +134,7 @@ bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t files, 
     };
 
     callbacks.argument = ^bool (char* arg, rsvc_done_t fail){
+        (void)fail;
         add_string(files, arg);
         return true;
     };
@@ -231,11 +232,13 @@ static bool help_option(const char* progname) {
 }
 
 static bool formats_option(const char* progname) {
+    (void)progname;
     enum rsvc_format_group format_groups[3] = {RSVC_AUDIO, RSVC_VIDEO, RSVC_IMAGE};
     for (int i = 0; i < 3; ++i) {
         enum rsvc_format_group format_group = format_groups[i];
         outf("%s:", rsvc_format_group_name(format_group));
         rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+            (void)stop;
             if ((format->open_tags || (format_group == RSVC_IMAGE))
                 && (format->format_group == format_group)) {
                 outf(" %s", format->name);
