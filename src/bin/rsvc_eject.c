@@ -55,6 +55,7 @@ struct rsvc_command rsvc_eject = {
             disk = arg;
             return true;
         }
+        rsvc_errorf(fail, __FILE__, __LINE__, "too many arguments");
         return false;
     },
 };
