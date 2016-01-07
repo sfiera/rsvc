@@ -8,7 +8,7 @@
     , "opus-1.1.1/silk/fixed"
     ]
   , "direct_dependent_settings":
-    { "include_dirs": ["libopus-1.1.1/include"]
+    { "include_dirs": ["opus-1.1.1/include"]
     }
   , "conditions":
     [ [ "OS == 'mac'"

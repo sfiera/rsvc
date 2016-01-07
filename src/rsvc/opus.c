@@ -22,6 +22,7 @@
 
 #include "audio.h"
 
+#include <opus.h>
 #include <rsvc/format.h>
 
 const struct rsvc_format rsvc_opus = {
