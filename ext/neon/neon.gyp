@@ -1,25 +1,4 @@
-{ "target_defaults":
-  { "include_dirs":
-    [ "libneon-0.29.6/src"
-    , "/usr/local/opt/openssl098/include"
-    ]
-  , "direct_dependent_settings":
-    { "include_dirs": ["include"]
-    }
-  , "conditions":
-    [ [ "OS == 'mac'"
-      , { "include_dirs": ["darwin"]
-        , "direct_dependent_settings":
-          { "include_dirs": ["darwin"]
-          }
-        }
-      ]
-    ]
-  }
-
-, "targets": []
-
-, "conditions":
+{ "conditions":
   [ [ "<(BUNDLED_NEON) != 0"
     , { "targets":
         [ { "target_name": "libneon"
@@ -52,6 +31,22 @@
           , "link_settings":
             { "libraries": ["-lgssapi_krb5", "-lssl", "-lcrypto"]
             }
+          , "include_dirs":
+            [ "libneon-0.29.6/src"
+            , "/usr/local/opt/openssl098/include"
+            ]
+          , "direct_dependent_settings":
+            { "include_dirs": ["include"]
+            }
+          , "conditions":
+            [ [ "OS == 'mac'"
+              , { "include_dirs": ["darwin"]
+                , "direct_dependent_settings":
+                  { "include_dirs": ["darwin"]
+                  }
+                }
+              ]
+            ]
           }
         ]
       }

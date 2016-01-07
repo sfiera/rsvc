@@ -1,13 +1,4 @@
-{ "target_defaults":
-  { "include_dirs": ["libdiscid-0.2.2/include"]
-  , "direct_dependent_settings":
-    { "include_dirs": [ "libdiscid-0.2.2/include" ]
-    }
-  }
-
-, "targets": []
-
-, "conditions":
+{ "conditions":
   [ [ "<(BUNDLED_DISCID) != 0"
     , { "targets":
         [ { "target_name": "libdiscid"
@@ -30,6 +21,10 @@
                 }
               ]
             ]
+          , "include_dirs": ["libdiscid-0.2.2/include"]
+          , "direct_dependent_settings":
+            { "include_dirs": ["libdiscid-0.2.2/include"]
+            }
           }
         ]
       }

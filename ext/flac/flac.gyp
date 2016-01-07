@@ -1,16 +1,4 @@
-{ "target_defaults":
-  { "include_dirs":
-    [ "flac-1.2.1/include"
-    , "flac-1.2.1/src/libFLAC/include"
-    ]
-  , "direct_dependent_settings":
-    { "include_dirs": ["flac-1.2.1/include"]
-    }
-  }
-
-, "targets": []
-
-, "conditions":
+{ "conditions":
   [ [ "<(BUNDLED_FLAC) != 0"
     , { "targets":
         [ { "target_name": "libFLAC"
@@ -42,6 +30,13 @@
           , "dependencies":
             [ "<(DEPTH)/ext/ogg/ogg.gyp:libogg"
             ]
+          , "include_dirs":
+            [ "flac-1.2.1/include"
+            , "flac-1.2.1/src/libFLAC/include"
+            ]
+          , "direct_dependent_settings":
+            { "include_dirs": ["flac-1.2.1/include"]
+            }
           }
         ]
       }

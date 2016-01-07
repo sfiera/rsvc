@@ -1,6 +1,5 @@
 { "conditions":
   [ [ "<(BUNDLED_MP4V2) != 0"
-
     , { "targets":
         [ { "target_name": "libmp4v2"
           , "type": "static_library"

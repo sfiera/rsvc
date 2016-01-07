@@ -1,27 +1,4 @@
-{ "target_defaults":
-  { "include_dirs":
-    [ "opus-1.1.1"
-    , "opus-1.1.1/include"
-    , "opus-1.1.1/celt"
-    , "opus-1.1.1/silk"
-    , "opus-1.1.1/silk/float"
-    , "opus-1.1.1/silk/fixed"
-    ]
-  , "direct_dependent_settings":
-    { "include_dirs": ["opus-1.1.1/include"]
-    }
-  , "conditions":
-    [ [ "OS == 'mac'"
-      , { "include_dirs": ["darwin"]
-        , "direct_dependent_settings":
-          { "include_dirs": ["darwin"]
-          }
-        }
-      ]
-    ]
-  }
-
-, "conditions":
+{ "conditions":
   [ [ "<(BUNDLED_OPUS) != 0"
     , { "targets":
         [ { "target_name": "libopus"
@@ -172,6 +149,26 @@
           , "defines":
             [ "HAVE_CONFIG_H"
             , "OPUS_WILL_BE_SLOW"  # Silence warning in -O0 mode.
+            ]
+          , "include_dirs":
+            [ "opus-1.1.1"
+            , "opus-1.1.1/include"
+            , "opus-1.1.1/celt"
+            , "opus-1.1.1/silk"
+            , "opus-1.1.1/silk/float"
+            , "opus-1.1.1/silk/fixed"
+            ]
+          , "direct_dependent_settings":
+            { "include_dirs": ["opus-1.1.1/include"]
+            }
+          , "conditions":
+            [ [ "OS == 'mac'"
+              , { "include_dirs": ["darwin"]
+                , "direct_dependent_settings":
+                  { "include_dirs": ["darwin"]
+                  }
+                }
+              ]
             ]
           }
         ]

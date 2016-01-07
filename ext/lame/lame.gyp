@@ -1,6 +1,5 @@
 { "conditions":
   [ [ "<(BUNDLED_LAME) != 0"
-
     , { "targets":
         [ { "target_name": "libmp3lame"
           , "type": "static_library"

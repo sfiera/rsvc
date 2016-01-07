@@ -1,13 +1,4 @@
-{ "target_defaults":
-  { "include_dirs": ["libogg-1.3.0/include"]
-  , "direct_dependent_settings":
-    { "include_dirs": ["libogg-1.3.0/include"]
-    }
-  }
-
-, "targets": []
-
-, "conditions":
+{ "conditions":
   [ [ "<(BUNDLED_OGG) != 0"
     , { "targets":
         [ { "target_name": "libogg"
@@ -22,6 +13,10 @@
                 }
               ]
             ]
+          , "include_dirs": ["libogg-1.3.0/include"]
+          , "direct_dependent_settings":
+            { "include_dirs": ["libogg-1.3.0/include"]
+            }
           }
         ]
       }

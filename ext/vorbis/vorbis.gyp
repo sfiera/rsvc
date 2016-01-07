@@ -1,25 +1,4 @@
-{ "target_defaults":
-  { "include_dirs":
-    [ "libvorbis-1.3.2/include"
-    , "libvorbis-1.3.2/lib"
-    ]
-  , "direct_dependent_settings":
-    { "include_dirs": ["libvorbis-1.3.2/include"]
-    }
-  , "conditions":
-    [ [ "OS == 'mac'"
-      , { "include_dirs": ["darwin"]
-        , "direct_dependent_settings":
-          { "include_dirs": ["darwin"]
-          }
-        }
-      ]
-    ]
-  }
-
-, "targets": []
-
-, "conditions":
+{ "conditions":
   [ [ "<(BUNDLED_VORBIS) != 0"
     , { "targets":
         [ { "target_name": "libvorbis"
@@ -50,6 +29,22 @@
             ]
           , "dependencies":
             [ "<(DEPTH)/ext/ogg/ogg.gyp:libogg"
+            ]
+          , "include_dirs":
+            [ "libvorbis-1.3.2/include"
+            , "libvorbis-1.3.2/lib"
+            ]
+          , "direct_dependent_settings":
+            { "include_dirs": ["libvorbis-1.3.2/include"]
+            }
+          , "conditions":
+            [ [ "OS == 'mac'"
+              , { "include_dirs": ["darwin"]
+                , "direct_dependent_settings":
+                  { "include_dirs": ["darwin"]
+                  }
+                }
+              ]
             ]
           }
         ]

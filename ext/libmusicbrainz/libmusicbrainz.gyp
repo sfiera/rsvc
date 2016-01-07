@@ -1,24 +1,4 @@
-{ "target_defaults":
-  { "include_dirs":
-    [ "include"
-    , "libmusicbrainz-5.0.0/include"
-    ]
-  , "direct_dependent_settings":
-    { "include_dirs":
-      [ "include"
-      , "libmusicbrainz-5.0.0/include"
-      ]
-    }
-  , "conditions":
-    [ [ "OS == 'mac'"
-      , { "include_dirs": ["darwin"] }
-      ]
-    ]
-  }
-
-, "targets": []
-
-, "conditions":
+{ "conditions":
   [ [ "<(BUNDLED_MB5) != 0"
     , { "targets":
         [ { "target_name": "libmusicbrainz"
@@ -75,6 +55,21 @@
           , "link_settings":
             { "libraries": ["-lstdc++"]
             }
+          , "include_dirs":
+            [ "include"
+            , "libmusicbrainz-5.0.0/include"
+            ]
+          , "direct_dependent_settings":
+            { "include_dirs":
+              [ "include"
+              , "libmusicbrainz-5.0.0/include"
+              ]
+            }
+          , "conditions":
+            [ [ "OS == 'mac'"
+              , { "include_dirs": ["darwin"] }
+              ]
+            ]
           }
         ]
       }
