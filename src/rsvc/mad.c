@@ -109,12 +109,14 @@ static int16_t mad_scale(mad_fixed_t sample) {
 }
 
 static enum mad_flow mad_count(void* v, struct mad_header const* header, struct mad_pcm* pcm) {
+    (void)header;
     struct mad_userdata* userdata = v;
     userdata->sample_count += pcm->length;
     return MAD_FLOW_CONTINUE;
 }
 
 static enum mad_flow mad_output(void* v, struct mad_header const* header, struct mad_pcm* pcm) {
+    (void)header;
     struct mad_userdata* userdata = v;
     int16_t data[2 * 1152];
     size_t size = 0;
@@ -132,6 +134,7 @@ static enum mad_flow mad_output(void* v, struct mad_header const* header, struct
 }
 
 static enum mad_flow mad_error(void* v, struct mad_stream* stream, struct mad_frame* frame) {
+    (void)frame;
     struct mad_userdata* userdata = v;
     size_t position = userdata->end_position - (userdata->end - stream->this_frame);
     if (MAD_RECOVERABLE(stream->error)) {
