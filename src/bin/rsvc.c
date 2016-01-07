@@ -56,7 +56,7 @@ struct rsvc_option_callbacks callbacks = {
     .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
         switch (opt) {
           case 'h':
-            rsvc_usage(^(rsvc_error_t ignore){});
+            rsvc_usage(^(rsvc_error_t ignore){ (void)ignore; });
             exit(0);
           case 'j':
             return rsvc_integer_option(&rsvc_jobs, get_value, fail);
@@ -184,12 +184,16 @@ void rsvc_default_disk(void (^done)(rsvc_error_t error, char* disk)) {
     __block char* disk = NULL;
     struct rsvc_disc_watch_callbacks callbacks;
     callbacks.appeared = ^(enum rsvc_disc_type type, const char* path){
+        (void)type;  // TODO(sfiera): filter discs.
         ++ndisks;
         if (!disk) {
             disk = strdup(path);
         }
     };
-    callbacks.disappeared = ^(enum rsvc_disc_type type, const char* path){};
+    callbacks.disappeared = ^(enum rsvc_disc_type type, const char* path){
+        (void)type;
+        (void)path;
+    };
     callbacks.initialized = ^(rsvc_stop_t stop){
         stop();
         rsvc_done_t fail = ^(rsvc_error_t error){
