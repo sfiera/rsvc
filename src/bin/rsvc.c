@@ -23,14 +23,16 @@
 #include "rsvc.h"
 
 #include <ctype.h>
+#include <string.h>
+#include <sys/param.h>
 #include <sysexits.h>
 
 #include <rsvc/audio.h>
 #include <rsvc/disc.h>
 #include <rsvc/format.h>
 #include <rsvc/image.h>
-#include "../rsvc/common.c"
-#include "../rsvc/unix.c"
+#include "../rsvc/common.h"
+#include "../rsvc/unix.h"
 
 char  rsvc_progname[MAXPATHLEN];
 int   rsvc_jobs = -1;
