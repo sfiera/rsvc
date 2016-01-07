@@ -350,23 +350,23 @@ static struct rsvc_tags_methods vorbis_vptr = {
     .destroy = rsvc_vorbis_tags_destroy,
 };
 
-static int read_ogg_page(int fd, ogg_sync_state* oy, ogg_page* og, rsvc_done_t fail) {
+static bool read_ogg_page(int fd, ogg_sync_state* oy, ogg_page* og, bool* eof, rsvc_done_t fail) {
     while (true) {
         const int status = ogg_sync_pageout(oy, og);
         if (status == 1) {
-            return 1;
+            *eof = false;
+            return true;
         } else if (status < 0) {
             rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg page");
-            return status;
+            return false;
         }
 
         char* data = ogg_sync_buffer(oy, 4096);
         size_t size;
-        bool eof = false;
-        if (!rsvc_read(NULL, fd, data, 4096, &size, &eof, fail)) {
-            return -1;
-        } else if (eof) {
-            return 0;
+        if (!rsvc_read(NULL, fd, data, 4096, &size, eof, fail)) {
+            return false;
+        } else if (*eof) {
+            return true;
         }
         ogg_sync_wrote(oy, size);
     }
@@ -416,10 +416,10 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
 
     // Read all of the pages from the ogg file in a loop.
     while (true) {
-        int page_status = read_ogg_page(fd, &oy, &og, fail);
-        if (page_status < 0) {
+        bool eof;
+        if (!read_ogg_page(fd, &oy, &og, &eof, fail)) {
             return false;
-        } else if (page_status == 0) {
+        } else if (eof) {
             if (header_packets > 0) {
                 rsvc_errorf(fail, __FILE__, __LINE__, "unexpected end of file");
                 return false;
