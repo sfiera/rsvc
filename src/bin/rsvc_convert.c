@@ -207,7 +207,7 @@ static void convert(struct file_pair f, rsvc_done_t done) {
 
     // Open a temporary file next to the output path.
     char path_storage[MAXPATHLEN];
-    if (!rsvc_temp(f.output, 0644, path_storage, &f.output_fd, done)) {
+    if (!rsvc_temp(f.output, path_storage, &f.output_fd, done)) {
         return;
     }
     char* tmp_path = strdup(path_storage);

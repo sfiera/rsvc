@@ -275,7 +275,7 @@ static bool rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
     int fd;
     char tmp_path[MAXPATHLEN];
-    if (!rsvc_temp(self->path, 0644, tmp_path, &fd, fail)) {
+    if (!rsvc_temp(self->path, tmp_path, &fd, fail)) {
         return false;
     }
     rsvc_done_t done = ^(rsvc_error_t error){

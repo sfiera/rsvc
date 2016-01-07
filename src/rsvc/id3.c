@@ -731,7 +731,7 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     // creating a new file.
     int fd;
     char tmp_path[MAXPATHLEN];
-    if (!(rsvc_temp(tags->path, 0644, tmp_path, &fd, fail)
+    if (!(rsvc_temp(tags->path, tmp_path, &fd, fail)
           && rsvc_write(tmp_path, fd, header, 10, NULL, NULL, fail)
           && rsvc_write(tmp_path, fd, body, body_size, NULL, NULL, fail))) {
         return false;

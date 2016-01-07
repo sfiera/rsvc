@@ -44,7 +44,7 @@ bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fa
     return true;
 }
 
-bool rsvc_temp(const char* base, mode_t mode, char* path, int* fd, rsvc_done_t fail) {
+bool rsvc_temp(const char* base, char* path, int* fd, rsvc_done_t fail) {
     if ((strlen(base) + 12) >= MAXPATHLEN) {
         rsvc_errorf(fail, __FILE__, __LINE__, "%s: File name too long", base);
         return false;

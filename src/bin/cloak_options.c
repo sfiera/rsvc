@@ -348,7 +348,7 @@ static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_fl
                 return false;
             }
         }
-        if (!rsvc_temp(path, 0644, temp_path, &fd, fail)) {
+        if (!rsvc_temp(path, temp_path, &fd, fail)) {
             return false;
         }
         struct write_image_list_node node = {ops->image_index, path, {}, fd};
