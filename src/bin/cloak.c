@@ -105,8 +105,8 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
 }
 
 static void print_tags(rsvc_tags_t tags) {
-    rsvc_tags_each(tags, ^(const char* name, const char* value,
-                           rsvc_stop_t stop){
+    rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+        (void)stop;
         outf("%s=", name);
         while (*value) {
             size_t size = strcspn(value, "\\\r\n");
@@ -133,8 +133,10 @@ static void print_tags(rsvc_tags_t tags) {
 static void print_images(rsvc_tags_t tags) {
     rsvc_tags_image_each(tags, ^(
                 rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop){
+        (void)stop;
         struct rsvc_image_info info;
-        rsvc_done_t fail = ^(rsvc_error_t err){
+        rsvc_done_t fail = ^(rsvc_error_t error){
+            (void)error;  // ignore failure and report byte size.
             outf("%zu-byte %s image\n", size, format->name);
         };
         if (format->image_info("embedded image", data, size, &info, fail)) {
@@ -297,7 +299,7 @@ static void print_rename(const char* src, const char* dst) {
 }
 
 bool same_file(const char* x, const char* y) {
-    void (^ignore)(rsvc_error_t) = ^(rsvc_error_t error){};
+    void (^ignore)(rsvc_error_t) = ^(rsvc_error_t error){ (void)error; };
     bool same = false;
     int a_fd, b_fd;
     if (rsvc_open(x, O_RDONLY, 0644, &a_fd, ignore)
@@ -326,6 +328,7 @@ const char* path_format_for(rsvc_format_t format, rsvc_tags_t tags, ops_t ops) {
                 __block int n = 0;
                 __block bool mediakind_matches = false;
                 rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+                    (void)stop;
                     if (strcmp(name, RSVC_MEDIAKIND) == 0) {
                         mediakind_matches = (++n == 1) && (strcmp(value, curr->mediakind) == 0);
                     }
