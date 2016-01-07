@@ -23,6 +23,9 @@
             ]
           , "include_dirs": ["libmad-0.15.1b"]
           , "cflags": ["-fasm"]
+          , "xcode_settings":
+            { "OTHER_CFLAGS": ["-fasm"]
+            }
           , "direct_dependent_settings":
             { "include_dirs": ["libmad-0.15.1b"]
             }

@@ -8,6 +8,9 @@
     , "-Wno-sign-compare"
     , "-fblocks"
     ]
+  , "xcode_settings":
+    { "OTHER_CFLAGS": ["-Wall", "-Werror", "-Wno-sign-compare"]
+    }
   , "include_dirs": ["include"]
   }
 
