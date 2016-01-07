@@ -68,6 +68,7 @@ struct rsvc_command rsvc_rip = {
                 "Formats:\n",
                 rsvc_progname);
         rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+            (void)stop;
             if (format->encode) {
                 errf("  %s\n", format->name);
             }
