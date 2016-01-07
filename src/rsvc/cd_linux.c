@@ -297,6 +297,7 @@ size_t rsvc_cd_track_nsamples(rsvc_cd_track_t track) {
 }
 
 void rsvc_cd_track_isrc(rsvc_cd_track_t track, void (^done)(const char* isrc)) {
+    (void)track;  // TODO(sfiera): ISRC on Linux.
     done(NULL);
 }
 
