@@ -42,6 +42,7 @@ bool rsvc_options(size_t argc, char* const* argv, rsvc_option_callbacks_t callba
                 *eq = '\0';
                 __block bool used_value = false;
                 if (!callbacks->long_option(opt, ^bool (char** value, rsvc_done_t fail){
+                    (void)fail;  // Always succeeds for --option=value.
                     used_value = true;
                     *value = eq + 1;
                     return true;
