@@ -4,13 +4,17 @@
         [ { "target_name": "libdiscid"
           , "type": "static_library"
           , "sources":
-            [ "libdiscid-0.2.2/src/base64.c"
-            , "libdiscid-0.2.2/src/disc.c"
-            , "libdiscid-0.2.2/src/sha1.c"
+            [ "libdiscid-0.6.1/src/base64.c"
+            , "libdiscid-0.6.1/src/disc.c"
+            , "libdiscid-0.6.1/src/sha1.c"
             ]
           , "conditions":
             [ [ "OS == 'mac'"
-              , { "sources": ["libdiscid-0.2.2/src/disc_darwin.c"]
+              , { "sources":
+                  [ "libdiscid-0.6.1/src/disc_darwin.c"
+                  , "libdiscid-0.6.1/src/toc.c"
+                  , "libdiscid-0.6.1/src/unix.c"
+                  ]
                 , "include_dirs": ["darwin"]
                 , "link_settings":
                   { "libraries":
@@ -21,9 +25,9 @@
                 }
               ]
             ]
-          , "include_dirs": ["libdiscid-0.2.2/include"]
+          , "include_dirs": ["libdiscid-0.6.1/include"]
           , "direct_dependent_settings":
-            { "include_dirs": ["libdiscid-0.2.2/include"]
+            { "include_dirs": ["libdiscid-0.6.1/include"]
             }
           }
         ]
