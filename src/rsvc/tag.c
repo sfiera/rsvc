@@ -158,6 +158,10 @@ bool rsvc_tags_image_each(
 size_t rsvc_tags_image_size(rsvc_tags_t tags) {
     __block size_t size = 0;
     rsvc_tags_image_each(tags, ^(rsvc_format_t f, const uint8_t* d, size_t s, rsvc_stop_t stop) {
+        (void)f;  // Just counting.
+        (void)d;
+        (void)s;
+        (void)stop;
         ++size;
     });
     return size;
@@ -205,6 +209,7 @@ static bool is_canonical_int(const char* str) {
 static size_t max_precision(rsvc_tags_t tags, const char* tag_name, size_t minimum) {
     __block size_t result = minimum;
     rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+        (void)stop;
         if ((strcasecmp(name, tag_name) == 0) && (strlen(value) > result)) {
             result = strlen(value);
         }
@@ -214,6 +219,7 @@ static size_t max_precision(rsvc_tags_t tags, const char* tag_name, size_t minim
 
 static bool any_tags(rsvc_tags_t tags, const char* tag_name) {
     return !rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+        (void)value;
         if (strcasecmp(name, tag_name) == 0) {
             stop();
         }
@@ -369,6 +375,7 @@ static bool snpathf(char* data, size_t size, size_t* size_needed,
 
             __block size_t count = 0;
             rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+                (void)stop;
                 if (strcasecmp(name, rsvc_tag_code_get(type)) == 0) {
                     if (!*value) {
                         return;
@@ -427,7 +434,11 @@ bool rsvc_tags_strf(rsvc_tags_t tags, const char* format, const char* extension,
 }
 
 bool rsvc_tags_validate_strf(const char* format, rsvc_done_t fail) {
-    return parse_format(format, fail, ^(int type, const char* data, size_t size){ });
+    return parse_format(format, fail, ^(int type, const char* data, size_t size){
+        (void)type;
+        (void)data;
+        (void)size;
+    });
 }
 
 bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail) {
@@ -460,6 +471,7 @@ struct rsvc_detached_tags {
 };
 
 static bool rsvc_detached_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail) {
+    (void)fail;  // Always succeeds.
     rsvc_detached_tags_t self = DOWN_CAST(struct rsvc_detached_tags, tags);
     if (name) {
         rsvc_detached_tags_node_t curr = self->list.head;
@@ -483,6 +495,7 @@ static bool rsvc_detached_tags_remove(rsvc_tags_t tags, const char* name, rsvc_d
 
 static bool rsvc_detached_tags_add(rsvc_tags_t tags, const char* name, const char* value,
                                    rsvc_done_t fail) {
+    (void)fail;  // Always succeeds.
     rsvc_detached_tags_t self = DOWN_CAST(struct rsvc_detached_tags, tags);
     struct rsvc_detached_tags_node node = {
         .name   = strdup(name),
@@ -506,6 +519,8 @@ static bool rsvc_detached_tags_each(
 }
 
 static bool rsvc_detached_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
+    (void)tags;  // Not actually saving anything.
+    (void)fail;
     return true;
 }
 
