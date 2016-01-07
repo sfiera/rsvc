@@ -90,6 +90,7 @@
       , "src/rsvc/mp4.c"
       , "src/rsvc/musicbrainz.c"
       , "src/rsvc/options.c"
+      , "src/rsvc/opus.c"
       , "src/rsvc/png.c"
       , "src/rsvc/progress.c"
       , "src/rsvc/tag.c"

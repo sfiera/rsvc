@@ -66,6 +66,7 @@ extern const struct rsvc_format rsvc_flac;
 extern const struct rsvc_format rsvc_mp3;
 extern const struct rsvc_format rsvc_m4a;
 extern const struct rsvc_format rsvc_m4v;  // TODO(sfiera): video.h
+extern const struct rsvc_format rsvc_opus;
 extern const struct rsvc_format rsvc_vorbis;
 
 #endif  // RSVC_AUDIO_H_

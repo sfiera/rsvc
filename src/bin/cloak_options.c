@@ -236,7 +236,8 @@ static bool formats_option(const char* progname) {
         enum rsvc_format_group format_group = format_groups[i];
         outf("%s:", rsvc_format_group_name(format_group));
         rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
-            if (format->format_group == format_group) {
+            if ((format->open_tags || (format_group == RSVC_IMAGE))
+                && (format->format_group == format_group)) {
                 outf(" %s", format->name);
             }
         });
