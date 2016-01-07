@@ -80,6 +80,12 @@ static void     id3_text_write(id3_frame_node_t node, uint8_t* data);
 static bool     id3_bool_add(
                         id3_frame_list_t frames, id3_frame_spec_t spec,
                         const char* value, rsvc_done_t fail);
+static bool     id3_sequence_read(
+                        id3_frame_list_t frames, id3_frame_spec_t spec,
+                        uint8_t* data, size_t size, rsvc_done_t fail);
+static bool     id3_sequence_read_2_3(
+                        id3_frame_list_t frames, id3_frame_spec_t spec,
+                        uint8_t* data, size_t size, rsvc_done_t fail);
 static void     id3_sequence_yield(
                         id3_frame_node_t node,
                         void (^block)(const char* name, const char* value));
@@ -91,6 +97,8 @@ static bool     id3_sequence_total_add(
                         id3_frame_list_t frames, id3_frame_spec_t spec,
                         const char* value, rsvc_done_t fail);
 static void     id3_sequence_total_remove(id3_frame_list_t frames, id3_frame_spec_t spec);
+static size_t   id3_sequence_size(id3_frame_node_t node);
+static void     id3_sequence_write(id3_frame_node_t node, uint8_t* data);
 static void     id3_image_add(
                         id3_frame_list_t frames, id3_frame_spec_t spec, uint8_t image_type,
                         const char* mime_type, const char* description,
@@ -144,21 +152,17 @@ static struct id3_frame_type id3_bool = {
 };
 
 static struct id3_frame_type id3_sequence_number = {
-    .read       = id3_text_read,
+    .read       = id3_sequence_read,
     .yield      = id3_sequence_yield,
     .add        = id3_sequence_number_add,
     .remove     = id3_sequence_number_remove,
-    .size       = id3_text_size,
-    .write      = id3_text_write,
+    .size       = id3_sequence_size,
+    .write      = id3_sequence_write,
 };
 
 static struct id3_frame_type id3_sequence_total = {
-    .read       = id3_text_read,
-    .yield      = id3_sequence_yield,
     .add        = id3_sequence_total_add,
     .remove     = id3_sequence_total_remove,
-    .size       = id3_text_size,
-    .write      = id3_text_write,
 };
 
 static struct id3_frame_type id3_image = {
@@ -171,6 +175,10 @@ static struct id3_frame_type id3_image = {
 
 static struct id3_frame_type id3_2_3_text = {
     .read       = id3_text_read_2_3,
+};
+
+static struct id3_frame_type id3_2_3_sequence = {
+    .read       = id3_sequence_read_2_3,
 };
 
 static struct id3_frame_type id3_passthru = {
@@ -191,103 +199,103 @@ static struct id3_frame_spec {
     id3_frame_type_t    id3_2_4_type;
 } id3_frame_specs[] = {
     // 4.2.1. Identification frames.
-    {"GROUPING",            "TIT1",     &id3_2_3_text,  &id3_text},
-    {"TITLE",               "TIT2",     &id3_2_3_text,  &id3_text},
-    {"SUBTITLE",            "TIT3",     &id3_2_3_text,  &id3_text},
-    {"ALBUM",               "TALB",     &id3_2_3_text,  &id3_text},
-    {"ORIGINALALBUM",       "TOAL",     &id3_2_3_text,  &id3_text},
-    {"TRACKNUMBER",         "TRCK",     &id3_2_3_text,  &id3_sequence_number},
-    {"TRACKTOTAL",          "TRCK",     &id3_2_3_text,  &id3_sequence_total},
-    {"DISCNUMBER",          "TPOS",     &id3_2_3_text,  &id3_sequence_number},
-    {"DISCTOTAL",           "TPOS",     &id3_2_3_text,  &id3_sequence_total},
-    {"DISCSUBTITLE",        "TSST",     NULL,           &id3_text},
-    {"ISRC",                "TSRC",     &id3_2_3_text,  &id3_text},
+    {"GROUPING",            "TIT1",     &id3_2_3_text,      &id3_text},
+    {"TITLE",               "TIT2",     &id3_2_3_text,      &id3_text},
+    {"SUBTITLE",            "TIT3",     &id3_2_3_text,      &id3_text},
+    {"ALBUM",               "TALB",     &id3_2_3_text,      &id3_text},
+    {"ORIGINALALBUM",       "TOAL",     &id3_2_3_text,      &id3_text},
+    {"TRACKNUMBER",         "TRCK",     &id3_2_3_sequence,  &id3_sequence_number},
+    {"TRACKTOTAL",          "TRCK",     NULL,               &id3_sequence_total},
+    {"DISCNUMBER",          "TPOS",     &id3_2_3_sequence,  &id3_sequence_number},
+    {"DISCTOTAL",           "TPOS",     NULL,               &id3_sequence_total},
+    {"DISCSUBTITLE",        "TSST",     NULL,               &id3_text},
+    {"ISRC",                "TSRC",     &id3_2_3_text,      &id3_text},
 
     // 4.2.2. Involved person frames.
-    {"ARTIST",              "TPE1",     &id3_2_3_text,  &id3_text},
-    {"ALBUMARTIST",         "TPE2",     &id3_2_3_text,  &id3_text},
-    {"CONDUCTOR",           "TPE3",     &id3_2_3_text,  &id3_text},
-    {"REMIXER",             "TPE4",     &id3_2_3_text,  &id3_text},
-    {"ORIGINALARTIST",      "TOPE",     &id3_2_3_text,  &id3_text},
-    {"LYRICIST",            "TEXT",     &id3_2_3_text,  &id3_text},
-    {"ORIGINALLYRICIST",    "TOLY",     &id3_2_3_text,  &id3_text},
-    {"COMPOSER",            "TCOM",     &id3_2_3_text,  &id3_text},
-    {NULL,                  "TMCL",     NULL,           &id3_passthru},
-    {NULL,                  "TIPL",     NULL,           &id3_passthru},
-    // {NULL,               "IPLS",     &id3_passthru,  NULL},
-    {"ENCODEDBY",           "TENC",     &id3_2_3_text,  &id3_text},
+    {"ARTIST",              "TPE1",     &id3_2_3_text,      &id3_text},
+    {"ALBUMARTIST",         "TPE2",     &id3_2_3_text,      &id3_text},
+    {"CONDUCTOR",           "TPE3",     &id3_2_3_text,      &id3_text},
+    {"REMIXER",             "TPE4",     &id3_2_3_text,      &id3_text},
+    {"ORIGINALARTIST",      "TOPE",     &id3_2_3_text,      &id3_text},
+    {"LYRICIST",            "TEXT",     &id3_2_3_text,      &id3_text},
+    {"ORIGINALLYRICIST",    "TOLY",     &id3_2_3_text,      &id3_text},
+    {"COMPOSER",            "TCOM",     &id3_2_3_text,      &id3_text},
+    {NULL,                  "TMCL",     NULL,               &id3_passthru},
+    {NULL,                  "TIPL",     NULL,               &id3_passthru},
+    // {NULL,               "IPLS",     &id3_passthru,      NULL},
+    {"ENCODEDBY",           "TENC",     &id3_2_3_text,      &id3_text},
 
     // 4.2.3. Derived and subjective properties frames.
-    {"BPM",                 "TBPM",     &id3_2_3_text,  &id3_text},
-    {NULL,                  "TLEN",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "TKEY",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "TLAN",     &id3_passthru,  &id3_passthru},
-    {"GENRE",               "TCON",     &id3_2_3_text,  &id3_text},
-    {NULL,                  "TFLT",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "TMED",     &id3_passthru,  &id3_passthru},
-    {"MOOD",                "TMOO",     NULL,           &id3_text},
+    {"BPM",                 "TBPM",     &id3_2_3_text,      &id3_text},
+    {NULL,                  "TLEN",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "TKEY",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "TLAN",     &id3_passthru,      &id3_passthru},
+    {"GENRE",               "TCON",     &id3_2_3_text,      &id3_text},
+    {NULL,                  "TFLT",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "TMED",     &id3_passthru,      &id3_passthru},
+    {"MOOD",                "TMOO",     NULL,               &id3_text},
 
     // 4.2.4. Rights and license frames.
-    {"COPYRIGHT",           "TCOP",     &id3_2_3_text,  &id3_text},
-    {"PRODUCED",            "TPRO",     NULL,           &id3_text},
-    {"LABEL",               "TPUB",     &id3_2_3_text,  &id3_text},
-    {NULL,                  "TOWN",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "TRSN",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "TRSO",     &id3_passthru,  &id3_passthru},
+    {"COPYRIGHT",           "TCOP",     &id3_2_3_text,      &id3_text},
+    {"PRODUCED",            "TPRO",     NULL,               &id3_text},
+    {"LABEL",               "TPUB",     &id3_2_3_text,      &id3_text},
+    {NULL,                  "TOWN",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "TRSN",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "TRSO",     &id3_passthru,      &id3_passthru},
 
     // 4.2.5. Other text frames.
-    {NULL,                  "TOFN",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "TDLY",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "TDEN",     NULL,           &id3_passthru},
-    {"ORIGINALDATE",        "TDOR",     NULL,           &id3_text},
-    {"DATE",                "TDRC",     NULL,           &id3_text},
-    {NULL,                  "TDRL",     NULL,           &id3_passthru},
-    {NULL,                  "TDTG",     NULL,           &id3_passthru},
-    {"ENCODER",             "TSSE",     &id3_2_3_text,  &id3_text},
-    {"ALBUMSORT",           "TSOA",     NULL,           &id3_text},
-    {"ARTISTSORT",          "TSOP",     NULL,           &id3_text},
-    {"TITLESORT",           "TSOT",     NULL,           &id3_text},
+    {NULL,                  "TOFN",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "TDLY",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "TDEN",     NULL,               &id3_passthru},
+    {"ORIGINALDATE",        "TDOR",     NULL,               &id3_text},
+    {"DATE",                "TDRC",     NULL,               &id3_text},
+    {NULL,                  "TDRL",     NULL,               &id3_passthru},
+    {NULL,                  "TDTG",     NULL,               &id3_passthru},
+    {"ENCODER",             "TSSE",     &id3_2_3_text,      &id3_text},
+    {"ALBUMSORT",           "TSOA",     NULL,               &id3_text},
+    {"ARTISTSORT",          "TSOP",     NULL,               &id3_text},
+    {"TITLESORT",           "TSOT",     NULL,               &id3_text},
 
-    {"ORIGINALDATE",        "TORY",     &id3_2_3_text,  NULL},
-    {"DATE",                "TYER",     &id3_2_3_text,  NULL},
-    {NULL,                  "TRDA",     &id3_discard,   NULL},
-    {NULL,                  "TSIZ",     &id3_discard,   NULL},
-    {"ALBUMSORT",           "XSOA",     &id3_2_3_text,  NULL},
-    {"ARTISTSORT",          "XSOP",     &id3_2_3_text,  NULL},
-    {"TITLESORT",           "XSOT",     &id3_2_3_text,  NULL},
+    {"ORIGINALDATE",        "TORY",     &id3_2_3_text,      NULL},
+    {"DATE",                "TYER",     &id3_2_3_text,      NULL},
+    {NULL,                  "TRDA",     &id3_discard,       NULL},
+    {NULL,                  "TSIZ",     &id3_discard,       NULL},
+    {"ALBUMSORT",           "XSOA",     &id3_2_3_text,      NULL},
+    {"ARTISTSORT",          "XSOP",     &id3_2_3_text,      NULL},
+    {"TITLESORT",           "XSOT",     &id3_2_3_text,      NULL},
 
     // TODO(sfiera): merge these into the TYER frame.
-    {"DATE",                "TDAT",     &id3_discard,   NULL},
-    {"DATE",                "TIME",     &id3_discard,   NULL},
+    {"DATE",                "TDAT",     &id3_discard,       NULL},
+    {"DATE",                "TIME",     &id3_discard,       NULL},
 
     // 4.2.6. User-defined text information frame.
-    {NULL,                  "TXXX",     &id3_passthru,  &id3_passthru},
+    {NULL,                  "TXXX",     &id3_passthru,      &id3_passthru},
 
     // 4.3.1. URL link frames.
-    {NULL,                  "WCOM",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "WCOP",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "WOAF",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "WOAR",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "WOAS",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "WORS",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "WPAY",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "WPUB",     &id3_passthru,  &id3_passthru},
+    {NULL,                  "WCOM",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "WCOP",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "WOAF",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "WOAR",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "WOAS",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "WORS",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "WPAY",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "WPUB",     &id3_passthru,      &id3_passthru},
 
     // 4.3.2. User-defined URL link frame.
-    {NULL,                  "WXXX",     &id3_passthru,  &id3_passthru},
+    {NULL,                  "WXXX",     &id3_passthru,      &id3_passthru},
 
     // 4.14. Attached picture.
-    {NULL,                  "APIC",     &id3_image,   &id3_image},
+    {NULL,                  "APIC",     &id3_image,         &id3_image},
 
     // Various ignored frames.
-    {NULL,                  "USLT",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "COMM",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "USER",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "PRIV",     &id3_passthru,  &id3_passthru},
-    {NULL,                  "TSIZ",     &id3_passthru,  &id3_passthru},
+    {NULL,                  "USLT",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "COMM",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "USER",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "PRIV",     &id3_passthru,      &id3_passthru},
+    {NULL,                  "TSIZ",     &id3_passthru,      &id3_passthru},
 
     // Unofficial frames
-    {"COMPILATION",         "TCMP",     &id3_bool,      &id3_bool},
+    {"COMPILATION",         "TCMP",     &id3_bool,          &id3_bool},
 };
 
 #define ID3_FRAME_SPECS_SIZE (sizeof(id3_frame_specs) / sizeof(id3_frame_specs[0]))
@@ -942,45 +950,33 @@ static bool id3_bool_add(
     return id3_text_add(frames, spec, value, fail);
 }
 
-static void sequence_split(const char* text,
-                           void (^block)(const char* number, const char* total)) {
-    const char* slash = text + strcspn(text, "/");
-    if (*slash) {
-        if (slash == text) {
-            block(NULL, slash + 1);
-        } else {
-            char* seq_number_value = strndup(text, slash - text);
-            block(seq_number_value, slash + 1);
-            free(seq_number_value);
-        }
-    } else if (*text) {
-        block(text, NULL);
-    }
-}
-
 static void id3_sequence_yield(id3_frame_node_t node,
                                void (^block)(const char* name, const char* value)) {
-    sequence_split((const char*)&node->data, ^(const char* number, const char* total){
-        if (number) {
-            block(node->spec->vorbis_name, number);
-        }
-        if (total) {
-            id3_frame_spec_t paired_spec;
-            paired_spec = get_paired_frame_spec(node->spec);
-            block(paired_spec->vorbis_name, total);
-        }
-    });
+    const char* number = (const char*)node->data;
+    id3_frame_spec_t number_spec = node->spec;
+    if (*number) {
+        block(number_spec->vorbis_name, number);
+    }
+
+    const char* total = number + strlen(number) + 1;
+    id3_frame_spec_t total_spec = get_paired_frame_spec(number_spec);
+    if (*total) {
+        block(total_spec->vorbis_name, total);
+    }
 }
 
 static void id3_sequence_add(
         id3_frame_list_t frames, id3_frame_spec_t spec,
         const char* number, const char* total) {
     number = number ? number : "";
-    if (total) {
-        id3_frame_addf(frames, spec, "%s/%s", number, total);
-    } else {
-        id3_frame_addf(frames, spec, "%s", number);
-    }
+    total = total ? total : "";
+    size_t number_size = strlen(number) + 1;
+    size_t total_size = strlen(total) + 1;
+
+    // Allocate a node with space for the strings and format them.
+    id3_frame_node_t node = id3_frame_create(frames, spec, number_size + total_size);
+    memcpy(node->data,                number,  number_size);
+    memcpy(node->data + number_size,  total,   total_size);
 }
 
 static bool check_seq(id3_frame_spec_t spec, const char* value, rsvc_done_t fail) {
@@ -1009,24 +1005,25 @@ static bool id3_sequence_both_add(
         id3_sequence_add(frames, number_spec, number_value, total_value);
         return true;
     }
-    __block bool result = false;
-    sequence_split((const char*)&match->data, ^(const char* number, const char* total){
-        if (number_value && number) {
-            rsvc_errorf(fail, __FILE__, __LINE__,
-                        "only one ID3 %s tag permitted", number_spec->vorbis_name);
-        } else if (total_value && total) {
-            rsvc_errorf(fail, __FILE__, __LINE__,
-                        "only one ID3 %s tag permitted", total_spec->vorbis_name);
-        } else {
-            if (!total) total = total_value;
-            if (!number) number = number_value;
-            rsvc_logf(3, "replacing %s frame with (%s, %s)", number_spec->id3_name, number, total);
-            id3_sequence_add(frames, number_spec, number, total);
-            RSVC_LIST_ERASE(frames, match);
-            result = true;
-        }
-    });
-    return result;
+
+    const char* number = (const char*)match->data;
+    const char* total = number + strlen(number) + 1;
+    if (number_value && *number) {
+        rsvc_errorf(fail, __FILE__, __LINE__,
+                    "only one ID3 %s tag permitted", number_spec->vorbis_name);
+        return false;
+    } else if (total_value && *total) {
+        rsvc_errorf(fail, __FILE__, __LINE__,
+                    "only one ID3 %s tag permitted", total_spec->vorbis_name);
+        return false;
+    } else {
+        if (total_value) total = total_value;
+        if (number_value) number = number_value;
+        rsvc_logf(3, "replacing %s frame with (%s, %s)", number_spec->id3_name, number, total);
+        id3_sequence_add(frames, number_spec, number, total);
+        RSVC_LIST_ERASE(frames, match);
+        return true;
+    }
 }
 
 static void id3_sequence_both_remove(
@@ -1037,15 +1034,89 @@ static void id3_sequence_both_remove(
     if (!total_spec) total_spec = get_paired_frame_spec(number_spec);
     id3_frame_node_t match = find_by_spec(frames, number_spec);
     if (match) {
-        sequence_split((const char*)&match->data, ^(const char* number, const char* total){
-            if (remove_number) number = NULL;
-            if (remove_total) total = NULL;
-            if (number || total) {
-                id3_sequence_add(frames, number_spec, number, total);
-            }
-            RSVC_LIST_ERASE(frames, match);
-        });
+        const char* number = (const char*)match->data;
+        const char* total = number + strlen(number) + 1;
+        if (remove_number) number = "";
+        if (remove_total) total = "";
+        if (*number || *total) {
+            id3_sequence_add(frames, number_spec, number, total);
+        }
+        RSVC_LIST_ERASE(frames, match);
     }  // else nothing to remove
+}
+
+static bool id3_sequence_read(id3_frame_list_t frames, id3_frame_spec_t spec,
+                              uint8_t* data, size_t size, rsvc_done_t fail) {
+    rsvc_decode_text_f decode;
+    if (!read_encoding(&data, &size, 0x03, &decode, fail)) {
+        return false;
+    }
+
+    __block bool result = false;
+    decode(data, size, ^(const char* data, size_t size, rsvc_error_t error){
+        if (error) {
+            fail(error);
+            return;
+        }
+        const char* zero = memchr(data, '\0', size);
+        if (!zero) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "missing null terminator");
+        } else if (zero != (data + size - 1)) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "more than one tag value");
+        } else {
+            char* dup = strdup(data);
+            char* number = dup;
+            char* total = strchr(dup, '/');
+            if (total) {
+                *(total++) = '\0';
+            }
+            if (!*number) {
+                number = NULL;
+            }
+            rsvc_logf(3, "read sequence %s/%s", number, total);
+            result = id3_sequence_both_add(frames, spec, number, get_paired_frame_spec(spec), total, fail);
+            free(dup);
+        }
+    });
+    return result;
+}
+
+static bool id3_sequence_read_2_3(id3_frame_list_t frames, id3_frame_spec_t spec,
+                                  uint8_t* data, size_t size, rsvc_done_t fail) {
+    if (!get_vorbis_frame_spec(spec->vorbis_name, &spec, fail)) {
+        return false;
+    }
+
+    rsvc_decode_text_f decode;
+    if (!read_encoding(&data, &size, 0x01, &decode, fail)) {
+        return false;
+    }
+
+    __block bool result = false;
+    decode(data, size, ^(const char* data, size_t size, rsvc_error_t error){
+        if (error) {
+            fail(error);
+            return;
+        }
+        const char* zero = memchr(data, '\0', size);
+        if (zero && ((zero + 1 - data) != size)) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "tag value has embedded NUL character");
+        } else {
+            char* dup = strndup(data, size);
+            char* number = dup;
+            char* total = strchr(number, '/');
+            if (total) {
+                *(total++) = '\0';
+            }
+            if (!*number) {
+                number = NULL;
+            }
+            rsvc_logf(3, "read sequence %s/%s", number, total);
+            result = id3_sequence_both_add(frames, spec, number, get_paired_frame_spec(spec), total, fail);
+            free(dup);
+        }
+    });
+    return result;
 }
 
 static bool id3_sequence_number_add(
@@ -1064,6 +1135,32 @@ static bool id3_sequence_total_add(
 
 static void id3_sequence_total_remove(id3_frame_list_t frames, id3_frame_spec_t spec) {
     id3_sequence_both_remove(frames, NULL, false, spec, true);
+}
+
+static size_t id3_sequence_size(id3_frame_node_t node) {
+    const char* number = (const char*)node->data;
+    const char* total = number + strlen(number) + 1;
+    if (*total) {
+        return node->size + 1;
+    } else {
+        return node->size;
+    }
+}
+
+static void id3_sequence_write(id3_frame_node_t node, uint8_t* data) {
+    const char* number = (const char*)node->data;
+    size_t number_size = strlen(number);
+    const char* total = number + number_size + 1;
+
+    *(data++) = 0x03;  // UTF-8 encoding
+    if (*total) {
+        // data is NUMBER '\0' TOTAL '\0'; then change first '\0' to '/'
+        memcpy(data, node->data, node->size);
+        data[number_size] = '/';
+    } else {
+        // data is NUMBER '\0' '\0'; skip second '\0'
+        memcpy(data, node->data, node->size - 1);
+    }
 }
 
 static void decode_nul_terminated(
