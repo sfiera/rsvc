@@ -51,11 +51,8 @@ typedef struct id3_frame_list* id3_frame_list_t;
 
 typedef bool (*id3_read_f)(id3_frame_list_t frames, id3_frame_spec_t spec,
                            uint8_t* data, size_t size, rsvc_done_t fail);
-typedef void (*id3_yield_f)(id3_frame_node_t node,
-                            void (^block)(const char* name, const char* value));
-typedef void (*id3_image_yield_f)(
-                        id3_frame_node_t,
-                        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size));
+typedef bool (*id3_yield_f)(id3_frame_node_t node, int i, rsvc_tags_iter_t it);
+typedef bool (*id3_image_yield_f)(id3_frame_node_t, rsvc_tags_image_iter_t it);
 typedef bool (*id3_add_f)(id3_frame_list_t frames, id3_frame_spec_t spec,
                           const char* value, rsvc_done_t fail);
 typedef void (*id3_remove_f)(id3_frame_list_t frames, id3_frame_spec_t spec);
@@ -68,9 +65,7 @@ static bool     id3_text_read(
 static bool     id3_text_read_2_3(
                         id3_frame_list_t frames, id3_frame_spec_t spec,
                         uint8_t* data, size_t size, rsvc_done_t fail);
-static void     id3_text_yield(
-                        id3_frame_node_t node,
-                        void (^block)(const char* name, const char* value));
+static bool     id3_text_yield(id3_frame_node_t node, int i, rsvc_tags_iter_t it);
 static bool     id3_text_add(
                         id3_frame_list_t frames, id3_frame_spec_t spec,
                         const char* value, rsvc_done_t fail);
@@ -86,9 +81,7 @@ static bool     id3_sequence_read(
 static bool     id3_sequence_read_2_3(
                         id3_frame_list_t frames, id3_frame_spec_t spec,
                         uint8_t* data, size_t size, rsvc_done_t fail);
-static void     id3_sequence_yield(
-                        id3_frame_node_t node,
-                        void (^block)(const char* name, const char* value));
+static bool     id3_sequence_yield(id3_frame_node_t node, int i, rsvc_tags_iter_t it);
 static bool     id3_sequence_number_add(
                         id3_frame_list_t frames, id3_frame_spec_t spec,
                         const char* value, rsvc_done_t fail);
@@ -106,9 +99,7 @@ static void     id3_image_add(
 static bool     id3_image_read(
                         id3_frame_list_t frames, id3_frame_spec_t spec,
                         uint8_t* data, size_t size, rsvc_done_t fail);
-static void     id3_image_yield(
-                        id3_frame_node_t,
-                        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size));
+static bool     id3_image_yield(id3_frame_node_t node, rsvc_tags_image_iter_t it);
 static size_t   id3_image_size(id3_frame_node_t node);
 static void     id3_image_write(id3_frame_node_t node, uint8_t* data);
 static bool     id3_passthru_read(
@@ -394,39 +385,75 @@ static bool rsvc_id3_tags_add(rsvc_tags_t tags, const char* name, const char* va
     return spec->id3_2_4_type->add(&self->frames, spec, value, fail);
 }
 
-static bool rsvc_id3_tags_each(
-        rsvc_tags_t tags,
-        void (^block)(const char* name, const char* value, rsvc_stop_t stop)) {
+typedef struct id3_tags_iter* id3_tags_iter_t;
+struct id3_tags_iter {
+    struct rsvc_tags_iter  super;
+
+    id3_frame_node_t       curr;
+    int                    i;
+};
+
+static rsvc_tags_iter_t id3_begin(rsvc_tags_t tags) {
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
-    __block bool loop = true;
-    for (id3_frame_node_t curr = self->frames.head; curr && loop; curr = curr->next) {
-        if (curr->spec->id3_2_4_type->yield) {
-            curr->spec->id3_2_4_type->yield(curr, ^(const char* name, const char* value){
-                block(name, value, ^{
-                    loop = false;
-                });
-            });
-        }
-    }
-    return loop;
+    struct id3_tags_iter iter = {
+        .curr  = self->frames.head,
+        .i     = -1,
+    };
+    id3_tags_iter_t copy = memdup(&iter, sizeof(iter));
+    return &copy->super;
 }
 
-static bool rsvc_id3_tags_image_each(
-        rsvc_tags_t tags,
-        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop)) {
-    rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
-    __block bool loop = true;
-    for (id3_frame_node_t curr = self->frames.head; curr && loop; curr = curr->next) {
-        if (curr->spec->id3_2_4_type->image_yield) {
-            curr->spec->id3_2_4_type->image_yield(
-                    curr, ^(rsvc_format_t format, const uint8_t* data, size_t size){
-                block(format, data, size, ^{
-                    loop = false;
-                });
-            });
+static void id3_break(rsvc_tags_iter_t super_it) {
+    id3_tags_iter_t it = DOWN_CAST(struct id3_tags_iter, super_it);
+    free(it);
+}
+
+static bool id3_next(rsvc_tags_iter_t super_it) {
+    id3_tags_iter_t it = DOWN_CAST(struct id3_tags_iter, super_it);
+    while (it->curr) {
+        id3_frame_type_t type = it->curr->spec->id3_2_4_type;
+        if (type->yield && type->yield(it->curr, it->i++, super_it)) {
+            return true;
         }
+        it->curr = it->curr->next;
+        it->i = 0;
     }
-    return loop;
+    id3_break(super_it);
+    return false;
+}
+
+typedef struct id3_tags_image_iter* id3_tags_image_iter_t;
+struct id3_tags_image_iter {
+    struct rsvc_tags_image_iter  super;
+    id3_frame_node_t             curr;
+};
+
+static rsvc_tags_image_iter_t id3_image_begin(rsvc_tags_t tags) {
+    rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
+    struct id3_tags_image_iter iter = {
+        .curr  = self->frames.head,
+    };
+    id3_tags_image_iter_t copy = memdup(&iter, sizeof(iter));
+    return &copy->super;
+}
+
+static void id3_image_break(rsvc_tags_image_iter_t super_it) {
+    id3_tags_image_iter_t it = DOWN_CAST(struct id3_tags_image_iter, super_it);
+    free(it);
+}
+
+static bool id3_image_next(rsvc_tags_image_iter_t super_it) {
+    id3_tags_image_iter_t it = DOWN_CAST(struct id3_tags_image_iter, super_it);
+    while (it->curr) {
+        id3_frame_type_t type = it->curr->spec->id3_2_4_type;
+        if (type->image_yield && type->image_yield(it->curr, super_it)) {
+            it->curr = it->curr->next;
+            return true;
+        }
+        it->curr = it->curr->next;
+    }
+    id3_image_break(super_it);
+    return false;
 }
 
 static bool rsvc_id3_tags_image_remove(
@@ -491,14 +518,20 @@ static void rsvc_id3_tags_destroy(rsvc_tags_t tags) {
 }
 
 static struct rsvc_tags_methods id3_vptr = {
-    .remove        = rsvc_id3_tags_remove,
-    .add           = rsvc_id3_tags_add,
-    .each          = rsvc_id3_tags_each,
-    .image_each    = rsvc_id3_tags_image_each,
-    .image_remove  = rsvc_id3_tags_image_remove,
-    .image_add     = rsvc_id3_tags_image_add,
-    .save          = rsvc_id3_tags_save,
-    .destroy       = rsvc_id3_tags_destroy,
+    .remove            = rsvc_id3_tags_remove,
+    .add               = rsvc_id3_tags_add,
+    .image_remove      = rsvc_id3_tags_image_remove,
+    .image_add         = rsvc_id3_tags_image_add,
+    .save              = rsvc_id3_tags_save,
+    .destroy           = rsvc_id3_tags_destroy,
+
+    .iter_begin        = id3_begin,
+    .iter_break        = id3_break,
+    .iter_next         = id3_next,
+
+    .image_iter_begin  = id3_image_begin,
+    .image_iter_break  = id3_image_break,
+    .image_iter_next   = id3_image_next,
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -895,9 +928,10 @@ static bool id3_text_read_2_3(id3_frame_list_t frames, id3_frame_spec_t spec,
     return result;
 }
 
-static void id3_text_yield(id3_frame_node_t node,
-                           void (^block)(const char* name, const char* value)) {
-    block(node->spec->vorbis_name, (const char*)&node->data);
+static bool id3_text_yield(id3_frame_node_t node, int i, rsvc_tags_iter_t it) {
+    it->name = node->spec->vorbis_name;
+    it->value = (const char*)&node->data;
+    return i == 0;
 }
 
 static bool id3_text_add(
@@ -938,19 +972,31 @@ static bool id3_bool_add(
     return id3_text_add(frames, spec, value, fail);
 }
 
-static void id3_sequence_yield(id3_frame_node_t node,
-                               void (^block)(const char* name, const char* value)) {
+static bool id3_sequence_yield(id3_frame_node_t node, int i, rsvc_tags_iter_t it) {
     const char* number = (const char*)node->data;
     id3_frame_spec_t number_spec = node->spec;
-    if (*number) {
-        block(number_spec->vorbis_name, number);
-    }
-
     const char* total = number + strlen(number) + 1;
     id3_frame_spec_t total_spec = get_paired_frame_spec(number_spec);
-    if (*total) {
-        block(total_spec->vorbis_name, total);
+
+    if (*number && *total) {
+        if (i == 0) {
+            it->name = number_spec->vorbis_name;
+            it->value = number;
+        } else if (i == 1) {
+            it->name = total_spec->vorbis_name;
+            it->value = total;
+        }
+        return i < 2;
+    } else if (*number) {
+        it->name = number_spec->vorbis_name;
+        it->value = number;
+        return i == 0;
+    } else if (*total) {
+        it->name = total_spec->vorbis_name;
+        it->value = total;
+        return i == 0;
     }
+    return false;
 }
 
 static void id3_sequence_add(
@@ -1252,14 +1298,16 @@ static bool id3_image_read(
     return result;
 }
 
-static void id3_image_yield(
-        id3_frame_node_t node,
-        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size)) {
+static bool id3_image_yield(id3_frame_node_t node, rsvc_tags_image_iter_t it) {
     struct id3_image_data* d = (void*)node->data;
     rsvc_format_t format = rsvc_format_with_mime((const char*)d->data);
     if (format && format->image_info) {
-        block(format, d->data + d->description_end, d->payload_end - d->description_end);
+        it->format = format;
+        it->data = d->data + d->description_end;
+        it->size = d->payload_end - d->description_end;
+        return true;
     }
+    return false;
 }
 
 static size_t id3_image_size(id3_frame_node_t node) {
