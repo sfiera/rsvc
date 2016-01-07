@@ -63,6 +63,12 @@ DEPS = {
         "brew": "libogg",
         "headers": ["ogg/ogg.h"],
     },
+    "opus": {
+        "pkgconfig": "opus",
+        "dpkg": "libopus-dev",
+        "brew": "opus",
+        "headers": ["opus.h"],
+    },
     "vorbis": {
         "pkgconfig": "vorbisenc",
         "dpkg": "libvorbis-dev",
