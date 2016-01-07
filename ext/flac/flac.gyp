@@ -27,6 +27,18 @@
             , "flac-1.2.1/src/libFLAC/window.c"
             ]
           , "defines": ["VERSION=\"1.2.1\""]
+          , "cflags":
+            [ "-Wno-sizeof-pointer-memaccess"
+            , "-Wno-tautological-constant-out-of-range-compare"
+            , "-Wno-enum-conversion"
+            ]
+          , "xcode_settings":
+            { "OTHER_CFLAGS":
+              [ "-Wno-sizeof-pointer-memaccess"
+              , "-Wno-tautological-constant-out-of-range-compare"
+              , "-Wno-enum-conversion"
+              ]
+            }
           , "dependencies":
             [ "<(DEPTH)/ext/ogg/ogg.gyp:libogg"
             ]

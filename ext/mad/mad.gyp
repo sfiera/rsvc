@@ -22,9 +22,9 @@
             , "HAVE_CONFIG_H"
             ]
           , "include_dirs": ["libmad-0.15.1b"]
-          , "cflags": ["-fasm"]
+          , "cflags": ["-fasm", "-Wno-tautological-constant-out-of-range-compare"]
           , "xcode_settings":
-            { "OTHER_CFLAGS": ["-fasm"]
+            { "OTHER_CFLAGS": ["-fasm", "-Wno-tautological-constant-out-of-range-compare"]
             }
           , "direct_dependent_settings":
             { "include_dirs": ["libmad-0.15.1b"]

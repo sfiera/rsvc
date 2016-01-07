@@ -28,8 +28,17 @@
             , "neon-0.29.6/src/ne_xmlreq.c"
             , "neon-0.29.6/src/ne_openssl.c"
             ]
-          , "link_settings":
-            { "libraries": ["-lgssapi_krb5", "-lssl", "-lcrypto"]
+          , "cflags":
+            [ "-Wno-tautological-constant-out-of-range-compare"
+            , "-Wno-deprecated-declarations"
+            , "-Wno-implicit-function-declaration"
+            ]
+          , "xcode_settings":
+            { "OTHER_CFLAGS":
+              [ "-Wno-tautological-constant-out-of-range-compare"
+              , "-Wno-deprecated-declarations"
+              , "-Wno-implicit-function-declaration"
+              ]
             }
           , "include_dirs":
             [ "libneon-0.29.6/src"
@@ -37,6 +46,9 @@
             ]
           , "direct_dependent_settings":
             { "include_dirs": ["include"]
+            }
+          , "link_settings":
+            { "libraries": ["-lgssapi_krb5", "-lssl", "-lcrypto"]
             }
           , "conditions":
             [ [ "OS == 'mac'"

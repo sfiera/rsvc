@@ -30,6 +30,18 @@
           , "dependencies":
             [ "<(DEPTH)/ext/ogg/ogg.gyp:libogg"
             ]
+          , "cflags":
+            [ "-Wno-comment"
+            , "-Wno-shift-op-parentheses"
+            , "-Wno-tautological-pointer-compare"
+            ]
+          , "xcode_settings":
+            { "OTHER_CFLAGS":
+              [ "-Wno-comment"
+              , "-Wno-shift-op-parentheses"
+              , "-Wno-tautological-pointer-compare"
+              ]
+            }
           , "include_dirs":
             [ "libvorbis-1.3.2/include"
             , "libvorbis-1.3.2/lib"

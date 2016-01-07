@@ -35,6 +35,16 @@
             , "lame-3.99.5/mpglib/tabinit.c"
             ]
           , "defines": ["HAVE_CONFIG_H"]
+          , "cflags":
+            [ "-Wno-tautological-pointer-compare"
+            , "-Wno-absolute-value"
+            ]
+          , "xcode_settings":
+            { "OTHER_CFLAGS":
+              [ "-Wno-tautological-pointer-compare"
+              , "-Wno-absolute-value"
+              ]
+            }
           , "include_dirs":
             [ "lame-3.99.5/include"
             , "lame-3.99.5/libmp3lame"

@@ -108,6 +108,18 @@
             , "mp4v2-2.0.0/libutil/crc.cpp"
             , "mp4v2-2.0.0/libutil/other.cpp"
             ]
+          , "cflags":
+            [ "-Wno-invalid-source-encoding"
+            , "-Wno-non-literal-null-conversion"
+            , "-Wno-tautological-pointer-compare"
+            ]
+          , "xcode_settings":
+            { "OTHER_CFLAGS":
+              [ "-Wno-invalid-source-encoding"
+              , "-Wno-non-literal-null-conversion"
+              , "-Wno-tautological-pointer-compare"
+              ]
+            }
           , "include_dirs":
             [ "mp4v2-2.0.0/include"
             , "mp4v2-2.0.0"
