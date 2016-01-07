@@ -4,12 +4,20 @@
     }
   , "cflags":
     [ "-Wall"
+    , "-Wextra"
     , "-Werror"
-    , "-Wno-sign-compare"
+    , "-Wno-sign-compare"                # TODO(sfiera): remove
+    , "-Wno-missing-field-initializers"  # TODO(sfiera): remove
     , "-fblocks"
     ]
   , "xcode_settings":
-    { "OTHER_CFLAGS": ["-Wall", "-Werror", "-Wno-sign-compare"]
+    { "OTHER_CFLAGS":
+      [ "-Wall"
+      , "-Wextra"
+      , "-Werror"
+      , "-Wno-sign-compare"
+      , "-Wno-missing-field-initializers"
+      ]
     }
   , "include_dirs": ["include"]
   }
