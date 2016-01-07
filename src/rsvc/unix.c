@@ -221,7 +221,7 @@ bool rsvc_walk(char* path, int options, rsvc_done_t fail,
 }
 
 bool rsvc_mv(const char* src, const char* dst, rsvc_done_t fail) {
-    if (rsvc_rename(src, dst, ^(rsvc_error_t error){})) {
+    if (rsvc_rename(src, dst, ^(rsvc_error_t error){ (void)error; })) {
         return true;
     } else if (errno == EXDEV) {
         return rsvc_cp(src, dst, fail)
@@ -241,7 +241,7 @@ bool rsvc_makedirs(const char* path, mode_t mode, rsvc_done_t fail) {
         }
     }
 
-    if (rsvc_mkdir(path, mode, ^(rsvc_error_t error){})) {
+    if (rsvc_mkdir(path, mode, ^(rsvc_error_t error){ (void)error; })) {
         return true;
     } else if ((errno == EEXIST) || (errno == EISDIR)) {
         return true;
@@ -252,7 +252,7 @@ bool rsvc_makedirs(const char* path, mode_t mode, rsvc_done_t fail) {
 }
 
 void rsvc_trimdirs(const char* path) {
-    if (rsvc_rmdir(path, ^(rsvc_error_t error){})) {
+    if (rsvc_rmdir(path, ^(rsvc_error_t error){ (void)error; })) {
         char parent[MAXPATHLEN];
         rsvc_dirname(path, parent);
         rsvc_trimdirs(parent);
