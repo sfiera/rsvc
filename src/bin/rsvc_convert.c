@@ -87,6 +87,7 @@ struct rsvc_command rsvc_convert = {
                 "Formats:\n",
                 rsvc_progname);
         rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
+            (void)stop;
             if (format->encode && format->decode) {
                 errf("  %s (in, out)\n", format->name);
             } else if (format->encode) {
@@ -152,6 +153,7 @@ struct rsvc_command rsvc_convert = {
     },
 
     .argument = ^bool (char* arg, rsvc_done_t fail) {
+        (void)fail;
         push_string(&options.input, arg);
         return true;
     },
@@ -262,6 +264,8 @@ static void convert_recursive(struct file_pair f, dispatch_semaphore_t sema, rsv
         if (!rsvc_walk(f.output, FTS_NOCHDIR, walk_done,
                        ^bool(unsigned short info, const char* dirname, const char* basename,
                              struct stat* st, rsvc_done_t fail){
+            (void)st;
+            (void)fail;
             if (info != FTS_F) {
                 return true;
             }
@@ -283,6 +287,7 @@ static void convert_recursive(struct file_pair f, dispatch_semaphore_t sema, rsv
     if (rsvc_walk(f.input, FTS_NOCHDIR, walk_done,
                   ^bool(unsigned short info, const char* dirname, const char* basename,
                         struct stat* st, rsvc_done_t fail){
+        (void)st;
         if (info == FTS_DP) {
             if (!options.delete_) {
                 return true;
@@ -488,7 +493,7 @@ static void copy_tags(struct file_pair f, const char* tmp_path, rsvc_done_t done
     // If we don't have tag support for both the input and output
     // formats (e.g. conversion to/from WAV), then silently do nothing.
     rsvc_format_t read_fmt, write_fmt;
-    rsvc_done_t ignore = ^(rsvc_error_t error){ /* do nothing */ };
+    rsvc_done_t ignore = ^(rsvc_error_t error){ (void)error; /* do nothing */ };
     if (!(rsvc_format_detect(f.input, f.input_fd, &read_fmt, ignore)
           && read_fmt->open_tags
           && rsvc_format_detect(tmp_path, f.output_fd, &write_fmt, ignore)
@@ -519,10 +524,12 @@ static void copy_tags(struct file_pair f, const char* tmp_path, rsvc_done_t done
     rsvc_logf(1, "copying %zu images from %s", rsvc_tags_image_size(read_tags), f.input);
     rsvc_tags_image_each(read_tags, ^(rsvc_format_t format, const uint8_t* data, size_t size,
                                       rsvc_stop_t stop){
-        rsvc_tags_image_add(write_tags, format, data, size, ^(rsvc_error_t error){});
+        (void)stop;
+        rsvc_tags_image_add(write_tags, format, data, size, ^(rsvc_error_t error){ (void)error; });
     });
     rsvc_tags_each(read_tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        rsvc_tags_add(write_tags, ^(rsvc_error_t error){}, name, value);
+        (void)stop;
+        rsvc_tags_add(write_tags, ^(rsvc_error_t error){ (void)error; }, name, value);
     });
     if (!rsvc_tags_save(write_tags, done)) {
         return;
