@@ -18,9 +18,6 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#define _BSD_SOURCE
-#define _POSIX_C_SOURCE 200809L
-
 #include "unix.h"
 
 #include <errno.h>
@@ -73,14 +70,16 @@ bool rsvc_temp(const char* base, mode_t mode, char* path, int* fd, rsvc_done_t f
         src += size;
         dst += size;
     }
+    *(dst++) = '.';
+    size_t prefix_size = dst - result;
+    strcpy(dst, "XXXXXXXXXX");
+    size_t suffix_size = strlen(src);
+    strcat(dst, src);
 
     while (true) {
-        strcpy(dst, ".XXXXXXXXXX");
-        mktemp(result);
-        strcat(dst, src);
-
+        memset(result + prefix_size, 'X', 10);
+        *fd = mkstemps(result, suffix_size);
         rsvc_logf(3, "temp %s", result);
-        *fd = open(result, O_RDWR | O_CREAT | O_EXCL, mode);
         if (*fd < 0) {
             switch (errno) {
               case EEXIST:
