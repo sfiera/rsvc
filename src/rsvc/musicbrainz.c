@@ -45,6 +45,7 @@ static bool set_mb_tag(rsvc_tags_t tags, const char* tag_name,
         return true;
     }
     if (!rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
+        (void)value;  // Just looking for presence, not value.
         if (strcmp(name, tag_name) == 0) {
             stop();
         }
@@ -59,6 +60,8 @@ static bool set_mb_tag(rsvc_tags_t tags, const char* tag_name,
 }
 
 static bool mb5_query_cached(const char* discid, Mb5Metadata* meta, rsvc_done_t fail) {
+    (void)fail;  // TODO(sfiera): handle failure conditions?
+
     // MusicBrainz requires that requests be throttled to 1 per second.
     // In order to do so, we serialize all of our requests through a
     // single dispatch queue.
