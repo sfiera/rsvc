@@ -36,6 +36,7 @@ struct rsvc_command rsvc_watch = {
     },
 
     .run = ^(rsvc_done_t done){
+        (void)done;  // run forever.
         __block bool show = false;
 
         struct rsvc_disc_watch_callbacks callbacks;
@@ -48,6 +49,7 @@ struct rsvc_command rsvc_watch = {
             outf("-\t%s\t%s\n", path, rsvc_disc_type_name[type]);
         };
         callbacks.initialized = ^(rsvc_stop_t stop){
+            (void)stop;  // run forever.
             show = true;
         };
 
