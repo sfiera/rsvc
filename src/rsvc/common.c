@@ -144,7 +144,8 @@ void rsvc_logf(int level, const char* format, ...) {
         rsvc_vasprintf(&message, format, vl);
         va_end(vl);
 
-        errf(format, "%s log: %s\n", time, message);
+        errf("%s log: %s\n", time, message);
+        free(message);
     }
 }
 
