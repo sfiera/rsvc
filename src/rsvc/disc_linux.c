@@ -131,10 +131,9 @@ static enum rsvc_disc_type path_to_disc_type(const char* path) {
     return type;
 }
 
-static void disc_watch(struct rsvc_watch_context* context, rsvc_done_t done) {
+static void disc_watch(struct rsvc_watch_context* context) {
 	struct udev *udev = udev_new();
 	if (!udev) {
-        done(NULL);
         return;
 	}
 
@@ -196,7 +195,6 @@ static void disc_watch(struct rsvc_watch_context* context, rsvc_done_t done) {
 
     udev_monitor_unref(monitor);
 	udev_unref(udev);
-    done(NULL);
 }
 
 void rsvc_disc_watch(struct rsvc_disc_watch_callbacks callbacks) {
@@ -210,13 +208,12 @@ void rsvc_disc_watch(struct rsvc_disc_watch_callbacks callbacks) {
     };
     struct rsvc_watch_context* context = memdup(&build_context, sizeof(build_context));
     dispatch_async(context->queue, ^{
-        disc_watch(context, ^(rsvc_error_t error){
-            dispatch_release(context->queue);
-            Block_release(context->callbacks.appeared);
-            Block_release(context->callbacks.disappeared);
-            Block_release(context->callbacks.initialized);
-            free(context);
-        });
+        disc_watch(context);
+        dispatch_release(context->queue);
+        Block_release(context->callbacks.appeared);
+        Block_release(context->callbacks.disappeared);
+        Block_release(context->callbacks.initialized);
+        free(context);
     });
 }
 
