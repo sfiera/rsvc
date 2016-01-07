@@ -47,6 +47,7 @@ static dispatch_once_t sigint_once;
 static dispatch_source_t sigint_source = NULL;
 
 static void sigint_init(void* ignored) {
+    (void)ignored;
     rsvc_sigint.queue = dispatch_queue_create("net.sfiera.ripservice.cancel", NULL);
 }
 
