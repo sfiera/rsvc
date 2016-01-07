@@ -223,6 +223,7 @@ static void rsvc_ogg_page_copy(ogg_page* dst, const ogg_page* src) {
 }
 
 static bool rsvc_vorbis_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail) {
+    (void)fail;
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
     // I bet this is not the most efficient thing to do.
     vorbis_comment vc;
@@ -243,6 +244,7 @@ static bool rsvc_vorbis_tags_remove(rsvc_tags_t tags, const char* name, rsvc_don
 
 static bool rsvc_vorbis_tags_add(rsvc_tags_t tags, const char* name, const char* value,
                                  rsvc_done_t fail) {
+    (void)fail;
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
     vorbis_comment_add_tag(&self->vc, name, value);
     return true;
