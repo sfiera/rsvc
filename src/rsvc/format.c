@@ -128,6 +128,7 @@ static const char* get_extension(const char* path) {
 
 static bool check_extension(rsvc_format_t format, const char* path,
                             bool* matches, rsvc_format_t* out, rsvc_done_t fail) {
+    (void)fail;  // Never fails (but could fail to match).
     if (!format->extension) {
         return true;
     }
