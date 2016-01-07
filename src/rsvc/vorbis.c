@@ -352,6 +352,14 @@ static struct rsvc_tags_methods vorbis_vptr = {
 
 static int read_ogg_page(int fd, ogg_sync_state* oy, ogg_page* og, rsvc_done_t fail) {
     while (true) {
+        const int status = ogg_sync_pageout(oy, og);
+        if (status == 1) {
+            return 1;
+        } else if (status < 0) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg page");
+            return status;
+        }
+
         char* data = ogg_sync_buffer(oy, 4096);
         size_t size;
         bool eof = false;
@@ -361,13 +369,6 @@ static int read_ogg_page(int fd, ogg_sync_state* oy, ogg_page* og, rsvc_done_t f
             return 0;
         }
         ogg_sync_wrote(oy, size);
-        const int status = ogg_sync_pageout(oy, og);
-        if (status == 1) {
-            return 1;
-        } else if (status < 0) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg page");
-            return status;
-        }
     }
 }
 
