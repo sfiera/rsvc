@@ -38,6 +38,7 @@
 
 #include "common.h"
 #include "list.h"
+#include "ogg.h"
 #include "unix.h"
 
 void rsvc_vorbis_encode(
@@ -186,41 +187,6 @@ struct rsvc_vorbis_tags {
     ogg_packet                  header_code;
     struct rsvc_ogg_page_list   pages;
 };
-
-static void rsvc_ogg_packet_clear(ogg_packet* op) {
-    if (op->packet) {
-        free(op->packet);
-    }
-    memset(op, 0, sizeof(*op));
-}
-
-static void rsvc_ogg_packet_copy(ogg_packet* dst, const ogg_packet* src) {
-    rsvc_ogg_packet_clear(dst);
-    dst->packet         = memdup(src->packet, src->bytes);
-    dst->bytes          = src->bytes;
-    dst->b_o_s          = src->b_o_s;
-    dst->e_o_s          = src->e_o_s;
-    dst->granulepos     = src->granulepos;
-    dst->packetno       = src->packetno;
-}
-
-static void rsvc_ogg_page_clear(ogg_page* og) {
-    if (og->header) {
-        free(og->header);
-    }
-    if (og->body) {
-        free(og->body);
-    }
-    memset(og, 0, sizeof(*og));
-}
-
-static void rsvc_ogg_page_copy(ogg_page* dst, const ogg_page* src) {
-    rsvc_ogg_page_clear(dst);
-    dst->header         = memdup(src->header, src->header_len);
-    dst->header_len     = src->header_len;
-    dst->body           = memdup(src->body, src->body_len);
-    dst->body_len       = src->body_len;
-}
 
 static bool rsvc_vorbis_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail) {
     (void)fail;
@@ -387,28 +353,6 @@ static struct rsvc_tags_methods vorbis_vptr = {
     .iter_begin  = vorbis_begin,
 };
 
-static bool read_ogg_page(int fd, ogg_sync_state* oy, ogg_page* og, bool* eof, rsvc_done_t fail) {
-    while (true) {
-        const int status = ogg_sync_pageout(oy, og);
-        if (status == 1) {
-            *eof = false;
-            return true;
-        } else if (status < 0) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg page");
-            return false;
-        }
-
-        char* data = ogg_sync_buffer(oy, 4096);
-        size_t size;
-        if (!rsvc_read(NULL, fd, data, 4096, &size, eof, fail)) {
-            return false;
-        } else if (*eof) {
-            return true;
-        }
-        ogg_sync_wrote(oy, size);
-    }
-}
-
 bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail) {
     __block struct rsvc_vorbis_tags ogv = {
         .super = {
@@ -454,7 +398,7 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
     // Read all of the pages from the ogg file in a loop.
     while (true) {
         bool eof;
-        if (!read_ogg_page(fd, &oy, &og, &eof, fail)) {
+        if (!rsvc_ogg_page_read(fd, &oy, &og, &eof, fail)) {
             return false;
         } else if (eof) {
             if (header_packets > 0) {

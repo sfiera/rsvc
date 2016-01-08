@@ -1,7 +1,7 @@
 //
 // This file is part of Rip Service.
 //
-// Copyright (C) 2012 Chris Pickel <sfiera@sfzmail.com>
+// Copyright (C) 2016 Chris Pickel <sfiera@sfzmail.com>
 //
 // Rip Service is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -18,21 +18,18 @@
 // Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 //
 
-#define _POSIX_C_SOURCE 200809L
+#ifndef SRC_RSVC_OGG_H_
+#define SRC_RSVC_OGG_H_
 
-#include "audio.h"
+#include <ogg/ogg.h>
 
-#include <opus.h>
-#include <rsvc/format.h>
+#include <rsvc/common.h>
 
-#include "ogg.h"
+void rsvc_ogg_page_clear(ogg_page* og);
+void rsvc_ogg_page_copy(ogg_page* dst, const ogg_page* src);
+bool rsvc_ogg_page_read(int fd, ogg_sync_state* oy, ogg_page* og, bool* eof, rsvc_done_t fail);
 
-const struct rsvc_format rsvc_opus = {
-    .format_group = RSVC_AUDIO,
-    .name = "opus",
-    .mime = "audio/opus",
-    .magic = {"OggS????????????????????????OpusHead"},
-    .magic_size = 36,
-    .extension = "opus",
-    .lossless = false,
-};
+void rsvc_ogg_packet_clear(ogg_packet* op);
+void rsvc_ogg_packet_copy(ogg_packet* dst, const ogg_packet* src);
+
+#endif  // RSVC_OGG_H_
