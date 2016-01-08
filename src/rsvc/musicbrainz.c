@@ -44,10 +44,10 @@ static bool set_mb_tag(rsvc_tags_t tags, const char* tag_name,
     if (object == NULL) {
         return true;
     }
-    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_next(it); ) {
         if (strcmp(it->name, tag_name) == 0) {
             // Already have tag.
-            rsvc_tags_break(tags, it);
+            rsvc_break(it);
             return true;
         }
     }
@@ -133,7 +133,7 @@ bool rsvc_apply_musicbrainz_tags(rsvc_tags_t tags, rsvc_done_t fail) {
     bool found_discid = false;
     int tracknumber = 0;
     bool found_tracknumber = false;
-    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_next(it); ) {
         if (strcmp(it->name, RSVC_MUSICBRAINZ_DISCID) == 0) {
             found_discid = true;
             discid = strdup(it->value);
@@ -143,7 +143,7 @@ bool rsvc_apply_musicbrainz_tags(rsvc_tags_t tags, rsvc_done_t fail) {
             tracknumber = strtol(it->value, &endptr, 10);
             if (*endptr) {
                 rsvc_errorf(fail, __FILE__, __LINE__, "bad track number: %s", it->value);
-                rsvc_tags_break(tags, it);
+                rsvc_break(it);
                 goto cleanup;
             }
         }

@@ -290,6 +290,14 @@ static bool rsvc_flac_tags_add(rsvc_tags_t tags, const char* name, const char* v
     return true;
 }
 
+static void flac_break(void* super_it);
+static bool flac_next(void* super_it);
+
+static struct rsvc_iter_methods flac_iter_vptr = {
+    .next    = flac_next,
+    .break_  = flac_break,
+};
+
 typedef struct flac_tags_iter* flac_tags_iter_t;
 struct flac_tags_iter {
     struct rsvc_tags_iter                super;
@@ -302,6 +310,9 @@ struct flac_tags_iter {
 static rsvc_tags_iter_t flac_begin(rsvc_tags_t tags) {
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     struct flac_tags_iter iter = {
+        .super = {
+            .vptr = &flac_iter_vptr,
+        },
         .comments  = self->comments,
         .i         = 0,
     };
@@ -309,8 +320,8 @@ static rsvc_tags_iter_t flac_begin(rsvc_tags_t tags) {
     return &copy->super;
 }
 
-static void flac_break(rsvc_tags_iter_t super_it) {
-    flac_tags_iter_t it = DOWN_CAST(struct flac_tags_iter, super_it);
+static void flac_break(void* super_it) {
+    flac_tags_iter_t it = DOWN_CAST(struct flac_tags_iter, (rsvc_tags_iter_t)super_it);
     if (it->name_storage) {
         free(it->name_storage);
         free(it->value_storage);
@@ -320,8 +331,8 @@ static void flac_break(rsvc_tags_iter_t super_it) {
     free(it);
 }
 
-static bool flac_next(rsvc_tags_iter_t super_it) {
-    flac_tags_iter_t it = DOWN_CAST(struct flac_tags_iter, super_it);
+static bool flac_next(void* super_it) {
+    flac_tags_iter_t it = DOWN_CAST(struct flac_tags_iter, (rsvc_tags_iter_t)super_it);
     if (it->name_storage) {
         free(it->name_storage);
         free(it->value_storage);
@@ -334,8 +345,8 @@ static bool flac_next(rsvc_tags_iter_t super_it) {
             for (char* cp = it->name_storage; *cp; ++cp) {
                 *cp = toupper(*cp);
             }
-            super_it->name = it->name_storage;
-            super_it->value = it->value_storage;
+            it->super.name = it->name_storage;
+            it->super.value = it->value_storage;
             return true;
         }
         // else TODO(sfiera): report failure.
@@ -343,6 +354,14 @@ static bool flac_next(rsvc_tags_iter_t super_it) {
     flac_break(super_it);
     return false;
 }
+
+static void flac_image_break(void* super_it);
+static bool flac_image_next(void* super_it);
+
+static struct rsvc_iter_methods flac_image_iter_vptr = {
+    .next    = flac_image_next,
+    .break_  = flac_image_break,
+};
 
 typedef struct flac_tags_image_iter* flac_tags_image_iter_t;
 struct flac_tags_image_iter {
@@ -353,6 +372,9 @@ struct flac_tags_image_iter {
 static rsvc_tags_image_iter_t flac_image_begin(rsvc_tags_t tags) {
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     struct flac_tags_image_iter iter = {
+        .super = {
+            .vptr = &flac_image_iter_vptr,
+        },
         .it  = FLAC__metadata_iterator_new(),
     };
     FLAC__metadata_iterator_init(iter.it, self->chain);
@@ -360,14 +382,14 @@ static rsvc_tags_image_iter_t flac_image_begin(rsvc_tags_t tags) {
     return &copy->super;
 }
 
-static void flac_image_break(rsvc_tags_image_iter_t super_it) {
-    flac_tags_image_iter_t it = DOWN_CAST(struct flac_tags_image_iter, super_it);
+static void flac_image_break(void* super_it) {
+    flac_tags_image_iter_t it = DOWN_CAST(struct flac_tags_image_iter, (rsvc_tags_image_iter_t)super_it);
     FLAC__metadata_iterator_delete(it->it);
     free(it);
 }
 
-static bool flac_image_next(rsvc_tags_image_iter_t super_it) {
-    flac_tags_image_iter_t it = DOWN_CAST(struct flac_tags_image_iter, super_it);
+static bool flac_image_next(void* super_it) {
+    flac_tags_image_iter_t it = DOWN_CAST(struct flac_tags_image_iter, (rsvc_tags_image_iter_t)super_it);
     // First block is STREAMINFO, which we can skip.
     while (FLAC__metadata_iterator_next(it->it)) {
         if (FLAC__metadata_iterator_get_block_type(it->it) != FLAC__METADATA_TYPE_PICTURE) {
@@ -379,9 +401,9 @@ static bool flac_image_next(rsvc_tags_image_iter_t super_it) {
         if (!format || !format->image_info) {
             continue;
         }
-        super_it->format  = format;
-        super_it->data    = picture->data;
-        super_it->size    = picture->data_length;
+        it->super.format  = format;
+        it->super.data    = picture->data;
+        it->super.size    = picture->data_length;
         return true;
     }
     flac_image_break(super_it);
@@ -478,12 +500,7 @@ static struct rsvc_tags_methods flac_vptr = {
     .image_add         = rsvc_flac_tags_image_add,
 
     .iter_begin        = flac_begin,
-    .iter_break        = flac_break,
-    .iter_next         = flac_next,
-
     .image_iter_begin  = flac_image_begin,
-    .image_iter_next   = flac_image_next,
-    .image_iter_break  = flac_image_break,
 };
 
 bool rsvc_flac_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail) {

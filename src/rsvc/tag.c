@@ -139,43 +139,39 @@ bool rsvc_tags_image_add(
     return tags->vptr->image_add(tags, format, data, size, fail);
 }
 
+static bool empty_next() { return false; }
+static void empty_break() {}
+
+static struct rsvc_iter_methods empty_iter_vptr = {
+    .next    = empty_next,
+    .break_  = empty_break,
+};
+static struct rsvc_iter_methods* empty_it_ptr = &empty_iter_vptr;
+static void* empty = &empty_it_ptr;
+
 rsvc_tags_iter_t rsvc_tags_begin(rsvc_tags_t tags) {
     return tags->vptr->iter_begin(tags);
-}
-
-bool rsvc_tags_next(rsvc_tags_t tags, rsvc_tags_iter_t it) {
-    return tags->vptr->iter_next(it);
-}
-
-void rsvc_tags_break(rsvc_tags_t tags, rsvc_tags_iter_t it) {
-    tags->vptr->iter_break(it);
 }
 
 rsvc_tags_image_iter_t rsvc_tags_image_begin(rsvc_tags_t tags) {
     if (tags->vptr->image_iter_begin) {
         return tags->vptr->image_iter_begin(tags);
     } else {
-        return NULL;
+        return empty;
     }
 }
 
-bool rsvc_tags_image_next(rsvc_tags_t tags, rsvc_tags_image_iter_t it) {
-    if (tags->vptr->image_iter_begin) {
-        return tags->vptr->image_iter_next(it);
-    } else {
-        return false;
-    }
+bool rsvc_next(void* it) {
+    return (*(struct rsvc_iter_methods**)it)->next(it);
 }
 
-void rsvc_tags_image_break(rsvc_tags_t tags, rsvc_tags_image_iter_t it) {
-    if (tags->vptr->image_iter_begin) {
-        tags->vptr->image_iter_break(it);
-    }
+void rsvc_break(void* it) {
+    return (*(struct rsvc_iter_methods**)it)->break_(it);
 }
 
 size_t rsvc_tags_image_size(rsvc_tags_t tags) {
     size_t size = 0;
-    for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_tags_image_next(tags, it); ) {
+    for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_next(it); ) {
         ++size;
     }
     return size;
@@ -222,7 +218,7 @@ static bool is_canonical_int(const char* str) {
 
 static size_t max_precision(rsvc_tags_t tags, const char* tag_name, size_t minimum) {
     __block size_t result = minimum;
-    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_next(it); ) {
         if ((strcasecmp(it->name, tag_name) == 0) && (strlen(it->value) > result)) {
             result = strlen(it->value);
         }
@@ -231,9 +227,9 @@ static size_t max_precision(rsvc_tags_t tags, const char* tag_name, size_t minim
 }
 
 static bool any_tags(rsvc_tags_t tags, const char* tag_name) {
-    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_next(it); ) {
         if (strcasecmp(it->name, tag_name) == 0) {
-            rsvc_tags_break(tags, it);
+            rsvc_break(it);
             return true;
         }
     }
@@ -388,7 +384,7 @@ static bool snpathf(char* data, size_t size, size_t* size_needed,
             }
 
             size_t count = 0;
-            for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+            for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_next(it); ) {
                 if (strcasecmp(it->name, rsvc_tag_code_get(type)) == 0) {
                     if (!*it->value) {
                         continue;
@@ -458,9 +454,9 @@ bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail) {
     if (!rsvc_tags_clear(dst, fail)) {
         return false;
     }
-    for (rsvc_tags_iter_t it = rsvc_tags_begin(src); rsvc_tags_next(src, it); ) {
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(src); rsvc_next(it); ) {
         if (!rsvc_tags_add(dst, fail, it->name, it->value)) {
-            rsvc_tags_break(src, it);
+            rsvc_break(it);
             break;
         }
     }
@@ -520,6 +516,14 @@ static bool rsvc_detached_tags_add(rsvc_tags_t tags, const char* name, const cha
     return true;
 }
 
+static void detached_break(void* super_it);
+static bool detached_next(void* super_it);
+
+static struct rsvc_iter_methods detached_iter_vptr = {
+    .next    = detached_next,
+    .break_  = detached_break,
+};
+
 typedef struct detached_tags_iter* detached_tags_iter_t;
 struct detached_tags_iter {
     struct rsvc_tags_iter      super;
@@ -529,22 +533,25 @@ struct detached_tags_iter {
 static rsvc_tags_iter_t detached_begin(rsvc_tags_t tags) {
     rsvc_detached_tags_t self = DOWN_CAST(struct rsvc_detached_tags, tags);
     struct detached_tags_iter iter = {
+        .super = {
+            .vptr = &detached_iter_vptr,
+        },
         .curr  = self->list.head,
     };
     detached_tags_iter_t copy = memdup(&iter, sizeof(iter));
     return &copy->super;
 }
 
-static void detached_break(rsvc_tags_iter_t super_it) {
-    detached_tags_iter_t it = DOWN_CAST(struct detached_tags_iter, super_it);
+static void detached_break(void* super_it) {
+    detached_tags_iter_t it = DOWN_CAST(struct detached_tags_iter, (rsvc_tags_iter_t)super_it);
     free(it);
 }
 
-static bool detached_next(rsvc_tags_iter_t super_it) {
-    detached_tags_iter_t it = DOWN_CAST(struct detached_tags_iter, super_it);
+static bool detached_next(void* super_it) {
+    detached_tags_iter_t it = DOWN_CAST(struct detached_tags_iter, (rsvc_tags_iter_t)super_it);
     if (it->curr) {
-        super_it->name = it->curr->name;
-        super_it->value = it->curr->value;
+        it->super.name = it->curr->name;
+        it->super.value = it->curr->value;
         it->curr = it->curr->next;
         return true;
     } else {
@@ -574,8 +581,6 @@ static struct rsvc_tags_methods detached_vptr = {
     .destroy     = rsvc_detached_tags_destroy,
 
     .iter_begin  = detached_begin,
-    .iter_break  = detached_break,
-    .iter_next   = detached_next,
 };
 
 rsvc_tags_t rsvc_tags_new() {

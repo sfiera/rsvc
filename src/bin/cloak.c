@@ -105,7 +105,7 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
 }
 
 static void print_tags(rsvc_tags_t tags) {
-    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_next(it); ) {
         outf("%s=", it->name);
         const char* value = it->value;
         while (*value) {
@@ -131,7 +131,7 @@ static void print_tags(rsvc_tags_t tags) {
 }
 
 static void print_images(rsvc_tags_t tags) {
-    for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_tags_image_next(tags, it); ) {
+    for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_next(it); ) {
         struct rsvc_image_info info;
         rsvc_done_t fail = ^(rsvc_error_t error){
             (void)error;  // ignore failure and report byte size.
@@ -325,7 +325,7 @@ const char* path_format_for(rsvc_format_t format, rsvc_tags_t tags, ops_t ops) {
             } else if (curr->priority == FPATH_MEDIAKIND) {
                 int n = 0;
                 bool mediakind_matches = false;
-                for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+                for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_next(it); ) {
                     if (strcmp(it->name, RSVC_MEDIAKIND) == 0) {
                         mediakind_matches = (++n == 1) && (strcmp(it->value, curr->mediakind) == 0);
                     }
@@ -418,7 +418,7 @@ static void apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
 
         int i = 0;
         bool success = false;
-        for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_tags_image_next(tags, it); ) {
+        for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_next(it); ) {
             if (index == i++) {
                 char image_path[MAXPATHLEN + 10];  // space for extra dot and extension.
                 strcpy(image_path, curr->path);
@@ -436,7 +436,7 @@ static void apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
                 success =
                     rsvc_write(curr->path, curr->fd, it->data, it->size, NULL, NULL, done)
                     && rsvc_rename(curr->temp_path, image_path, done);
-                rsvc_tags_image_break(tags, it);
+                rsvc_break(it);
                 break;
             }
         }

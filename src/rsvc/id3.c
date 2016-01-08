@@ -385,6 +385,14 @@ static bool rsvc_id3_tags_add(rsvc_tags_t tags, const char* name, const char* va
     return spec->id3_2_4_type->add(&self->frames, spec, value, fail);
 }
 
+static void id3_break(void* super_it);
+static bool id3_next(void* super_it);
+
+static struct rsvc_iter_methods id3_iter_vptr = {
+    .next    = id3_next,
+    .break_  = id3_break,
+};
+
 typedef struct id3_tags_iter* id3_tags_iter_t;
 struct id3_tags_iter {
     struct rsvc_tags_iter  super;
@@ -396,6 +404,9 @@ struct id3_tags_iter {
 static rsvc_tags_iter_t id3_begin(rsvc_tags_t tags) {
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
     struct id3_tags_iter iter = {
+        .super = {
+            .vptr = &id3_iter_vptr,
+        },
         .curr  = self->frames.head,
         .i     = -1,
     };
@@ -403,13 +414,13 @@ static rsvc_tags_iter_t id3_begin(rsvc_tags_t tags) {
     return &copy->super;
 }
 
-static void id3_break(rsvc_tags_iter_t super_it) {
-    id3_tags_iter_t it = DOWN_CAST(struct id3_tags_iter, super_it);
+static void id3_break(void* super_it) {
+    id3_tags_iter_t it = DOWN_CAST(struct id3_tags_iter, (rsvc_tags_iter_t)super_it);
     free(it);
 }
 
-static bool id3_next(rsvc_tags_iter_t super_it) {
-    id3_tags_iter_t it = DOWN_CAST(struct id3_tags_iter, super_it);
+static bool id3_next(void* super_it) {
+    id3_tags_iter_t it = DOWN_CAST(struct id3_tags_iter, (rsvc_tags_iter_t)super_it);
     while (it->curr) {
         id3_frame_type_t type = it->curr->spec->id3_2_4_type;
         if (type->yield && type->yield(it->curr, it->i++, super_it)) {
@@ -422,6 +433,14 @@ static bool id3_next(rsvc_tags_iter_t super_it) {
     return false;
 }
 
+static void id3_image_break(void* super_it);
+static bool id3_image_next(void* super_it);
+
+static struct rsvc_iter_methods id3_image_iter_vptr = {
+    .next    = id3_image_next,
+    .break_  = id3_image_break,
+};
+
 typedef struct id3_tags_image_iter* id3_tags_image_iter_t;
 struct id3_tags_image_iter {
     struct rsvc_tags_image_iter  super;
@@ -431,19 +450,22 @@ struct id3_tags_image_iter {
 static rsvc_tags_image_iter_t id3_image_begin(rsvc_tags_t tags) {
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
     struct id3_tags_image_iter iter = {
+        .super = {
+            .vptr = &id3_image_iter_vptr,
+        },
         .curr  = self->frames.head,
     };
     id3_tags_image_iter_t copy = memdup(&iter, sizeof(iter));
     return &copy->super;
 }
 
-static void id3_image_break(rsvc_tags_image_iter_t super_it) {
-    id3_tags_image_iter_t it = DOWN_CAST(struct id3_tags_image_iter, super_it);
+static void id3_image_break(void* super_it) {
+    id3_tags_image_iter_t it = DOWN_CAST(struct id3_tags_image_iter, (rsvc_tags_image_iter_t)super_it);
     free(it);
 }
 
-static bool id3_image_next(rsvc_tags_image_iter_t super_it) {
-    id3_tags_image_iter_t it = DOWN_CAST(struct id3_tags_image_iter, super_it);
+static bool id3_image_next(void* super_it) {
+    id3_tags_image_iter_t it = DOWN_CAST(struct id3_tags_image_iter, (rsvc_tags_image_iter_t)super_it);
     while (it->curr) {
         id3_frame_type_t type = it->curr->spec->id3_2_4_type;
         if (type->image_yield && type->image_yield(it->curr, super_it)) {
@@ -526,12 +548,7 @@ static struct rsvc_tags_methods id3_vptr = {
     .destroy           = rsvc_id3_tags_destroy,
 
     .iter_begin        = id3_begin,
-    .iter_break        = id3_break,
-    .iter_next         = id3_next,
-
     .image_iter_begin  = id3_image_begin,
-    .image_iter_break  = id3_image_break,
-    .image_iter_next   = id3_image_next,
 };
 
 ////////////////////////////////////////////////////////////////////////

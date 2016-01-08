@@ -250,6 +250,14 @@ static bool rsvc_vorbis_tags_add(rsvc_tags_t tags, const char* name, const char*
     return true;
 }
 
+static void vorbis_break(void* super_it);
+static bool vorbis_next(void* super_it);
+
+static struct rsvc_iter_methods vorbis_iter_vptr = {
+    .next    = vorbis_next,
+    .break_  = vorbis_break,
+};
+
 typedef struct vorbis_tags_iter* vorbis_tags_iter_t;
 struct vorbis_tags_iter {
     struct rsvc_tags_iter  super;
@@ -261,6 +269,9 @@ struct vorbis_tags_iter {
 static rsvc_tags_iter_t vorbis_begin(rsvc_tags_t tags) {
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
     struct vorbis_tags_iter iter = {
+        .super = {
+            .vptr = &vorbis_iter_vptr,
+        },
         .vc  = &self->vc,
         .i   = 0,
     };
@@ -268,16 +279,16 @@ static rsvc_tags_iter_t vorbis_begin(rsvc_tags_t tags) {
     return &copy->super;
 }
 
-static void vorbis_break(rsvc_tags_iter_t super_it) {
-    vorbis_tags_iter_t it = DOWN_CAST(struct vorbis_tags_iter, super_it);
+static void vorbis_break(void* super_it) {
+    vorbis_tags_iter_t it = DOWN_CAST(struct vorbis_tags_iter, (rsvc_tags_iter_t)super_it);
     if (it->storage) {
         free(it->storage);
     }
     free(it);
 }
 
-static bool vorbis_next(rsvc_tags_iter_t super_it) {
-    vorbis_tags_iter_t it = DOWN_CAST(struct vorbis_tags_iter, super_it);
+static bool vorbis_next(void* super_it) {
+    vorbis_tags_iter_t it = DOWN_CAST(struct vorbis_tags_iter, (rsvc_tags_iter_t)super_it);
     while (it->i < it->vc->comments) {
         if (it->storage) {
             free(it->storage);
@@ -374,8 +385,6 @@ static struct rsvc_tags_methods vorbis_vptr = {
     .destroy = rsvc_vorbis_tags_destroy,
 
     .iter_begin  = vorbis_begin,
-    .iter_break  = vorbis_break,
-    .iter_next   = vorbis_next,
 };
 
 static bool read_ogg_page(int fd, ogg_sync_state* oy, ogg_page* og, bool* eof, rsvc_done_t fail) {

@@ -557,6 +557,14 @@ static bool rsvc_mp4_tags_add(rsvc_tags_t tags, const char* name, const char* va
     return false;
 }
 
+static void mp4_break(void* super_it);
+static bool mp4_next(void* super_it);
+
+static struct rsvc_iter_methods mp4_iter_vptr = {
+    .next    = mp4_next,
+    .break_  = mp4_break,
+};
+
 typedef struct mp4_tags_iter* mp4_tags_iter_t;
 struct mp4_tags_iter {
     struct rsvc_tags_iter  super;
@@ -571,6 +579,9 @@ struct mp4_tags_iter {
 static rsvc_tags_iter_t mp4_begin(rsvc_tags_t tags) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
     struct mp4_tags_iter iter = {
+        .super = {
+            .vptr = &mp4_iter_vptr,
+        },
         .items  = MP4ItmfGetItems(self->file),
         .i      = 0,
         .tag    = mp4_tags - 1,
@@ -579,8 +590,8 @@ static rsvc_tags_iter_t mp4_begin(rsvc_tags_t tags) {
     return &copy->super;
 }
 
-static void mp4_break(rsvc_tags_iter_t super_it) {
-    mp4_tags_iter_t it = DOWN_CAST(struct mp4_tags_iter, super_it);
+static void mp4_break(void* super_it) {
+    mp4_tags_iter_t it = DOWN_CAST(struct mp4_tags_iter, (rsvc_tags_iter_t)super_it);
     if (it->long_value) {
         free(it->long_value);
     }
@@ -588,8 +599,8 @@ static void mp4_break(rsvc_tags_iter_t super_it) {
     free(it);
 }
 
-static bool mp4_next(rsvc_tags_iter_t super_it) {
-    mp4_tags_iter_t it = DOWN_CAST(struct mp4_tags_iter, super_it);
+static bool mp4_next(void* super_it) {
+    mp4_tags_iter_t it = DOWN_CAST(struct mp4_tags_iter, (rsvc_tags_iter_t)super_it);
 
     if (it->long_value) {
         free(it->long_value);
@@ -697,6 +708,14 @@ static bool mp4_next(rsvc_tags_iter_t super_it) {
     mp4_break(super_it);
 }
 
+static void mp4_image_break(void* super_it);
+static bool mp4_image_next(void* super_it);
+
+static struct rsvc_iter_methods mp4_image_iter_vptr = {
+    .next    = mp4_image_next,
+    .break_  = mp4_image_break,
+};
+
 typedef struct mp4_tags_image_iter* mp4_tags_image_iter_t;
 struct mp4_tags_image_iter {
     struct rsvc_tags_image_iter  super;
@@ -708,6 +727,9 @@ struct mp4_tags_image_iter {
 static rsvc_tags_image_iter_t mp4_image_begin(rsvc_tags_t tags) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
     struct mp4_tags_image_iter iter = {
+        .super = {
+            .vptr = &mp4_image_iter_vptr,
+        },
         .items  = MP4ItmfGetItems(self->file),
         .i      = -1,
     };
@@ -715,14 +737,14 @@ static rsvc_tags_image_iter_t mp4_image_begin(rsvc_tags_t tags) {
     return &copy->super;
 }
 
-static void mp4_image_break(rsvc_tags_image_iter_t super_it) {
-    mp4_tags_image_iter_t it = DOWN_CAST(struct mp4_tags_image_iter, super_it);
+static void mp4_image_break(void* super_it) {
+    mp4_tags_image_iter_t it = DOWN_CAST(struct mp4_tags_image_iter, (rsvc_tags_image_iter_t)super_it);
     MP4ItmfItemListFree(it->items);
     free(it);
 }
 
-static bool mp4_image_next(rsvc_tags_image_iter_t super_it) {
-    mp4_tags_image_iter_t it = DOWN_CAST(struct mp4_tags_image_iter, super_it);
+static bool mp4_image_next(void* super_it) {
+    mp4_tags_image_iter_t it = DOWN_CAST(struct mp4_tags_image_iter, (rsvc_tags_image_iter_t)super_it);
 
     while (true) {
         ++it->i;
@@ -739,22 +761,22 @@ static bool mp4_image_next(rsvc_tags_image_iter_t super_it) {
         MP4ItmfData* data = &item->dataList.elements[0];
         switch (data->typeCode) {
             case MP4_ITMF_BT_GIF:
-                super_it->format = &rsvc_gif;
+                it->super.format = &rsvc_gif;
                 break;
             case MP4_ITMF_BT_JPEG:
-                super_it->format = &rsvc_jpeg;
+                it->super.format = &rsvc_jpeg;
                 break;
             case MP4_ITMF_BT_PNG:
-                super_it->format = &rsvc_png;
+                it->super.format = &rsvc_png;
                 break;
             case MP4_ITMF_BT_BMP:
             default:
-                super_it->format = NULL;  // TODO(sfiera): &rsvc_bmp;
+                it->super.format = NULL;  // TODO(sfiera): &rsvc_bmp;
                 break;
         }
-        if (super_it->format) {
-            super_it->data = data->value;
-            super_it->size = data->valueSize;
+        if (it->super.format) {
+            it->super.data = data->value;
+            it->super.size = data->valueSize;
             return true;
         }
     }
@@ -842,12 +864,7 @@ static struct rsvc_tags_methods mp4_vptr = {
     .destroy = rsvc_mp4_tags_destroy,
 
     .iter_begin  = mp4_begin,
-    .iter_next   = mp4_next,
-    .iter_break  = mp4_break,
-
     .image_iter_begin  = mp4_image_begin,
-    .image_iter_next   = mp4_image_next,
-    .image_iter_break  = mp4_image_break,
 };
 
 bool rsvc_mp4_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail) {
