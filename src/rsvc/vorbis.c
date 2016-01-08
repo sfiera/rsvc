@@ -540,8 +540,6 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
     return true;
 }
 
-#undef FAIL
-
 const struct rsvc_format rsvc_vorbis = {
     .format_group = RSVC_AUDIO,
     .name = "vorbis",
