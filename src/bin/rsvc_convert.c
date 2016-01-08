@@ -86,13 +86,13 @@ struct rsvc_command rsvc_convert = {
                 "\n"
                 "Formats:\n",
                 rsvc_progname);
-        for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
-            if ((*fmt)->encode && (*fmt)->decode) {
-                errf("  %s (in, out)\n", (*fmt)->name);
-            } else if ((*fmt)->encode) {
-                errf("  %s (out)\n", (*fmt)->name);
-            } else if ((*fmt)->decode) {
-                errf("  %s (in)\n", (*fmt)->name);
+        rsvc_formats_foreach(fmt) {
+            if (fmt->encode && fmt->decode) {
+                errf("  %s (in, out)\n", fmt->name);
+            } else if (fmt->encode) {
+                errf("  %s (out)\n", fmt->name);
+            } else if (fmt->decode) {
+                errf("  %s (in)\n", fmt->name);
             }
         }
     },

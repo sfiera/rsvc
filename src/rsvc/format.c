@@ -48,18 +48,18 @@ void rsvc_format_register(rsvc_format_t format) {
 }
 
 rsvc_format_t rsvc_format_named(const char* name) {
-    for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
-        if (strcmp((*fmt)->name, name) == 0) {
-            return *fmt;
+    rsvc_formats_foreach(fmt) {
+        if (strcmp(fmt->name, name) == 0) {
+            return fmt;
         }
     }
     return NULL;
 }
 
 rsvc_format_t rsvc_format_with_mime(const char* mime) {
-    for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
-        if (strcmp((*fmt)->mime, mime) == 0) {
-            return *fmt;
+    rsvc_formats_foreach(fmt) {
+        if (strcmp(fmt->mime, mime) == 0) {
+            return fmt;
         }
     }
     return NULL;
@@ -138,10 +138,10 @@ bool rsvc_format_detect(const char* path, int fd,
         return false;
     }
 
-    for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
+    rsvc_formats_foreach(fmt) {
         bool matches = false;
-        if (!(check_magic(*fmt, fd, &matches, format, fail) &&
-              check_extension(*fmt, path, &matches, format, fail))) {
+        if (!(check_magic(fmt, fd, &matches, format, fail) &&
+              check_extension(fmt, path, &matches, format, fail))) {
             return false;
         } else if (matches) {
             return true;

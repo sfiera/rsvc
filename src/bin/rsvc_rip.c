@@ -67,9 +67,9 @@ struct rsvc_command rsvc_rip = {
                 "\n"
                 "Formats:\n",
                 rsvc_progname);
-        for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
-            if ((*fmt)->encode) {
-                errf("  %s\n", (*fmt)->name);
+        rsvc_formats_foreach(fmt) {
+            if (fmt->encode) {
+                errf("  %s\n", fmt->name);
             }
         }
     },

@@ -66,4 +66,9 @@ bool                    rsvc_format_detect(const char* path, int fd,
                                            rsvc_format_t* format, rsvc_done_t fail);
 const char*             rsvc_format_group_name(enum rsvc_format_group format_group);
 
+#define rsvc_formats_foreach(FORMAT) \
+    for (rsvc_format_t *__iter = rsvc_formats, FORMAT = *__iter; \
+         __iter < (rsvc_formats + rsvc_nformats); \
+         FORMAT = *(++__iter))
+
 #endif  // RSVC_FORMAT_H_
