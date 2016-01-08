@@ -44,14 +44,12 @@ static bool set_mb_tag(rsvc_tags_t tags, const char* tag_name,
     if (object == NULL) {
         return true;
     }
-    if (!rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        (void)value;  // Just looking for presence, not value.
-        if (strcmp(name, tag_name) == 0) {
-            stop();
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+        if (strcmp(it->name, tag_name) == 0) {
+            // Already have tag.
+            rsvc_tags_break(tags, it);
+            return true;
         }
-    })) {
-        // Already have tag.
-        return true;
     }
 
     char tag_value[1024];
@@ -131,26 +129,26 @@ static bool mb5_query_cached(const char* discid, Mb5Metadata* meta, rsvc_done_t 
 
 bool rsvc_apply_musicbrainz_tags(rsvc_tags_t tags, rsvc_done_t fail) {
     bool success = false;
-    __block char* discid = 0;
-    __block bool found_discid = false;
-    __block int tracknumber = 0;
-    __block bool found_tracknumber = false;
-    if (!rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        if (strcmp(name, RSVC_MUSICBRAINZ_DISCID) == 0) {
+    char* discid = 0;
+    bool found_discid = false;
+    int tracknumber = 0;
+    bool found_tracknumber = false;
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+        if (strcmp(it->name, RSVC_MUSICBRAINZ_DISCID) == 0) {
             found_discid = true;
-            discid = strdup(value);
-        } else if (strcmp(name, RSVC_TRACKNUMBER) == 0) {
+            discid = strdup(it->value);
+        } else if (strcmp(it->name, RSVC_TRACKNUMBER) == 0) {
             found_tracknumber = true;
             char* endptr;
-            tracknumber = strtol(value, &endptr, 10);
+            tracknumber = strtol(it->value, &endptr, 10);
             if (*endptr) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "bad track number: %s", value);
-                stop();
+                rsvc_errorf(fail, __FILE__, __LINE__, "bad track number: %s", it->value);
+                rsvc_tags_break(tags, it);
+                goto cleanup;
             }
         }
-    })) {
-        goto cleanup;
     }
+
     if (!found_discid) {
         rsvc_errorf(fail, __FILE__, __LINE__, "missing discid");
         goto cleanup;

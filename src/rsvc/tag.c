@@ -139,47 +139,45 @@ bool rsvc_tags_image_add(
     return tags->vptr->image_add(tags, format, data, size, fail);
 }
 
-bool rsvc_tags_each(rsvc_tags_t tags,
-                    void (^block)(const char*, const char*, rsvc_stop_t)) {
-    rsvc_tags_iter_t it = tags->vptr->iter_begin(tags);
-    __block bool loop = true;
-    while (loop && tags->vptr->iter_next(it)) {
-        block(it->name, it->value, ^{
-            tags->vptr->iter_break(it);
-            loop = false;
-        });
-    }
-    return loop;
+rsvc_tags_iter_t rsvc_tags_begin(rsvc_tags_t tags) {
+    return tags->vptr->iter_begin(tags);
 }
 
-bool rsvc_tags_image_each(
-        rsvc_tags_t tags,
-        void (^block)(
-            rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop)) {
+bool rsvc_tags_next(rsvc_tags_t tags, rsvc_tags_iter_t it) {
+    return tags->vptr->iter_next(it);
+}
+
+void rsvc_tags_break(rsvc_tags_t tags, rsvc_tags_iter_t it) {
+    tags->vptr->iter_break(it);
+}
+
+rsvc_tags_image_iter_t rsvc_tags_image_begin(rsvc_tags_t tags) {
     if (tags->vptr->image_iter_begin) {
-        rsvc_tags_image_iter_t it = tags->vptr->image_iter_begin(tags);
-        __block bool loop = true;
-        while (loop && tags->vptr->image_iter_next(it)) {
-            block(it->format, it->data, it->size, ^{
-                tags->vptr->image_iter_break(it);
-                loop = false;
-            });
-        }
-        return loop;
+        return tags->vptr->image_iter_begin(tags);
     } else {
-        return true;
+        return NULL;
+    }
+}
+
+bool rsvc_tags_image_next(rsvc_tags_t tags, rsvc_tags_image_iter_t it) {
+    if (tags->vptr->image_iter_begin) {
+        return tags->vptr->image_iter_next(it);
+    } else {
+        return false;
+    }
+}
+
+void rsvc_tags_image_break(rsvc_tags_t tags, rsvc_tags_image_iter_t it) {
+    if (tags->vptr->image_iter_begin) {
+        tags->vptr->image_iter_break(it);
     }
 }
 
 size_t rsvc_tags_image_size(rsvc_tags_t tags) {
-    __block size_t size = 0;
-    rsvc_tags_image_each(tags, ^(rsvc_format_t f, const uint8_t* d, size_t s, rsvc_stop_t stop) {
-        (void)f;  // Just counting.
-        (void)d;
-        (void)s;
-        (void)stop;
+    size_t size = 0;
+    for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_tags_image_next(tags, it); ) {
         ++size;
-    });
+    }
     return size;
 }
 
@@ -224,22 +222,22 @@ static bool is_canonical_int(const char* str) {
 
 static size_t max_precision(rsvc_tags_t tags, const char* tag_name, size_t minimum) {
     __block size_t result = minimum;
-    rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        (void)stop;
-        if ((strcasecmp(name, tag_name) == 0) && (strlen(value) > result)) {
-            result = strlen(value);
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+        if ((strcasecmp(it->name, tag_name) == 0) && (strlen(it->value) > result)) {
+            result = strlen(it->value);
         }
-    });
+    }
     return result;
 }
 
 static bool any_tags(rsvc_tags_t tags, const char* tag_name) {
-    return !rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        (void)value;
-        if (strcasecmp(name, tag_name) == 0) {
-            stop();
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+        if (strcasecmp(it->name, tag_name) == 0) {
+            rsvc_tags_break(tags, it);
+            return true;
         }
-    });
+    }
+    return false;
 }
 
 typedef struct format_node* format_node_t;
@@ -389,29 +387,28 @@ static bool snpathf(char* data, size_t size, size_t* size_needed,
                 type = RSVC_CODE_ARTIST;
             }
 
-            __block size_t count = 0;
-            rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-                (void)stop;
-                if (strcasecmp(name, rsvc_tag_code_get(type)) == 0) {
-                    if (!*value) {
-                        return;
+            size_t count = 0;
+            for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+                if (strcasecmp(it->name, rsvc_tag_code_get(type)) == 0) {
+                    if (!*it->value) {
+                        continue;
                     }
                     if (count++ == 0) {
                         clipped_cat(&dst, &dst_size, prefix, strlen(prefix), size_needed);
                     } else {
                         clipped_cat(&dst, &dst_size, separator, strlen(separator), size_needed);
                     }
-                    if (precision && is_canonical_int(value)) {
-                        for (size_t i = strlen(value); i < precision; ++i) {
+                    if (precision && is_canonical_int(it->value)) {
+                        for (size_t i = strlen(it->value); i < precision; ++i) {
                             clipped_cat(&dst, &dst_size, "0", 1, size_needed);
                         }
                     }
-                    char* escaped = strdup(value);
+                    char* escaped = strdup(it->value);
                     escape_for_path(escaped);
                     clipped_cat(&dst, &dst_size, escaped, strlen(escaped), size_needed);
                     free(escaped);
                 }
-            });
+            }
             if (count) {
                 ctx.state = SNPATH_CONTENT;
                 ctx.type = type;
@@ -461,11 +458,13 @@ bool rsvc_tags_copy(rsvc_tags_t dst, rsvc_tags_t src, rsvc_done_t fail) {
     if (!rsvc_tags_clear(dst, fail)) {
         return false;
     }
-    return rsvc_tags_each(src, ^(const char* name, const char* value, rsvc_stop_t stop){
-        if (!rsvc_tags_add(dst, fail, name, value)) {
-            stop();
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(src); rsvc_tags_next(src, it); ) {
+        if (!rsvc_tags_add(dst, fail, it->name, it->value)) {
+            rsvc_tags_break(src, it);
+            break;
         }
-    });
+    }
+    return true;
 }
 
 typedef struct rsvc_detached_tags_node* rsvc_detached_tags_node_t;

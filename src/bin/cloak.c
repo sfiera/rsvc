@@ -105,9 +105,9 @@ static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
 }
 
 static void print_tags(rsvc_tags_t tags) {
-    rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        (void)stop;
-        outf("%s=", name);
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+        outf("%s=", it->name);
+        const char* value = it->value;
         while (*value) {
             size_t size = strcspn(value, "\\\r\n");
             fwrite(value, sizeof(char), size, stdout);
@@ -127,22 +127,20 @@ static void print_tags(rsvc_tags_t tags) {
             }
         }
         outf("\n");
-    });
+    }
 }
 
 static void print_images(rsvc_tags_t tags) {
-    rsvc_tags_image_each(tags, ^(
-                rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop){
-        (void)stop;
+    for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_tags_image_next(tags, it); ) {
         struct rsvc_image_info info;
         rsvc_done_t fail = ^(rsvc_error_t error){
             (void)error;  // ignore failure and report byte size.
-            outf("%zu-byte %s image\n", size, format->name);
+            outf("%zu-byte %s image\n", it->size, it->format->name);
         };
-        if (format->image_info("embedded image", data, size, &info, fail)) {
-            outf("%zu×%zu %s image\n", info.width, info.height, format->name);
+        if (it->format->image_info("embedded image", it->data, it->size, &info, fail)) {
+            outf("%zu×%zu %s image\n", info.width, info.height, it->format->name);
         }
-    });
+    }
 }
 
 static void tag_files(string_list_node_t node, ops_t ops, rsvc_done_t done) {
@@ -325,14 +323,13 @@ const char* path_format_for(rsvc_format_t format, rsvc_tags_t tags, ops_t ops) {
                     continue;
                 }
             } else if (curr->priority == FPATH_MEDIAKIND) {
-                __block int n = 0;
-                __block bool mediakind_matches = false;
-                rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-                    (void)stop;
-                    if (strcmp(name, RSVC_MEDIAKIND) == 0) {
-                        mediakind_matches = (++n == 1) && (strcmp(value, curr->mediakind) == 0);
+                int n = 0;
+                bool mediakind_matches = false;
+                for (rsvc_tags_iter_t it = rsvc_tags_begin(tags); rsvc_tags_next(tags, it); ) {
+                    if (strcmp(it->name, RSVC_MEDIAKIND) == 0) {
+                        mediakind_matches = (++n == 1) && (strcmp(it->value, curr->mediakind) == 0);
                     }
-                });
+                }
                 if (!mediakind_matches) {
                     continue;
                 }
@@ -419,10 +416,9 @@ static void apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
             return;
         }
 
-        __block int i = 0;
-        __block bool success = false;
-        rsvc_tags_image_each(tags, ^(
-                    rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop){
+        int i = 0;
+        bool success = false;
+        for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_tags_image_next(tags, it); ) {
             if (index == i++) {
                 char image_path[MAXPATHLEN + 10];  // space for extra dot and extension.
                 strcpy(image_path, curr->path);
@@ -438,11 +434,12 @@ static void apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
                     strcat(image_path, format->extension);
                 }
                 success =
-                    rsvc_write(curr->path, curr->fd, data, size, NULL, NULL, done)
+                    rsvc_write(curr->path, curr->fd, it->data, it->size, NULL, NULL, done)
                     && rsvc_rename(curr->temp_path, image_path, done);
-                stop();
+                rsvc_tags_image_break(tags, it);
+                break;
             }
-        });
+        }
         if (!success) {
             return;
         }

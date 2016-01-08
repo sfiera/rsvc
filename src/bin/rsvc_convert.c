@@ -522,15 +522,14 @@ static void copy_tags(struct file_pair f, const char* tmp_path, rsvc_done_t done
         done(error);
     };
     rsvc_logf(1, "copying %zu images from %s", rsvc_tags_image_size(read_tags), f.input);
-    rsvc_tags_image_each(read_tags, ^(rsvc_format_t format, const uint8_t* data, size_t size,
-                                      rsvc_stop_t stop){
-        (void)stop;
-        rsvc_tags_image_add(write_tags, format, data, size, ^(rsvc_error_t error){ (void)error; });
-    });
-    rsvc_tags_each(read_tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        (void)stop;
-        rsvc_tags_add(write_tags, ^(rsvc_error_t error){ (void)error; }, name, value);
-    });
+    for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(read_tags); rsvc_tags_image_next(read_tags, it); ) {
+        rsvc_tags_image_add(write_tags, it->format, it->data, it->size, ^(rsvc_error_t error){
+            (void)error;
+        });
+    }
+    for (rsvc_tags_iter_t it = rsvc_tags_begin(read_tags); rsvc_tags_next(read_tags, it); ) {
+        rsvc_tags_add(write_tags, ^(rsvc_error_t error){ (void)error; }, it->name, it->value);
+    }
     if (!rsvc_tags_save(write_tags, done)) {
         return;
     }

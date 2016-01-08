@@ -114,51 +114,13 @@ bool                    rsvc_tags_image_remove(rsvc_tags_t tags, size_t index, r
 bool                    rsvc_tags_image_add(rsvc_tags_t tags, rsvc_format_t format,
                                             const uint8_t* data, size_t size, rsvc_done_t fail);
 
-/// ..  function:: size_t rsvc_tags_size(rsvc_tags_t tags)
-///
-///     :returns:       The total number of tags in `tags`.
-///
-/// ..  function:: bool rsvc_tags_get(rsvc_tags_t tags, const char* names[], const char* values[], size_t* ntags)
-///
-///     Attempts to place all tags into the arrays `names` and `values`.
-///     If there is enough space to read all tags into the arrays, reads
-///     all of them and returns true; otherwise, reads as many as
-///     possible then returns false.
-///
-///     :param names:   An array of size at least ``*ntags``.
-///     :param values:  An array of size at least ``*ntags``.
-///     :param ntags:   Initially, the size of `names` and `values`; on
-///                     return, the number of tags read.
-///     :returns:       true iff all tags were read.
-///
-/// ..  function:: size_t rsvc_tags_count(rsvc_tags_t tags, const char* name)
-///
-///     :param name:    A tag name.
-///     :returns:       The number of tags with name `name`.
-///
-/// ..  function:: bool rsvc_tags_find(rsvc_tags_t tags, const char* name, const char* values[], size_t* nvalues)
-///
-///     Attempts to read all values of the tag `name` into `values`.  If
-///     there is enough space to read all tags into the arrays, reads
-///     all of them and returns true; otherwise, reads as many as
-///     possible then returns false.
-///
-///     :param name:    A tag name.
-///     :param values:  An array of size at least ``*nvalues``.
-///     :param nvalues: Initially, the size of `values`; on return, the
-///                     number of tags read.
-///     :returns:       true iff all tags were read.
-///
-/// ..  function:: bool rsvc_tags_each(rsvc_tags_t tags, void (^block)(const char*, const char*, rsvc_stop_t))
-///
-///     Iterates over tags in `tags`.  See :type:`rsvc_stop_t` for a
-///     description of the iterator interface.
-bool                    rsvc_tags_each(rsvc_tags_t tags,
-                                       void (^block)(const char*, const char*, rsvc_stop_t));
-bool                    rsvc_tags_image_each(rsvc_tags_t tags,
-                                             void (^block)(rsvc_format_t format,
-                                                           const uint8_t* data, size_t size,
-                                                           rsvc_stop_t stop));
+rsvc_tags_iter_t        rsvc_tags_begin(rsvc_tags_t tags);
+bool                    rsvc_tags_next(rsvc_tags_t tags, rsvc_tags_iter_t it);
+void                    rsvc_tags_break(rsvc_tags_t tags, rsvc_tags_iter_t it);
+
+rsvc_tags_image_iter_t  rsvc_tags_image_begin(rsvc_tags_t tags);
+bool                    rsvc_tags_image_next(rsvc_tags_t tags, rsvc_tags_image_iter_t it);
+void                    rsvc_tags_image_break(rsvc_tags_t tags, rsvc_tags_image_iter_t it);
 size_t                  rsvc_tags_image_size(rsvc_tags_t tags);
 
 /// ..  function:: bool rsvc_tags_strf(const char* format, rsvc_tags_t tags, const char* extension, char** path, rsvc_done_t fail)
