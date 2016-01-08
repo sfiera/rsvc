@@ -613,6 +613,7 @@ static bool mp4_next(rsvc_iter_t super_it) {
             ++it->i;
         }
         if (it->i == it->items->size) {
+            mp4_break(super_it);
             return false;
         }
 
@@ -705,7 +706,6 @@ static bool mp4_next(rsvc_iter_t super_it) {
             break;
         }
     }
-    mp4_break(super_it);
 }
 
 static void mp4_image_break(rsvc_iter_t super_it);
@@ -749,6 +749,7 @@ static bool mp4_image_next(rsvc_iter_t super_it) {
     while (true) {
         ++it->i;
         if (it->i == it->items->size) {
+            mp4_image_break(super_it);
             return false;
         }
 
@@ -780,8 +781,6 @@ static bool mp4_image_next(rsvc_iter_t super_it) {
             return true;
         }
     }
-    mp4_image_break(super_it);
-    return false;
 }
 
 static bool rsvc_mp4_tags_image_remove(
