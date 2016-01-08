@@ -250,27 +250,50 @@ static bool rsvc_vorbis_tags_add(rsvc_tags_t tags, const char* name, const char*
     return true;
 }
 
-static bool rsvc_vorbis_tags_each(
-        rsvc_tags_t tags,
-        void (^block)(const char* name, const char* value, rsvc_stop_t stop)) {
+typedef struct vorbis_tags_iter* vorbis_tags_iter_t;
+struct vorbis_tags_iter {
+    struct rsvc_tags_iter  super;
+    vorbis_comment*        vc;
+    int                    i;
+    char*                  storage;
+};
+
+static rsvc_tags_iter_t vorbis_begin(rsvc_tags_t tags) {
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
-    __block bool loop = true;
-    for (size_t i = 0; loop && (i < self->vc.comments); ++i) {
-        const char* comment = self->vc.user_comments[i];
-        char* eq = strchr(comment, '=');
-        if (!eq) {
-            // TODO(sfiera): report failure.
-            continue;
-        }
-        char* name = strndup(comment, eq - comment);
-        char* value = strdup(eq + 1);
-        block(name, value, ^{
-            loop = false;
-        });
-        free(name);
-        free(value);
+    struct vorbis_tags_iter iter = {
+        .vc  = &self->vc,
+        .i   = 0,
+    };
+    vorbis_tags_iter_t copy = memdup(&iter, sizeof(iter));
+    return &copy->super;
+}
+
+static void vorbis_break(rsvc_tags_iter_t super_it) {
+    vorbis_tags_iter_t it = DOWN_CAST(struct vorbis_tags_iter, super_it);
+    if (it->storage) {
+        free(it->storage);
     }
-    return loop;
+    free(it);
+}
+
+static bool vorbis_next(rsvc_tags_iter_t super_it) {
+    vorbis_tags_iter_t it = DOWN_CAST(struct vorbis_tags_iter, super_it);
+    while (it->i < it->vc->comments) {
+        if (it->storage) {
+            free(it->storage);
+        }
+        it->storage = strdup(it->vc->user_comments[it->i++]);
+        char* eq = strchr(it->storage, '=');
+        if (eq) {
+            *eq = '\0';
+            it->super.name = it->storage;
+            it->super.value = eq + 1;
+            return true;
+        }
+        // else TODO(sfiera): report failure.
+    }
+    vorbis_break(super_it);
+    return false;
 }
 
 static bool rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
@@ -347,9 +370,12 @@ static void rsvc_vorbis_tags_destroy(rsvc_tags_t tags) {
 static struct rsvc_tags_methods vorbis_vptr = {
     .remove = rsvc_vorbis_tags_remove,
     .add = rsvc_vorbis_tags_add,
-    .each = rsvc_vorbis_tags_each,
     .save = rsvc_vorbis_tags_save,
     .destroy = rsvc_vorbis_tags_destroy,
+
+    .iter_begin  = vorbis_begin,
+    .iter_break  = vorbis_break,
+    .iter_next   = vorbis_next,
 };
 
 static bool read_ogg_page(int fd, ogg_sync_state* oy, ogg_page* og, bool* eof, rsvc_done_t fail) {
