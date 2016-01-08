@@ -28,17 +28,12 @@
 struct rsvc_tags_methods {
     bool (*remove)(rsvc_tags_t tags, const char* name, rsvc_done_t fail);
     bool (*add)(rsvc_tags_t tags, const char* name, const char* value, rsvc_done_t fail);
-    bool (*each)(rsvc_tags_t tags,
-                 void (^block)(const char* name, const char* value, rsvc_stop_t stop));
     bool (*save)(rsvc_tags_t tags, rsvc_done_t fail);
     void (*destroy)(rsvc_tags_t tags);
 
     bool (*image_remove)(rsvc_tags_t tags, size_t* index, rsvc_done_t fail);
     bool (*image_add)(rsvc_tags_t tags, rsvc_format_t format, const uint8_t* data, size_t size,
                       rsvc_done_t fail);
-    bool (*image_each)(rsvc_tags_t tags,
-                       void (^block)(rsvc_format_t format, const uint8_t* data, size_t size,
-                                     rsvc_stop_t stop));
 
     rsvc_tags_iter_t        (*iter_begin)(rsvc_tags_t tags);
     bool                    (*iter_next)(rsvc_tags_iter_t it);

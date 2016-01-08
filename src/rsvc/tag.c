@@ -141,18 +141,15 @@ bool rsvc_tags_image_add(
 
 bool rsvc_tags_each(rsvc_tags_t tags,
                     void (^block)(const char*, const char*, rsvc_stop_t)) {
-    if (tags->vptr->iter_begin) {
-        rsvc_tags_iter_t it = tags->vptr->iter_begin(tags);
-        __block bool loop = true;
-        while (loop && tags->vptr->iter_next(it)) {
-            block(it->name, it->value, ^{
-                tags->vptr->iter_break(it);
-                loop = false;
-            });
-        }
-        return loop;
+    rsvc_tags_iter_t it = tags->vptr->iter_begin(tags);
+    __block bool loop = true;
+    while (loop && tags->vptr->iter_next(it)) {
+        block(it->name, it->value, ^{
+            tags->vptr->iter_break(it);
+            loop = false;
+        });
     }
-    return tags->vptr->each(tags, block);
+    return loop;
 }
 
 bool rsvc_tags_image_each(
@@ -169,8 +166,6 @@ bool rsvc_tags_image_each(
             });
         }
         return loop;
-    } else if (tags->vptr->image_each) {
-        return tags->vptr->image_each(tags, block);
     } else {
         return true;
     }
@@ -526,17 +521,37 @@ static bool rsvc_detached_tags_add(rsvc_tags_t tags, const char* name, const cha
     return true;
 }
 
-static bool rsvc_detached_tags_each(
-        rsvc_tags_t tags,
-        void (^block)(const char* name, const char* value, rsvc_stop_t stop)) {
+typedef struct detached_tags_iter* detached_tags_iter_t;
+struct detached_tags_iter {
+    struct rsvc_tags_iter      super;
+    rsvc_detached_tags_node_t  curr;
+};
+
+static rsvc_tags_iter_t detached_begin(rsvc_tags_t tags) {
     rsvc_detached_tags_t self = DOWN_CAST(struct rsvc_detached_tags, tags);
-    __block bool loop = true;
-    for (rsvc_detached_tags_node_t curr = self->list.head; curr && loop; curr = curr->next) {
-        block(curr->name, curr->value, ^{
-            loop = false;
-        });
+    struct detached_tags_iter iter = {
+        .curr  = self->list.head,
+    };
+    detached_tags_iter_t copy = memdup(&iter, sizeof(iter));
+    return &copy->super;
+}
+
+static void detached_break(rsvc_tags_iter_t super_it) {
+    detached_tags_iter_t it = DOWN_CAST(struct detached_tags_iter, super_it);
+    free(it);
+}
+
+static bool detached_next(rsvc_tags_iter_t super_it) {
+    detached_tags_iter_t it = DOWN_CAST(struct detached_tags_iter, super_it);
+    if (it->curr) {
+        super_it->name = it->curr->name;
+        super_it->value = it->curr->value;
+        it->curr = it->curr->next;
+        return true;
+    } else {
+        detached_break(super_it);
+        return false;
     }
-    return loop;
 }
 
 static bool rsvc_detached_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
@@ -554,11 +569,14 @@ static void rsvc_detached_tags_destroy(rsvc_tags_t tags) {
 }
 
 static struct rsvc_tags_methods detached_vptr = {
-    .remove     = rsvc_detached_tags_remove,
-    .add        = rsvc_detached_tags_add,
-    .each       = rsvc_detached_tags_each,
-    .save       = rsvc_detached_tags_save,
-    .destroy    = rsvc_detached_tags_destroy,
+    .remove      = rsvc_detached_tags_remove,
+    .add         = rsvc_detached_tags_add,
+    .save        = rsvc_detached_tags_save,
+    .destroy     = rsvc_detached_tags_destroy,
+
+    .iter_begin  = detached_begin,
+    .iter_break  = detached_break,
+    .iter_next   = detached_next,
 };
 
 rsvc_tags_t rsvc_tags_new() {
