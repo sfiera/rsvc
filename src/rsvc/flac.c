@@ -290,54 +290,102 @@ static bool rsvc_flac_tags_add(rsvc_tags_t tags, const char* name, const char* v
     return true;
 }
 
-static bool rsvc_flac_tags_each(rsvc_tags_t tags,
-                         void (^block)(const char* name, const char* value, rsvc_stop_t stop)) {
+typedef struct flac_tags_iter* flac_tags_iter_t;
+struct flac_tags_iter {
+    struct rsvc_tags_iter                super;
+    FLAC__StreamMetadata_VorbisComment*  comments;
+    int                                  i;
+    char*                                name_storage;
+    char*                                value_storage;
+};
+
+static rsvc_tags_iter_t flac_begin(rsvc_tags_t tags) {
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
-    __block bool loop = true;
-    for (size_t i = 0; loop && (i < self->comments->num_comments); ++i) {
-        char* name;
-        char* value;
-        if (!FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(
-                self->comments->comments[i], &name, &value)) {
-            // TODO(sfiera): report failure.
-            continue;
-        }
-        for (char* cp = name; *cp; ++cp) {
-            *cp = toupper(*cp);
-        }
-        block(name, value, ^{
-            loop = false;
-        });
-        free(name);
-        free(value);
-    }
-    return loop;
+    struct flac_tags_iter iter = {
+        .comments  = self->comments,
+        .i         = 0,
+    };
+    flac_tags_iter_t copy = memdup(&iter, sizeof(iter));
+    return &copy->super;
 }
 
-static bool rsvc_flac_tags_image_each(
-        rsvc_tags_t tags,
-        void (^block)(rsvc_format_t format, const uint8_t* data, size_t size, rsvc_stop_t stop)) {
+static void flac_break(rsvc_tags_iter_t super_it) {
+    flac_tags_iter_t it = DOWN_CAST(struct flac_tags_iter, super_it);
+    if (it->name_storage) {
+        free(it->name_storage);
+        free(it->value_storage);
+        it->name_storage = 0;
+        it->value_storage = 0;
+    }
+    free(it);
+}
+
+static bool flac_next(rsvc_tags_iter_t super_it) {
+    flac_tags_iter_t it = DOWN_CAST(struct flac_tags_iter, super_it);
+    if (it->name_storage) {
+        free(it->name_storage);
+        free(it->value_storage);
+        it->name_storage = 0;
+        it->value_storage = 0;
+    }
+    while (it->i < it->comments->num_comments) {
+        if (FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(
+                it->comments->comments[it->i++], &it->name_storage, &it->value_storage)) {
+            for (char* cp = it->name_storage; *cp; ++cp) {
+                *cp = toupper(*cp);
+            }
+            super_it->name = it->name_storage;
+            super_it->value = it->value_storage;
+            return true;
+        }
+        // else TODO(sfiera): report failure.
+    }
+    flac_break(super_it);
+    return false;
+}
+
+typedef struct flac_tags_image_iter* flac_tags_image_iter_t;
+struct flac_tags_image_iter {
+    struct rsvc_tags_image_iter  super;
+    FLAC__Metadata_Iterator*     it;
+};
+
+static rsvc_tags_image_iter_t flac_image_begin(rsvc_tags_t tags) {
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
-    FLAC__Metadata_Iterator* it = FLAC__metadata_iterator_new();
-    __block bool loop = true;
-    FLAC__metadata_iterator_init(it, self->chain);
+    struct flac_tags_image_iter iter = {
+        .it  = FLAC__metadata_iterator_new(),
+    };
+    FLAC__metadata_iterator_init(iter.it, self->chain);
+    flac_tags_image_iter_t copy = memdup(&iter, sizeof(iter));
+    return &copy->super;
+}
+
+static void flac_image_break(rsvc_tags_image_iter_t super_it) {
+    flac_tags_image_iter_t it = DOWN_CAST(struct flac_tags_image_iter, super_it);
+    FLAC__metadata_iterator_delete(it->it);
+    free(it);
+}
+
+static bool flac_image_next(rsvc_tags_image_iter_t super_it) {
+    flac_tags_image_iter_t it = DOWN_CAST(struct flac_tags_image_iter, super_it);
     // First block is STREAMINFO, which we can skip.
-    while (loop && FLAC__metadata_iterator_next(it)) {
-        if (FLAC__metadata_iterator_get_block_type(it) != FLAC__METADATA_TYPE_PICTURE) {
+    while (FLAC__metadata_iterator_next(it->it)) {
+        if (FLAC__metadata_iterator_get_block_type(it->it) != FLAC__METADATA_TYPE_PICTURE) {
             continue;
         }
-        FLAC__StreamMetadata* metadata = FLAC__metadata_iterator_get_block(it);
+        FLAC__StreamMetadata* metadata = FLAC__metadata_iterator_get_block(it->it);
         FLAC__StreamMetadata_Picture* picture = &metadata->data.picture;
         rsvc_format_t format = rsvc_format_with_mime(picture->mime_type);
         if (!format || !format->image_info) {
             continue;
         }
-        block(format, picture->data, picture->data_length, ^{
-            loop = false;
-        });
+        super_it->format  = format;
+        super_it->data    = picture->data;
+        super_it->size    = picture->data_length;
+        return true;
     }
-    FLAC__metadata_iterator_delete(it);
-    return loop;
+    flac_image_break(super_it);
+    return false;
 }
 
 static bool rsvc_flac_tags_image_remove(
@@ -422,14 +470,20 @@ static void rsvc_flac_tags_destroy(rsvc_tags_t tags) {
 }
 
 static struct rsvc_tags_methods flac_vptr = {
-    .remove         = rsvc_flac_tags_remove,
-    .add            = rsvc_flac_tags_add,
-    .each           = rsvc_flac_tags_each,
-    .save           = rsvc_flac_tags_save,
-    .destroy        = rsvc_flac_tags_destroy,
-    .image_each     = rsvc_flac_tags_image_each,
-    .image_remove   = rsvc_flac_tags_image_remove,
-    .image_add      = rsvc_flac_tags_image_add,
+    .remove            = rsvc_flac_tags_remove,
+    .add               = rsvc_flac_tags_add,
+    .save              = rsvc_flac_tags_save,
+    .destroy           = rsvc_flac_tags_destroy,
+    .image_remove      = rsvc_flac_tags_image_remove,
+    .image_add         = rsvc_flac_tags_image_add,
+
+    .iter_begin        = flac_begin,
+    .iter_break        = flac_break,
+    .iter_next         = flac_next,
+
+    .image_iter_begin  = flac_image_begin,
+    .image_iter_next   = flac_image_next,
+    .image_iter_break  = flac_image_break,
 };
 
 bool rsvc_flac_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail) {
