@@ -64,7 +64,6 @@ rsvc_format_t           rsvc_format_named(const char* name);
 rsvc_format_t           rsvc_format_with_mime(const char* mime);
 bool                    rsvc_format_detect(const char* path, int fd,
                                            rsvc_format_t* format, rsvc_done_t fail);
-bool                    rsvc_formats_each(void (^block)(rsvc_format_t format, rsvc_stop_t stop));
 const char*             rsvc_format_group_name(enum rsvc_format_group format_group);
 
 #endif  // RSVC_FORMAT_H_

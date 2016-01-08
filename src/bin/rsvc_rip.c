@@ -67,12 +67,11 @@ struct rsvc_command rsvc_rip = {
                 "\n"
                 "Formats:\n",
                 rsvc_progname);
-        rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
-            (void)stop;
-            if (format->encode) {
-                errf("  %s\n", format->name);
+        for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
+            if ((*fmt)->encode) {
+                errf("  %s\n", (*fmt)->name);
             }
-        });
+        }
     },
 
     .run = ^(rsvc_done_t done){

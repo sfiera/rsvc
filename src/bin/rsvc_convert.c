@@ -86,16 +86,15 @@ struct rsvc_command rsvc_convert = {
                 "\n"
                 "Formats:\n",
                 rsvc_progname);
-        rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
-            (void)stop;
-            if (format->encode && format->decode) {
-                errf("  %s (in, out)\n", format->name);
-            } else if (format->encode) {
-                errf("  %s (out)\n", format->name);
-            } else if (format->decode) {
-                errf("  %s (in)\n", format->name);
+        for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
+            if ((*fmt)->encode && (*fmt)->decode) {
+                errf("  %s (in, out)\n", (*fmt)->name);
+            } else if ((*fmt)->encode) {
+                errf("  %s (out)\n", (*fmt)->name);
+            } else if ((*fmt)->decode) {
+                errf("  %s (in)\n", (*fmt)->name);
             }
-        });
+        }
     },
 
     .run = ^(rsvc_done_t done){

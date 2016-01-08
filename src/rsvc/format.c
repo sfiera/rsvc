@@ -65,16 +65,6 @@ rsvc_format_t rsvc_format_with_mime(const char* mime) {
     return NULL;
 }
 
-bool rsvc_formats_each(void (^block)(rsvc_format_t format, rsvc_stop_t stop)) {
-    __block bool loop = true;
-    for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
-        block(*fmt, ^{
-            loop = false;
-        });
-    }
-    return loop;
-}
-
 static bool check_magic(rsvc_format_t format, int fd,
                         bool* matches, rsvc_format_t* out, rsvc_done_t fail) {
     if (!format->magic_size) {

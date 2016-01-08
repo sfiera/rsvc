@@ -237,13 +237,12 @@ static bool formats_option(const char* progname) {
     for (int i = 0; i < 3; ++i) {
         enum rsvc_format_group format_group = format_groups[i];
         outf("%s:", rsvc_format_group_name(format_group));
-        rsvc_formats_each(^(rsvc_format_t format, rsvc_stop_t stop){
-            (void)stop;
-            if ((format->open_tags || (format_group == RSVC_IMAGE))
-                && (format->format_group == format_group)) {
-                outf(" %s", format->name);
+        for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
+            if (((*fmt)->open_tags || (format_group == RSVC_IMAGE))
+                && ((*fmt)->format_group == format_group)) {
+                outf(" %s", (*fmt)->name);
             }
-        });
+        }
         outf("\n");
     }
     exit(0);
