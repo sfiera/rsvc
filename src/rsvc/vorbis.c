@@ -49,25 +49,20 @@ void rsvc_vorbis_encode(
     int32_t                 bitrate   = options->bitrate;
     struct rsvc_audio_meta  meta      = options->meta;
     rsvc_encode_progress_f  progress  = options->progress;
+
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        // Largely cribbed from libvorbis's examples/encoder_example.c.
-        // Some comments there imply that it is doing things a certain
-        // way for exposition, and that normally different practices
-        // would be followed, but it's perfectly functional.
-        ogg_stream_state    os;
-        ogg_page            og;
-        ogg_packet          op;
-        vorbis_info         vi;
-        vorbis_comment      vc;
-        vorbis_dsp_state    vd;
-        vorbis_block        vb;
-        int                 ret;
-        size_t              samples_per_channel_read = 0;
+        ogg_stream_state  os;
+        ogg_page          og;
+        ogg_packet        op;
+        vorbis_info       vi;
+        vorbis_comment    vc;
+        vorbis_dsp_state  vd;
+        vorbis_block      vb;
+        size_t            samples_per_channel_read = 0;
 
         // Initialize the encoder.
         vorbis_info_init(&vi);
-        ret = vorbis_encode_init(&vi, meta.channels, meta.sample_rate, -1, bitrate, -1);
-        if (ret != 0 ) {
+        if (vorbis_encode_init(&vi, meta.channels, meta.sample_rate, -1, bitrate, -1)) {
             rsvc_errorf(done, __FILE__, __LINE__, "couldn't init vorbis encoder");
             return;
         }
@@ -80,34 +75,17 @@ void rsvc_vorbis_encode(
         unsigned seed = time(NULL);
         ogg_stream_init(&os, rand_r(&seed));
 
-        // Copy `tags` into `vc`.
+        ogg_packet header;
+        ogg_packet header_comm;
+        ogg_packet header_code;
         vorbis_comment_init(&vc);
-        // vorbis_comment* vcp = &vc;
-        // rsvc_tags_each(tags, ^(const char* name, const char* value, rsvc_stop_t stop){
-        //     vorbis_comment_add_tag(vcp, name, value);
-        // });
+        vorbis_analysis_headerout(&vd, &vc, &header, &header_comm, &header_code);
 
-        {
-            ogg_packet header;
-            ogg_packet header_comm;
-            ogg_packet header_code;
-
-            vorbis_analysis_headerout(&vd, &vc, &header, &header_comm, &header_code);
-            ogg_stream_packetin(&os, &header);
-            ogg_stream_packetin(&os, &header_comm);
-            ogg_stream_packetin(&os, &header_code);
-
-            while (true) {
-                int result = ogg_stream_flush(&os, &og);
-                if (result == 0) {
-                    break;
-                }
-                if (!(rsvc_write(NULL, dst_fd, og.header, og.header_len, NULL, NULL, done) &&
-                      rsvc_write(NULL, dst_fd, og.body, og.body_len, NULL, NULL, done))) {
-                    // TODO(sfiera): cleanup?
-                    return;
-                }
-            }
+        if (!(rsvc_ogg_align_packet(dst_fd, &os, &og, &header, done) &&
+              rsvc_ogg_align_packet(dst_fd, &os, &og, &header_comm, done) &&
+              rsvc_ogg_align_packet(dst_fd, &os, &og, &header_code, done))) {
+            // TODO(sfiera): cleanup
+            return;
         }
 
         bool eos = false;
@@ -297,10 +275,12 @@ static bool rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
 
     ogg_packet header_comm;
     vorbis_commentheader_out(&self->vc, &header_comm);
-    ogg_stream_packetin(&os, &self->header);
-    ogg_stream_packetin(&os, &header_comm);
-    ogg_stream_packetin(&os, &self->header_code);
-    ogg_packet_clear(&header_comm);
+    if (!(rsvc_ogg_align_packet(fd, &os, &og, &self->header, done) &&
+          rsvc_ogg_align_packet(fd, &os, &og, &header_comm, done) &&
+          rsvc_ogg_align_packet(fd, &os, &og, &self->header_code, done))) {
+        // TODO(sfiera): cleanup
+        return false;
+    }
 
     while (true) {
         int result = ogg_stream_flush(&os, &og);

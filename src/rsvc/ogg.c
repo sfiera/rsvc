@@ -83,3 +83,23 @@ void rsvc_ogg_packet_copy(ogg_packet* dst, const ogg_packet* src) {
     dst->granulepos     = src->granulepos;
     dst->packetno       = src->packetno;
 }
+
+bool rsvc_ogg_flush(int dst_fd, ogg_stream_state *os, ogg_page* og, rsvc_done_t fail) {
+    if (ogg_stream_flush(os, og)) {
+        return rsvc_write(NULL, dst_fd, og->header, og->header_len, NULL, NULL, fail)
+            && rsvc_write(NULL, dst_fd, og->body, og->body_len, NULL, NULL, fail);
+    }
+    return true;
+}
+
+bool rsvc_ogg_align_packet(int dst_fd, ogg_stream_state *os,
+                           ogg_page* og, ogg_packet* op, rsvc_done_t fail) {
+    ogg_stream_packetin(os, op);
+    while (ogg_stream_pageout(os, og)) {
+        if (!(rsvc_write(NULL, dst_fd, og->header, og->header_len, NULL, NULL, fail) &&
+              rsvc_write(NULL, dst_fd, og->body, og->body_len, NULL, NULL, fail))) {
+            return false;
+        }
+    }
+    return rsvc_ogg_flush(dst_fd, os, og, fail);
+}
