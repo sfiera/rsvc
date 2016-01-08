@@ -127,6 +127,18 @@ void rsvc_error_async(dispatch_queue_t queue, rsvc_error_t error, rsvc_done_t do
     }
 }
 
+struct rsvc_iter {
+    struct rsvc_iter_methods* vptr;
+};
+
+bool rsvc_next(void* it) {
+    return ((struct rsvc_iter*)it)->vptr->next(it);
+}
+
+void rsvc_break(void* it) {
+    return ((struct rsvc_iter*)it)->vptr->break_(it);
+}
+
 int rsvc_verbosity = 0;
 void rsvc_logf(int level, const char* format, ...) {
     if (level <= rsvc_verbosity) {

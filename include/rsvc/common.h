@@ -129,6 +129,14 @@ void                    rsvc_error_destroy(rsvc_error_t error);
 void                    rsvc_error_async(dispatch_queue_t queue, rsvc_error_t error,
                                          rsvc_done_t done);
 
+struct rsvc_iter_methods {
+    bool (*next)(rsvc_iter_t it);
+    void (*break_)(rsvc_iter_t it);
+};
+
+bool                    rsvc_next(rsvc_iter_t it);
+void                    rsvc_break(rsvc_iter_t it);
+
 extern int rsvc_verbosity;
 void                    rsvc_logf(int level, const char* format, ...)
                         __attribute__((format(printf, 2, 3)));

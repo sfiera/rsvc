@@ -44,11 +44,6 @@ struct rsvc_tags {
     int                         flags;
 };
 
-struct rsvc_iter_methods {
-    bool (*next)(void* it);
-    void (*break_)(void* it);
-};
-
 struct rsvc_tags_iter {
     struct rsvc_iter_methods*  vptr;
     const char*                name;
@@ -118,10 +113,6 @@ bool                    rsvc_tags_image_add(rsvc_tags_t tags, rsvc_format_t form
 
 rsvc_tags_iter_t        rsvc_tags_begin(rsvc_tags_t tags);
 rsvc_tags_image_iter_t  rsvc_tags_image_begin(rsvc_tags_t tags);
-
-bool                    rsvc_next(void* it);
-void                    rsvc_break(void* it);
-
 size_t                  rsvc_tags_image_size(rsvc_tags_t tags);
 
 /// ..  function:: bool rsvc_tags_strf(const char* format, rsvc_tags_t tags, const char* extension, char** path, rsvc_done_t fail)

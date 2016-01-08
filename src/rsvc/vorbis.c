@@ -250,8 +250,8 @@ static bool rsvc_vorbis_tags_add(rsvc_tags_t tags, const char* name, const char*
     return true;
 }
 
-static void vorbis_break(void* super_it);
-static bool vorbis_next(void* super_it);
+static void vorbis_break(rsvc_iter_t super_it);
+static bool vorbis_next(rsvc_iter_t super_it);
 
 static struct rsvc_iter_methods vorbis_iter_vptr = {
     .next    = vorbis_next,
@@ -279,7 +279,7 @@ static rsvc_tags_iter_t vorbis_begin(rsvc_tags_t tags) {
     return &copy->super;
 }
 
-static void vorbis_break(void* super_it) {
+static void vorbis_break(rsvc_iter_t super_it) {
     vorbis_tags_iter_t it = DOWN_CAST(struct vorbis_tags_iter, (rsvc_tags_iter_t)super_it);
     if (it->storage) {
         free(it->storage);
@@ -287,7 +287,7 @@ static void vorbis_break(void* super_it) {
     free(it);
 }
 
-static bool vorbis_next(void* super_it) {
+static bool vorbis_next(rsvc_iter_t super_it) {
     vorbis_tags_iter_t it = DOWN_CAST(struct vorbis_tags_iter, (rsvc_tags_iter_t)super_it);
     while (it->i < it->vc->comments) {
         if (it->storage) {

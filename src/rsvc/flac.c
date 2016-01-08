@@ -290,8 +290,8 @@ static bool rsvc_flac_tags_add(rsvc_tags_t tags, const char* name, const char* v
     return true;
 }
 
-static void flac_break(void* super_it);
-static bool flac_next(void* super_it);
+static void flac_break(rsvc_iter_t super_it);
+static bool flac_next(rsvc_iter_t super_it);
 
 static struct rsvc_iter_methods flac_iter_vptr = {
     .next    = flac_next,
@@ -320,7 +320,7 @@ static rsvc_tags_iter_t flac_begin(rsvc_tags_t tags) {
     return &copy->super;
 }
 
-static void flac_break(void* super_it) {
+static void flac_break(rsvc_iter_t super_it) {
     flac_tags_iter_t it = DOWN_CAST(struct flac_tags_iter, (rsvc_tags_iter_t)super_it);
     if (it->name_storage) {
         free(it->name_storage);
@@ -331,7 +331,7 @@ static void flac_break(void* super_it) {
     free(it);
 }
 
-static bool flac_next(void* super_it) {
+static bool flac_next(rsvc_iter_t super_it) {
     flac_tags_iter_t it = DOWN_CAST(struct flac_tags_iter, (rsvc_tags_iter_t)super_it);
     if (it->name_storage) {
         free(it->name_storage);
@@ -355,8 +355,8 @@ static bool flac_next(void* super_it) {
     return false;
 }
 
-static void flac_image_break(void* super_it);
-static bool flac_image_next(void* super_it);
+static void flac_image_break(rsvc_iter_t super_it);
+static bool flac_image_next(rsvc_iter_t super_it);
 
 static struct rsvc_iter_methods flac_image_iter_vptr = {
     .next    = flac_image_next,
@@ -382,13 +382,13 @@ static rsvc_tags_image_iter_t flac_image_begin(rsvc_tags_t tags) {
     return &copy->super;
 }
 
-static void flac_image_break(void* super_it) {
+static void flac_image_break(rsvc_iter_t super_it) {
     flac_tags_image_iter_t it = DOWN_CAST(struct flac_tags_image_iter, (rsvc_tags_image_iter_t)super_it);
     FLAC__metadata_iterator_delete(it->it);
     free(it);
 }
 
-static bool flac_image_next(void* super_it) {
+static bool flac_image_next(rsvc_iter_t super_it) {
     flac_tags_image_iter_t it = DOWN_CAST(struct flac_tags_image_iter, (rsvc_tags_image_iter_t)super_it);
     // First block is STREAMINFO, which we can skip.
     while (FLAC__metadata_iterator_next(it->it)) {

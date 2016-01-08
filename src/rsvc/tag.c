@@ -161,14 +161,6 @@ rsvc_tags_image_iter_t rsvc_tags_image_begin(rsvc_tags_t tags) {
     }
 }
 
-bool rsvc_next(void* it) {
-    return (*(struct rsvc_iter_methods**)it)->next(it);
-}
-
-void rsvc_break(void* it) {
-    return (*(struct rsvc_iter_methods**)it)->break_(it);
-}
-
 size_t rsvc_tags_image_size(rsvc_tags_t tags) {
     size_t size = 0;
     for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_next(it); ) {
