@@ -83,15 +83,8 @@ const char*             rsvc_cd_mcn(rsvc_cd_t cd);
 ///     :param n:   An index.  Must be less than the CD's
 ///                 :func:`rsvc_cd_nsessions()`
 ///     :returns:   The session at index `n`.
-///
-/// ..  function:: bool rsvc_cd_each_session(rsvc_cd_t cd, void (^block)(rsvc_cd_session_t, rsvc_stop_t))
-///
-///     Iterates over sessions in the CD.  See :type:`rsvc_stop_t` for a
-///     description of the iterator interface.
 size_t                  rsvc_cd_nsessions(rsvc_cd_t cd);
 rsvc_cd_session_t       rsvc_cd_session(rsvc_cd_t cd, size_t n);
-bool                    rsvc_cd_each_session(rsvc_cd_t cd,
-                                             void (^block)(rsvc_cd_session_t, rsvc_stop_t));
 
 /// ..  function:: size_t rsvc_cd_ntracks(rsvc_cd_t cd)
 ///
@@ -104,15 +97,8 @@ bool                    rsvc_cd_each_session(rsvc_cd_t cd,
 ///
 ///     :param n:   An index.  Must be less than the CD's
 ///                 :func:`rsvc_cd_ntracks()`.
-///
-/// ..  function:: bool rsvc_cd_each_track(rsvc_cd_t cd, void (^block)(rsvc_cd_track_t, rsvc_stop_t))
-///
-///     Iterates over tracks in the CD.  See :type:`rsvc_stop_t` for a
-///     description of the iterator interface.
 size_t                  rsvc_cd_ntracks(rsvc_cd_t cd);
 rsvc_cd_track_t         rsvc_cd_track(rsvc_cd_t cd, size_t n);
-bool                    rsvc_cd_each_track(rsvc_cd_t cd,
-                                           void (^block)(rsvc_cd_track_t, rsvc_stop_t));
 
 /// Compact Disc Session
 /// --------------------
@@ -148,15 +134,8 @@ const char*             rsvc_cd_session_discid(rsvc_cd_session_t session);
 ///
 ///     :param n:   An index.  Must be less than the session's
 ///                 :func:`rsvc_cd_session_ntracks()`.
-///
-/// ..  function:: bool rsvc_cd_session_each_track(rsvc_cd_session_t session, void (^block)(rsvc_cd_track_t, rsvc_stop_t))
-///
-///     Iterates over tracks in the session.  See :type:`rsvc_stop_t`
-///     for a description of the iterator interface.
 size_t                  rsvc_cd_session_ntracks(rsvc_cd_session_t session);
 rsvc_cd_track_t         rsvc_cd_session_track(rsvc_cd_session_t session, size_t n);
-bool                    rsvc_cd_session_each_track(rsvc_cd_session_t session,
-                                                   void (^block)(rsvc_cd_track_t, rsvc_stop_t));
 
 /// Compact Disc Track
 /// ------------------

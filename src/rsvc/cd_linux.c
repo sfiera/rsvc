@@ -220,32 +220,12 @@ rsvc_cd_session_t rsvc_cd_session(rsvc_cd_t cd, size_t n) {
     return cd->sessions + n;
 }
 
-bool rsvc_cd_each_session(rsvc_cd_t cd, void (^block)(rsvc_cd_session_t, rsvc_stop_t stop)) {
-    __block bool loop = true;
-    for (size_t i = 0; loop && (i < cd->nsessions); ++i) {
-        block(&cd->sessions[i], ^{
-            loop = false;
-        });
-    }
-    return loop;
-}
-
 size_t rsvc_cd_ntracks(rsvc_cd_t cd) {
     return cd->ntracks;
 }
 
 rsvc_cd_track_t rsvc_cd_track(rsvc_cd_t cd, size_t n) {
     return cd->tracks + n;
-}
-
-bool rsvc_cd_each_track(rsvc_cd_t cd, void (^block)(rsvc_cd_track_t, rsvc_stop_t stop)) {
-    __block bool loop = true;
-    for (size_t i = 0; loop && (i < cd->ntracks); ++i) {
-        block(&cd->tracks[i], ^{
-            loop = false;
-        });
-    }
-    return loop;
 }
 
 size_t rsvc_cd_session_number(rsvc_cd_session_t session) {
@@ -262,18 +242,6 @@ size_t rsvc_cd_session_ntracks(rsvc_cd_session_t session) {
 
 rsvc_cd_track_t rsvc_cd_session_track(rsvc_cd_session_t session, size_t n) {
     return session->track_begin + n;
-}
-
-bool rsvc_cd_session_each_track(rsvc_cd_session_t session,
-                                void (^block)(rsvc_cd_track_t, rsvc_stop_t stop)) {
-    __block bool loop = true;
-    for (rsvc_cd_track_t track = session->track_begin;
-         loop && (track != session->track_end); ++track) {
-        block(track, ^{
-            loop = false;
-        });
-    }
-    return loop;
 }
 
 size_t rsvc_cd_track_number(rsvc_cd_track_t track) {
