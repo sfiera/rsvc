@@ -55,6 +55,9 @@ struct rsvc_format {
     rsvc_image_info_f   image_info;
 };
 
+rsvc_format_t*          rsvc_formats;
+size_t                  rsvc_nformats;
+
 void                    rsvc_format_register(rsvc_format_t format);
 
 rsvc_format_t           rsvc_format_named(const char* name);

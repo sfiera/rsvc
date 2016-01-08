@@ -34,36 +34,32 @@
 #include "common.h"
 #include "list.h"
 
-typedef struct rsvc_format_node* rsvc_format_node_t;
-struct rsvc_format_node {
-    rsvc_format_t format;
-    rsvc_format_node_t prev, next;
-};
-
-static struct {
-    rsvc_format_node_t head, tail;
-} formats;
+static size_t formats_capacity = 0;
 
 void rsvc_format_register(rsvc_format_t format) {
-    struct rsvc_format_node node = {
-        .format = format,
-    };
-    RSVC_LIST_PUSH(&formats, memdup(&node, sizeof(node)));
+    if ((rsvc_nformats + 1) >= formats_capacity) {
+        if (!formats_capacity) {
+            formats_capacity = 16;
+        }
+        rsvc_formats = realloc(rsvc_formats, sizeof(rsvc_format_t*) * (formats_capacity * 2));
+    }
+    rsvc_formats[rsvc_nformats++] = format;
+    rsvc_formats[rsvc_nformats] = NULL;
 }
 
 rsvc_format_t rsvc_format_named(const char* name) {
-    for (rsvc_format_node_t curr = formats.head; curr; curr = curr->next) {
-        if (strcmp(curr->format->name, name) == 0) {
-            return curr->format;
+    for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
+        if (strcmp((*fmt)->name, name) == 0) {
+            return *fmt;
         }
     }
     return NULL;
 }
 
 rsvc_format_t rsvc_format_with_mime(const char* mime) {
-    for (rsvc_format_node_t curr = formats.head; curr; curr = curr->next) {
-        if (strcmp(curr->format->mime, mime) == 0) {
-            return curr->format;
+    for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
+        if (strcmp((*fmt)->mime, mime) == 0) {
+            return *fmt;
         }
     }
     return NULL;
@@ -71,8 +67,8 @@ rsvc_format_t rsvc_format_with_mime(const char* mime) {
 
 bool rsvc_formats_each(void (^block)(rsvc_format_t format, rsvc_stop_t stop)) {
     __block bool loop = true;
-    for (rsvc_format_node_t curr = formats.head; curr && loop; curr = curr->next) {
-        block(curr->format, ^{
+    for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
+        block(*fmt, ^{
             loop = false;
         });
     }
@@ -152,10 +148,10 @@ bool rsvc_format_detect(const char* path, int fd,
         return false;
     }
 
-    for (rsvc_format_node_t curr = formats.head; curr; curr = curr->next) {
+    for (rsvc_format_t* fmt = rsvc_formats; *fmt; ++fmt) {
         bool matches = false;
-        if (!(check_magic(curr->format, fd, &matches, format, fail) &&
-              check_extension(curr->format, path, &matches, format, fail))) {
+        if (!(check_magic(*fmt, fd, &matches, format, fail) &&
+              check_extension(*fmt, path, &matches, format, fail))) {
             return false;
         } else if (matches) {
             return true;
