@@ -106,17 +106,19 @@ void rsvc_progress_update(rsvc_progress_t item, double fraction) {
     });
 }
 
-void rsvc_progress_done(rsvc_progress_t item) {
+void rsvc_progress_done(rsvc_progress_t item, const char* note) {
+    char* note_copy = strdup(note);
     dispatch_async(io_queue(), ^{
         progress_hide();
         if (item->percent >= 100) {
-            printf(" done   %s\n", item->name);
+            printf("%5.5s   %s\n", note_copy, item->name);
         } else {
             printf("%4d%%   %s\n", item->percent, item->name);
         }
         free(item->name);
         RSVC_LIST_ERASE(&progress, item);
         progress_show();
+        free(note_copy);
     });
 }
 

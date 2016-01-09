@@ -41,106 +41,101 @@
 #include "ogg.h"
 #include "unix.h"
 
-void rsvc_vorbis_encode(
-        int src_fd,
-        int dst_fd,
-        rsvc_encode_options_t options,
-        rsvc_done_t done) {
+bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
+                          rsvc_done_t fail) {
     int32_t                 bitrate   = options->bitrate;
     struct rsvc_audio_meta  meta      = options->meta;
     rsvc_encode_progress_f  progress  = options->progress;
 
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        ogg_stream_state  os;
-        ogg_page          og;
-        ogg_packet        op;
-        vorbis_info       vi;
-        vorbis_comment    vc;
-        vorbis_dsp_state  vd;
-        vorbis_block      vb;
-        size_t            samples_per_channel_read = 0;
+    ogg_stream_state  os;
+    ogg_page          og;
+    ogg_packet        op;
+    vorbis_info       vi;
+    vorbis_comment    vc;
+    vorbis_dsp_state  vd;
+    vorbis_block      vb;
+    size_t            samples_per_channel_read = 0;
 
-        // Initialize the encoder.
-        vorbis_info_init(&vi);
-        if (vorbis_encode_init(&vi, meta.channels, meta.sample_rate, -1, bitrate, -1)) {
-            rsvc_errorf(done, __FILE__, __LINE__, "couldn't init vorbis encoder");
-            return;
-        }
-        vorbis_analysis_init(&vd, &vi);
-        vorbis_block_init(&vd, &vb);
+    // Initialize the encoder.
+    vorbis_info_init(&vi);
+    if (vorbis_encode_init(&vi, meta.channels, meta.sample_rate, -1, bitrate, -1)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "couldn't init vorbis encoder");
+        return false;
+    }
+    vorbis_analysis_init(&vd, &vi);
+    vorbis_block_init(&vd, &vb);
 
-        // Pick a random-ish serial number.  rand_r() is thread-safe,
-        // and we don't need strong guarantees about randomness, so this
-        // is probably sufficient.
-        unsigned seed = time(NULL);
-        ogg_stream_init(&os, rand_r(&seed));
+    // Pick a random-ish serial number.  rand_r() is thread-safe,
+    // and we don't need strong guarantees about randomness, so this
+    // is probably sufficient.
+    unsigned seed = time(NULL);
+    ogg_stream_init(&os, rand_r(&seed));
 
-        ogg_packet header;
-        ogg_packet header_comm;
-        ogg_packet header_code;
-        vorbis_comment_init(&vc);
-        vorbis_analysis_headerout(&vd, &vc, &header, &header_comm, &header_code);
+    ogg_packet header;
+    ogg_packet header_comm;
+    ogg_packet header_code;
+    vorbis_comment_init(&vc);
+    vorbis_analysis_headerout(&vd, &vc, &header, &header_comm, &header_code);
 
-        if (!(rsvc_ogg_align_packet(dst_fd, &os, &og, &header, done) &&
-              rsvc_ogg_align_packet(dst_fd, &os, &og, &header_comm, done) &&
-              rsvc_ogg_align_packet(dst_fd, &os, &og, &header_code, done))) {
-            // TODO(sfiera): cleanup
-            return;
-        }
+    if (!(rsvc_ogg_align_packet(dst_fd, &os, &og, &header, fail) &&
+          rsvc_ogg_align_packet(dst_fd, &os, &og, &header_comm, fail) &&
+          rsvc_ogg_align_packet(dst_fd, &os, &og, &header_code, fail))) {
+        // TODO(sfiera): cleanup
+        return false;
+    }
 
-        bool eos = false;
-        int16_t in[2048];
-        size_t size_inout = 0;
-        while (!eos) {
-            bool eof = false;
-            size_t nsamples;
-            if (!rsvc_cread("pipe", src_fd, in, 2048 / meta.channels, meta.channels * sizeof(int16_t),
-                            &nsamples, &size_inout, &eof, done)) {
-                return;
-            } else if (nsamples) {
-                samples_per_channel_read += nsamples;
-                float** out = vorbis_analysis_buffer(&vd, sizeof(in));
-                for (int16_t* p = in; p < in + (nsamples * meta.channels); ) {
-                    for (int i = 0; i < meta.channels; ++i) {
-                        *(out[i]++) = *(p++) / 32768.f;
-                    }
+    bool eos = false;
+    int16_t in[2048];
+    size_t size_inout = 0;
+    while (!eos) {
+        bool eof = false;
+        size_t nsamples;
+        if (!rsvc_cread("pipe", src_fd, in, 2048 / meta.channels, meta.channels * sizeof(int16_t),
+                        &nsamples, &size_inout, &eof, fail)) {
+            return false;
+        } else if (nsamples) {
+            samples_per_channel_read += nsamples;
+            float** out = vorbis_analysis_buffer(&vd, sizeof(in));
+            for (int16_t* p = in; p < in + (nsamples * meta.channels); ) {
+                for (int i = 0; i < meta.channels; ++i) {
+                    *(out[i]++) = *(p++) / 32768.f;
                 }
-                vorbis_analysis_wrote(&vd, nsamples);
-            } else if (eof) {
-                vorbis_analysis_wrote(&vd, 0);
             }
+            vorbis_analysis_wrote(&vd, nsamples);
+        } else if (eof) {
+            vorbis_analysis_wrote(&vd, 0);
+        }
 
-            while (vorbis_analysis_blockout(&vd, &vb) == 1) {
-                vorbis_analysis(&vb, NULL);
-                vorbis_bitrate_addblock(&vb);
-                while (vorbis_bitrate_flushpacket(&vd, &op)) {
-                    ogg_stream_packetin(&os, &op);
-                    while (!eos) {
-                        int result = ogg_stream_pageout(&os, &og);
-                        if (result == 0) {
-                            break;
-                        }
-                        if (!(rsvc_write(NULL, dst_fd, og.header, og.header_len, NULL, NULL, done) &&
-                              rsvc_write(NULL, dst_fd, og.body, og.body_len, NULL, NULL, done))) {
-                            return;  // TODO(sfiera): cleanup?
-                        }
-                        if (ogg_page_eos(&og)) {
-                            eos = true;
-                        }
+        while (vorbis_analysis_blockout(&vd, &vb) == 1) {
+            vorbis_analysis(&vb, NULL);
+            vorbis_bitrate_addblock(&vb);
+            while (vorbis_bitrate_flushpacket(&vd, &op)) {
+                ogg_stream_packetin(&os, &op);
+                while (!eos) {
+                    int result = ogg_stream_pageout(&os, &og);
+                    if (result == 0) {
+                        break;
+                    }
+                    if (!(rsvc_write(NULL, dst_fd, og.header, og.header_len, NULL, NULL, fail) &&
+                          rsvc_write(NULL, dst_fd, og.body, og.body_len, NULL, NULL, fail))) {
+                        return false;  // TODO(sfiera): cleanup?
+                    }
+                    if (ogg_page_eos(&og)) {
+                        eos = true;
                     }
                 }
             }
-            progress(samples_per_channel_read * 1.0 / meta.samples_per_channel);
         }
+        progress(samples_per_channel_read * 1.0 / meta.samples_per_channel);
+    }
 
-        ogg_stream_clear(&os);
-        vorbis_block_clear(&vb);
-        vorbis_dsp_clear(&vd);
-        vorbis_comment_clear(&vc);
-        vorbis_info_clear(&vi);
+    ogg_stream_clear(&os);
+    vorbis_block_clear(&vb);
+    vorbis_dsp_clear(&vd);
+    vorbis_comment_clear(&vc);
+    vorbis_info_clear(&vi);
 
-        done(NULL);
-    });
+    return true;
 }
 
 typedef struct rsvc_ogg_page_node* rsvc_ogg_page_node_t;

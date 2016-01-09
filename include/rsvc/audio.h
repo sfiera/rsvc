@@ -42,11 +42,11 @@ struct rsvc_encode_options {
     rsvc_encode_progress_f  progress;
 };
 
-typedef void (*rsvc_encode_f)(
+typedef bool (*rsvc_encode_f)(
         int src_fd,
         int dst_fd,
         rsvc_encode_options_t options,
-        rsvc_done_t done);
+        rsvc_done_t fail);
 
 /// Decoding
 /// --------

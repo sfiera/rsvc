@@ -230,31 +230,35 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
         rsvc_progress_t progress = rsvc_progress_start(path);
         size_t nsamples = rsvc_cd_track_nsamples(track);
 
-        struct rsvc_encode_options encode_options = {
-            .bitrate                  = opts.encode.bitrate,
-            .meta = {
-                .sample_rate          = 44100,
-                .channels             = 2,
-                .samples_per_channel  = nsamples,
-            },
-            .progress                 = ^(double fraction){
-                rsvc_progress_update(progress, fraction);
-            },
-        };
         encode_done = ^(rsvc_error_t error){
             close(file);
             close(read_pipe);
             rsvc_tags_destroy(tags);
-            rsvc_progress_done(progress);
+            if (error) {
+                rsvc_progress_done(progress, "fail");
+            } else {
+                rsvc_progress_done(progress, "done");
+            }
             free(path);
             encode_done(error);
         };
-        opts.encode.format->encode(read_pipe, file, &encode_options, ^(rsvc_error_t error){
-            if (error) {
-                encode_done(error);
-            } else {
-                set_tags(file, path, tags, encode_done);
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+            struct rsvc_encode_options encode_options = {
+                .bitrate = opts.encode.bitrate,
+                .meta = {
+                    .sample_rate          = 44100,
+                    .channels             = 2,
+                    .samples_per_channel  = nsamples,
+                },
+                .progress = ^(double fraction){
+                    rsvc_progress_update(progress, fraction);
+                },
+            };
+
+            if (opts.encode.format->encode(read_pipe, file, &encode_options, encode_done)) {
+                return;
             }
+            set_tags(file, path, tags, encode_done);
         });
     });
 }

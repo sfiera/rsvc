@@ -430,26 +430,26 @@ static void convert_write(struct file_pair f, rsvc_audio_meta_t meta,
     };
 
     rsvc_progress_t node = rsvc_progress_start(f.output);
-    struct rsvc_encode_options encode_options = {
-        .bitrate                  = options.encode.bitrate,
-        .meta = {
-            .sample_rate          = meta->sample_rate,
-            .channels             = meta->channels,
-            .samples_per_channel  = meta->samples_per_channel,
-        },
-        .progress = ^(double fraction){
-            rsvc_progress_update(node, fraction);
-        },
-    };
 
-    options.encode.format->encode(read_fd, f.output_fd, &encode_options, ^(rsvc_error_t error){
-        rsvc_progress_done(node);
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        struct rsvc_encode_options encode_options = {
+            .bitrate                  = options.encode.bitrate,
+            .meta = {
+                .sample_rate          = meta->sample_rate,
+                .channels             = meta->channels,
+                .samples_per_channel  = meta->samples_per_channel,
+            },
+            .progress = ^(double fraction){
+                rsvc_progress_update(node, fraction);
+            },
+        };
 
-        if (error) {
-            done(error);
+        if (!options.encode.format->encode(read_fd, f.output_fd, &encode_options, done)) {
+            rsvc_progress_done(node, "fail");
             return;
         }
 
+        rsvc_progress_done(node, "done");
         copy_tags(f, tmp_path, ^(rsvc_error_t error){
             if (error) {
                 done(error);

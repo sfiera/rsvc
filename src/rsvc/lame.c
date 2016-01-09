@@ -25,60 +25,58 @@
 #include <rsvc/format.h>
 #include "unix.h"
 
-void rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t done) {
+bool rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t fail) {
     int32_t                 bitrate   = options->bitrate;
     struct rsvc_audio_meta  meta      = options->meta;
     rsvc_encode_progress_f  progress  = options->progress;
 
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        lame_global_flags* lame = lame_init();
-        lame_set_num_channels(lame, meta.channels);
-        lame_set_brate(lame, bitrate >> 10);
-        lame_set_in_samplerate(lame, meta.sample_rate);
-        lame_set_bWriteVbrTag(lame, 0);  // TODO(sfiera): write the tag.
-        if (lame_init_params(lame) < 0) {
-            rsvc_errorf(done, __FILE__, __LINE__, "init error");
-            return;
-        }
+    lame_global_flags* lame = lame_init();
+    lame_set_num_channels(lame, meta.channels);
+    lame_set_brate(lame, bitrate >> 10);
+    lame_set_in_samplerate(lame, meta.sample_rate);
+    lame_set_bWriteVbrTag(lame, 0);  // TODO(sfiera): write the tag.
+    if (lame_init_params(lame) < 0) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "init error");
+        return false;
+    }
 
-        size_t samples_per_channel_read = 0;
-        static const int kSamples = 2048;
-        static const int kMp3BufSize = kSamples * 5 + 7200;
-        unsigned char* mp3buf = malloc(kMp3BufSize);
-        int16_t buffer[kSamples * 2];
-        size_t size_inout = 0;
-        bool eof = false;
-        while (!eof) {
-            size_t nsamples;
-            if (!rsvc_cread("pipe", src_fd, buffer, kSamples, 2 * sizeof(int16_t),
-                            &nsamples, &size_inout, &eof, done)) {
-                return;
-            } else if (nsamples) {
-                samples_per_channel_read += nsamples;
-                int mp3buf_written = -1;
-                if (meta.channels == 2) {
-                    mp3buf_written = lame_encode_buffer_interleaved(
-                            lame, buffer, nsamples, mp3buf, kMp3BufSize);
-                } else {
-                    mp3buf_written = lame_encode_buffer(
-                            lame, buffer, NULL, nsamples * 2, mp3buf, kMp3BufSize);
-                }
-                if (mp3buf_written < 0) {
-                    rsvc_errorf(done, __FILE__, __LINE__, "encode error");
-                    return;
-                }
-                if (!rsvc_write("pipe", dst_fd, mp3buf, mp3buf_written, NULL, NULL, done)) {
-                    return;
-                }
-                progress(samples_per_channel_read * 2.0 / meta.channels / meta.samples_per_channel);
+    size_t samples_per_channel_read = 0;
+    static const int kSamples = 2048;
+    static const int kMp3BufSize = kSamples * 5 + 7200;
+    unsigned char* mp3buf = malloc(kMp3BufSize);
+    int16_t buffer[kSamples * 2];
+    size_t size_inout = 0;
+    bool eof = false;
+    while (!eof) {
+        size_t nsamples;
+        if (!rsvc_cread("pipe", src_fd, buffer, kSamples, 2 * sizeof(int16_t),
+                        &nsamples, &size_inout, &eof, fail)) {
+            return false;
+        } else if (nsamples) {
+            samples_per_channel_read += nsamples;
+            int mp3buf_written = -1;
+            if (meta.channels == 2) {
+                mp3buf_written = lame_encode_buffer_interleaved(
+                        lame, buffer, nsamples, mp3buf, kMp3BufSize);
+            } else {
+                mp3buf_written = lame_encode_buffer(
+                        lame, buffer, NULL, nsamples * 2, mp3buf, kMp3BufSize);
             }
+            if (mp3buf_written < 0) {
+                rsvc_errorf(fail, __FILE__, __LINE__, "encode error");
+                return false;
+            }
+            if (!rsvc_write("pipe", dst_fd, mp3buf, mp3buf_written, NULL, NULL, fail)) {
+                return false;
+            }
+            progress(samples_per_channel_read * 2.0 / meta.channels / meta.samples_per_channel);
         }
-        if (lame_encode_flush(lame, mp3buf, kMp3BufSize) < 0) {
-            rsvc_errorf(done, __FILE__, __LINE__, "flush error");
-            return;
-        }
-        lame_close(lame);
-        free(mp3buf);
-        done(NULL);
-    });
+    }
+    if (lame_encode_flush(lame, mp3buf, kMp3BufSize) < 0) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "flush error");
+        return false;
+    }
+    lame_close(lame);
+    free(mp3buf);
+    return true;
 }
