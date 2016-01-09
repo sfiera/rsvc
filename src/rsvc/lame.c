@@ -27,13 +27,13 @@
 
 bool rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t fail) {
     int32_t                 bitrate   = options->bitrate;
-    struct rsvc_audio_meta  meta      = options->meta;
+    struct rsvc_audio_info  info      = options->info;
     rsvc_encode_progress_f  progress  = options->progress;
 
     lame_global_flags* lame = lame_init();
-    lame_set_num_channels(lame, meta.channels);
+    lame_set_num_channels(lame, info.channels);
     lame_set_brate(lame, bitrate >> 10);
-    lame_set_in_samplerate(lame, meta.sample_rate);
+    lame_set_in_samplerate(lame, info.sample_rate);
     lame_set_bWriteVbrTag(lame, 0);  // TODO(sfiera): write the tag.
     if (lame_init_params(lame) < 0) {
         rsvc_errorf(fail, __FILE__, __LINE__, "init error");
@@ -55,7 +55,7 @@ bool rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
         } else if (nsamples) {
             samples_per_channel_read += nsamples;
             int mp3buf_written = -1;
-            if (meta.channels == 2) {
+            if (info.channels == 2) {
                 mp3buf_written = lame_encode_buffer_interleaved(
                         lame, buffer, nsamples, mp3buf, kMp3BufSize);
             } else {
@@ -69,7 +69,7 @@ bool rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
             if (!rsvc_write("pipe", dst_fd, mp3buf, mp3buf_written, NULL, NULL, fail)) {
                 return false;
             }
-            progress(samples_per_channel_read * 2.0 / meta.channels / meta.samples_per_channel);
+            progress(samples_per_channel_read * 2.0 / info.channels / info.samples_per_channel);
         }
     }
     if (lame_encode_flush(lame, mp3buf, kMp3BufSize) < 0) {

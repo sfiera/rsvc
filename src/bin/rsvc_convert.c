@@ -59,8 +59,8 @@ static void convert(struct file_pair f, rsvc_done_t done);
 static void convert_recursive(struct file_pair f, dispatch_semaphore_t sema, rsvc_group_t group);
 static bool validate_convert_options(rsvc_done_t fail);
 static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
-                         void (^start)(bool ok, rsvc_audio_meta_t meta));
-static void convert_write(struct file_pair f, rsvc_audio_meta_t meta,
+                         void (^start)(bool ok, rsvc_audio_info_t info));
+static void convert_write(struct file_pair f, rsvc_audio_info_t info,
                           int read_fd, const char* tmp_path, rsvc_done_t done);
 static bool change_extension(const char* path, const char* extension, char* new_path,
                              rsvc_done_t fail);
@@ -225,9 +225,9 @@ static void convert(struct file_pair f, rsvc_done_t done) {
     }
 
     rsvc_group_t group = rsvc_group_create(done);
-    convert_read(f, write_pipe, rsvc_group_add(group), ^(bool ok, rsvc_audio_meta_t meta){
+    convert_read(f, write_pipe, rsvc_group_add(group), ^(bool ok, rsvc_audio_info_t info){
         if (ok) {
-            convert_write(f, meta, read_pipe, tmp_path, rsvc_group_add(group));
+            convert_write(f, info, read_pipe, tmp_path, rsvc_group_add(group));
         } else {
             close(read_pipe);
         }
@@ -390,11 +390,11 @@ static bool validate_convert_options(rsvc_done_t fail) {
 }
 
 static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
-                         void (^start)(bool ok, rsvc_audio_meta_t meta)) {
-    __block bool got_metadata = false;
+                         void (^start)(bool ok, rsvc_audio_info_t info)) {
+    __block bool got_info = false;
     done = ^(rsvc_error_t error){
         close(write_fd);
-        if (!got_metadata) {
+        if (!got_info) {
             start(false, NULL);
         }
         rsvc_prefix_error(f.input, error, done);
@@ -417,9 +417,9 @@ static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
         return;
     }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        if (!format->decode(f.input_fd, write_fd, ^(rsvc_audio_meta_t meta){
-            got_metadata = true;
-            start(true, meta);
+        if (!format->decode(f.input_fd, write_fd, ^(rsvc_audio_info_t info){
+            got_info = true;
+            start(true, info);
         }, done)) {
             return;
         }
@@ -427,7 +427,7 @@ static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
     });
 }
 
-static void convert_write(struct file_pair f, rsvc_audio_meta_t meta,
+static void convert_write(struct file_pair f, rsvc_audio_info_t info,
                           int read_fd, const char* tmp_path, rsvc_done_t done) {
     done = ^(rsvc_error_t error){
         close(read_fd);
@@ -439,10 +439,10 @@ static void convert_write(struct file_pair f, rsvc_audio_meta_t meta,
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         struct rsvc_encode_options encode_options = {
             .bitrate                  = options.encode.bitrate,
-            .meta = {
-                .sample_rate          = meta->sample_rate,
-                .channels             = meta->channels,
-                .samples_per_channel  = meta->samples_per_channel,
+            .info = {
+                .sample_rate          = info->sample_rate,
+                .channels             = info->channels,
+                .samples_per_channel  = info->samples_per_channel,
             },
             .progress = ^(double fraction){
                 rsvc_progress_update(node, fraction);

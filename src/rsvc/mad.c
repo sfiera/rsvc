@@ -177,7 +177,7 @@ bool mad_decode(struct mad_userdata* userdata) {
 }
 
 bool rsvc_mad_decode(int src_fd, int dst_fd,
-                     rsvc_decode_metadata_f metadata, rsvc_done_t fail) {
+                     rsvc_decode_info_f info, rsvc_done_t fail) {
     if (!rsvc_id3_skip_tags(src_fd, fail)) {
         return false;
     }
@@ -194,12 +194,12 @@ bool rsvc_mad_decode(int src_fd, int dst_fd,
     if (!mad_pre_decode(&userdata)) {
         return false;
     }
-    struct rsvc_audio_meta meta = {
+    struct rsvc_audio_info i = {
         .sample_rate = userdata.sample_rate,
         .channels = userdata.channels,
         .samples_per_channel = userdata.sample_count
     };
-    metadata(&meta);
+    info(&i);
 
     if (lseek(src_fd, offset, SEEK_SET) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);

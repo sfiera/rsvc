@@ -23,7 +23,7 @@
 
 typedef const  struct rsvc_format*           rsvc_format_t;
 
-typedef        struct rsvc_audio_meta*       rsvc_audio_meta_t;
+typedef        struct rsvc_audio_info*       rsvc_audio_info_t;
 typedef        struct rsvc_cd*               rsvc_cd_t;
 typedef        struct rsvc_cd_session*       rsvc_cd_session_t;
 typedef        struct rsvc_cd_track*         rsvc_cd_track_t;

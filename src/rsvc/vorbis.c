@@ -44,7 +44,7 @@
 bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
                           rsvc_done_t fail) {
     int32_t                 bitrate   = options->bitrate;
-    struct rsvc_audio_meta  meta      = options->meta;
+    struct rsvc_audio_info  info      = options->info;
     rsvc_encode_progress_f  progress  = options->progress;
 
     ogg_stream_state  os;
@@ -58,7 +58,7 @@ bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
 
     // Initialize the encoder.
     vorbis_info_init(&vi);
-    if (vorbis_encode_init(&vi, meta.channels, meta.sample_rate, -1, bitrate, -1)) {
+    if (vorbis_encode_init(&vi, info.channels, info.sample_rate, -1, bitrate, -1)) {
         rsvc_errorf(fail, __FILE__, __LINE__, "couldn't init vorbis encoder");
         return false;
     }
@@ -90,14 +90,14 @@ bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
     while (!eos) {
         bool eof = false;
         size_t nsamples;
-        if (!rsvc_cread("pipe", src_fd, in, 2048 / meta.channels, meta.channels * sizeof(int16_t),
+        if (!rsvc_cread("pipe", src_fd, in, 2048 / info.channels, info.channels * sizeof(int16_t),
                         &nsamples, &size_inout, &eof, fail)) {
             return false;
         } else if (nsamples) {
             samples_per_channel_read += nsamples;
             float** out = vorbis_analysis_buffer(&vd, sizeof(in));
-            for (int16_t* p = in; p < in + (nsamples * meta.channels); ) {
-                for (int i = 0; i < meta.channels; ++i) {
+            for (int16_t* p = in; p < in + (nsamples * info.channels); ) {
+                for (int i = 0; i < info.channels; ++i) {
                     *(out[i]++) = *(p++) / 32768.f;
                 }
             }
@@ -126,7 +126,7 @@ bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
                 }
             }
         }
-        progress(samples_per_channel_read * 1.0 / meta.samples_per_channel);
+        progress(samples_per_channel_read * 1.0 / info.samples_per_channel);
     }
 
     ogg_stream_clear(&os);

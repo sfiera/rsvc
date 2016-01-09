@@ -245,7 +245,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
             struct rsvc_encode_options encode_options = {
                 .bitrate = opts.encode.bitrate,
-                .meta = {
+                .info = {
                     .sample_rate          = 44100,
                     .channels             = 2,
                     .samples_per_channel  = nsamples,

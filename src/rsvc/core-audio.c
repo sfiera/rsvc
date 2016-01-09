@@ -91,14 +91,14 @@ static bool core_audio_encode(
         int src_fd, int dst_fd, rsvc_encode_options_t options,
         int container_id, int codec_id, rsvc_done_t fail) {
     int32_t                 bitrate   = options->bitrate;
-    struct rsvc_audio_meta  meta      = options->meta;
+    struct rsvc_audio_info  info      = options->info;
     rsvc_encode_progress_f  progress  = options->progress;
 
     OSStatus err;
     AudioStreamBasicDescription asbd_out = {
         .mFormatID          = codec_id,
-        .mSampleRate        = meta.sample_rate,
-        .mChannelsPerFrame  = meta.channels,
+        .mSampleRate        = info.sample_rate,
+        .mChannelsPerFrame  = info.channels,
     };
     if (codec_id == kAudioFormatAppleLossless) {
         asbd_out.mFormatFlags = kAppleLosslessFormatFlag_16BitSourceData;
@@ -134,11 +134,11 @@ static bool core_audio_encode(
                             | kAudioFormatFlagsNativeEndian
                             | kAudioFormatFlagIsPacked,
         .mBitsPerChannel    = 16,
-        .mSampleRate        = meta.sample_rate,
-        .mChannelsPerFrame  = meta.channels,
+        .mSampleRate        = info.sample_rate,
+        .mChannelsPerFrame  = info.channels,
         .mFramesPerPacket   = 1,
-        .mBytesPerPacket    = 2 * meta.channels,
-        .mBytesPerFrame     = 2 * meta.channels,
+        .mBytesPerPacket    = 2 * info.channels,
+        .mBytesPerFrame     = 2 * info.channels,
     };
     err = ExtAudioFileSetProperty(
             file_ref, kExtAudioFileProperty_ClientDataFormat, sizeof(asbd_in), &asbd_in);
@@ -199,17 +199,17 @@ static bool core_audio_encode(
         ssize_t result = read(src_fd, buffer + start, sizeof(buffer) - start);
         if (result > 0) {
             result += start;
-            size_t remainder = result % (2 * meta.channels);
+            size_t remainder = result % (2 * info.channels);
             result -= remainder;
-            size_t nsamples = result / (2 * meta.channels);
+            size_t nsamples = result / (2 * info.channels);
             samples_per_channel_read += nsamples;
             if (result > 0) {
                 AudioBufferList buffer_list = {
                     .mNumberBuffers = 1,
                     .mBuffers = {{
                         .mData = buffer,
-                        .mNumberChannels = meta.channels,
-                        .mDataByteSize = nsamples * meta.channels * 2,
+                        .mNumberChannels = info.channels,
+                        .mDataByteSize = nsamples * info.channels * 2,
                     }},
                 };
                 err = ExtAudioFileWrite(file_ref, nsamples, &buffer_list);
@@ -221,7 +221,7 @@ static bool core_audio_encode(
                 memcpy(buffer, buffer + result, remainder);
             }
             start = remainder;
-            progress(samples_per_channel_read * 1.0 / meta.samples_per_channel);
+            progress(samples_per_channel_read * 1.0 / info.samples_per_channel);
         } else if (result == 0) {
             break;
         } else if (errno != EINTR) {

@@ -25,7 +25,7 @@
 
 /// Audio
 /// =====
-struct rsvc_audio_meta {
+struct rsvc_audio_info {
     size_t  sample_rate;
     size_t  channels;
     size_t  samples_per_channel;
@@ -37,7 +37,7 @@ struct rsvc_audio_meta {
 typedef void (^rsvc_encode_progress_f)(double progress);
 
 struct rsvc_encode_options {
-    struct rsvc_audio_meta  meta;
+    struct rsvc_audio_info  info;
     int32_t                 bitrate;
     rsvc_encode_progress_f  progress;
 };
@@ -50,12 +50,12 @@ typedef bool (*rsvc_encode_f)(
 
 /// Decoding
 /// --------
-typedef void (^rsvc_decode_metadata_f)(rsvc_audio_meta_t meta);
+typedef void (^rsvc_decode_info_f)(rsvc_audio_info_t meta);
 
 typedef bool (*rsvc_decode_f)(
         int src_fd,
         int dst_fd,
-        rsvc_decode_metadata_f metadata,
+        rsvc_decode_info_f info,
         rsvc_done_t fail);
 
 /// Formats
