@@ -25,6 +25,7 @@
 #include <opus.h>
 #include <opusfile.h>
 #include <string.h>
+#include <sys/param.h>
 #include <rsvc/format.h>
 
 #include "common.h"
@@ -34,7 +35,11 @@
 typedef struct opus_tags* opus_tags_t;
 struct opus_tags {
     struct rsvc_tags  super;
+
     char*             path;
+    int               fd;
+    off_t             data_offset;
+
     uint32_t          serial;
     OpusHead          head;
     OpusTags          tags;
@@ -42,28 +47,170 @@ struct opus_tags {
 
 static bool rsvc_opus_tags_add(rsvc_tags_t tags, const char* name, const char* value,
                           rsvc_done_t fail) {
-    (void)tags;
-    (void)name;
-    (void)value;
-    rsvc_errorf(fail, __FILE__, __LINE__, "opus tags are read-only");
-    return false;
+    opus_tags_t self = DOWN_CAST(struct opus_tags, tags);
+    opus_tags_add(&self->tags, name, value);
+    (void)fail;
+    return true;
 }
 
 static bool rsvc_opus_tags_remove(rsvc_tags_t tags, const char* name, rsvc_done_t fail) {
-    (void)tags;
-    (void)name;
-    rsvc_errorf(fail, __FILE__, __LINE__, "opus tags are read-only");
-    return false;
+    opus_tags_t self = DOWN_CAST(struct opus_tags, tags);
+    const size_t name_size = strlen(name);
+    int o = 0;
+    if (name) {
+        for (int i = 0; i < self->tags.comments; ++i) {
+            char* comment = self->tags.user_comments[i];
+            int comment_length = self->tags.comment_lengths[i];
+            if ((strncmp(name, comment, name_size) != 0) || (comment[name_size] != '=')) {
+                self->tags.user_comments[i] = self->tags.user_comments[o];
+                self->tags.comment_lengths[i] = self->tags.comment_lengths[o];
+                self->tags.user_comments[o] = comment;
+                self->tags.comment_lengths[o] = comment_length;
+                ++o;
+            }
+        }
+    }
+    for (int i = o; i < self->tags.comments; ++i) {
+        free(self->tags.user_comments[i]);
+    }
+    self->tags.comments = o;
+    (void)fail;
+    return true;
+}
+
+static size_t memcat(unsigned char** p, void* data, size_t len) {
+    if (*p) {
+        memcpy(*p, data, len);
+        *p += len;
+    }
+    return len;
+}
+
+static size_t u1le(unsigned char** p, uint8_t u) {
+    if (*p) {
+        *((*p)++) = 0xff & (u >> 0);
+    }
+    return 1;
+}
+
+static size_t u2le(unsigned char** p, uint16_t u) {
+    if (*p) {
+        *((*p)++) = 0xff & (u >> 0);
+        *((*p)++) = 0xff & (u >> 8);
+    }
+    return 2;
+}
+
+static size_t u4le(unsigned char** p, uint32_t u) {
+    if (*p) {
+        *((*p)++) = 0xff & (u >> 0);
+        *((*p)++) = 0xff & (u >> 8);
+        *((*p)++) = 0xff & (u >> 16);
+        *((*p)++) = 0xff & (u >> 24);
+    }
+    return 4;
+}
+
+static void rsvc_opus_head_out(OpusHead* head, ogg_packet* op) {
+    unsigned char data[29];
+    op->bytes = 0;
+
+    unsigned char* p = data;
+    op->bytes += memcat(&p, "OpusHead", 8);
+    op->bytes += u1le(&p, head->version);
+    op->bytes += u1le(&p, head->channel_count);
+    op->bytes += u2le(&p, head->pre_skip);
+    op->bytes += u4le(&p, head->input_sample_rate);
+    op->bytes += u2le(&p, head->output_gain);
+    op->bytes += u1le(&p, head->mapping_family);
+
+    if (head->mapping_family == 1) {
+        op->bytes += u1le(&p, head->stream_count);
+        op->bytes += u1le(&p, head->coupled_count);
+        int n = (head->channel_count <= 8) ? head->channel_count : 8;
+        for (int i = 0; i < n; ++i) {
+            op->bytes += u1le(&p, head->mapping[i]);
+        }
+    }
+
+    op->packet = memdup(data, op->bytes);
+    op->b_o_s = 1;
+    op->e_o_s = 0;
+    op->packetno = 0;
+    op->granulepos = 0;
+}
+
+size_t write_opus_tags(unsigned char* dst, OpusTags* tags) {
+    size_t size = 0;
+    unsigned char* p = dst;
+    size += memcat(&p, "OpusTags", 8);
+    size += u4le(&p, strlen(RSVC_VERSION));
+    size += memcat(&p, RSVC_VERSION, strlen(RSVC_VERSION));
+    size += u4le(&p, tags->comments);
+    for (int i = 0; i < tags->comments; ++i) {
+        size += u4le(&p, tags->comment_lengths[i]);
+        size += memcat(&p, tags->user_comments[i], tags->comment_lengths[i]);
+    }
+    return size;
+}
+
+static void rsvc_opus_tags_out(OpusTags* tags, ogg_packet* op) {
+    op->bytes = write_opus_tags(NULL, tags);
+    op->packet = malloc(op->bytes);
+    write_opus_tags(op->packet, tags);
+    op->b_o_s = op->e_o_s = 0;
+    op->packetno = 1;
+    op->granulepos = 0;
 }
 
 static bool rsvc_opus_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
-    (void)tags;
-    (void)fail;
+    opus_tags_t self = DOWN_CAST(struct opus_tags, tags);
+
+    int fd;
+    char tmp_path[MAXPATHLEN];
+    if (!rsvc_temp(self->path, tmp_path, &fd, fail)) {
+        return false;
+    }
+
+    ogg_page          og;
+    ogg_stream_state  os;
+    ogg_stream_init(&os, self->serial);
+
+    ogg_packet op_head;
+    rsvc_opus_head_out(&self->head, &op_head);
+    ogg_packet op_tags;
+    rsvc_opus_tags_out(&self->tags, &op_tags);
+    if (!(rsvc_ogg_align_packet(fd, &os, &og, &op_head, fail) &&
+          rsvc_ogg_align_packet(fd, &os, &og, &op_tags, fail))) {
+        // TODO(sfiera): cleanup
+        return false;
+    }
+
+    if (lseek(self->fd, self->data_offset, SEEK_SET) < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+
+    rsvc_logf(2, "copying opus data from %s to %s", self->path, tmp_path);
+    uint8_t buffer[4096];
+    bool eof = false;
+    while (!eof) {
+        size_t size;
+        if (!(rsvc_read(self->path, self->fd, buffer, 4096, &size, &eof, fail) &&
+              (eof || rsvc_write(tmp_path, fd, buffer, size, NULL, NULL, fail)))) {
+            return false;
+        }
+    }
+
+    if (!rsvc_refile(tmp_path, self->path, fail)) {
+        return false;
+    }
     return true;
 }
 
 void rsvc_opus_tags_clear(opus_tags_t self) {
     free(self->path);
+    close(self->fd);
 }
 
 static void rsvc_opus_tags_destroy(rsvc_tags_t tags) {
@@ -148,12 +295,11 @@ bool rsvc_opus_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_do
         fail(error);
     };
 
-    int fd;
-    if (!rsvc_open(opus.path, O_RDONLY, 0644, &fd, fail)) {
+    if (!rsvc_open(opus.path, O_RDONLY, 0644, &opus.fd, fail)) {
         return false;
     }
     fail = ^(rsvc_error_t error){
-        close(fd);
+        close(opus.fd);
         fail(error);
     };
 
@@ -174,9 +320,9 @@ bool rsvc_opus_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_do
     int pageno    = 0;
 
     // Read all of the pages from the ogg file in a loop.
-    while (true) {
+    while (packetno < 2) {
         bool eof;
-        if (!rsvc_ogg_page_read(fd, &oy, &og, &eof, fail)) {
+        if (!rsvc_ogg_page_read(opus.fd, &oy, &og, &eof, fail)) {
             return false;
         } else if (eof) {
             if (packetno < 2) {
@@ -185,6 +331,7 @@ bool rsvc_opus_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_do
             }
             break;
         }
+        opus.data_offset += og.header_len + og.body_len;
 
         if (pageno++ == 0) {
             // First page must be a bos page.
@@ -205,48 +352,42 @@ bool rsvc_opus_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_do
             }
         }
 
-        if (packetno < 2) {
-            if (ogg_stream_pagein(&os, &og) < 0) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg page");
+        if (ogg_stream_pagein(&os, &og) < 0) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg page");
+            return false;
+        }
+
+        while (true) {
+            int packetout_status = ogg_stream_packetout(&os, &op);
+            if (packetout_status == 0) {
+                break;
+            } else if (packetout_status < 0) {
+                rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg packet");
                 return false;
             }
 
-            while (true) {
-                int packetout_status = ogg_stream_packetout(&os, &op);
-                if (packetout_status == 0) {
-                    break;
-                } else if (packetout_status < 0) {
-                    rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg packet");
-                    return false;
-                }
-
-                switch (packetno++) {
-                    case 0:  // OpusHead
-                        if (opus_head_parse(&opus.head, op.packet, op.bytes) != 0) {
-                            rsvc_errorf(fail, __FILE__, __LINE__, "bad opus header");
-                            return false;
-                        }
-                        break;
-                    case 1:  // OpusTags
-                        if (opus_tags_parse(&opus.tags, op.packet, op.bytes) != 0) {
-                            rsvc_errorf(fail, __FILE__, __LINE__, "bad opus tags");
-                            return false;
-                        }
-                        break;
-                    default:
-                        rsvc_errorf(fail, __FILE__, __LINE__, "extra packets in header pages");
+            switch (packetno++) {
+                case 0:  // OpusHead
+                    if (opus_head_parse(&opus.head, op.packet, op.bytes) != 0) {
+                        rsvc_errorf(fail, __FILE__, __LINE__, "bad opus header");
                         return false;
-                }
+                    }
+                    break;
+                case 1:  // OpusTags
+                    if (opus_tags_parse(&opus.tags, op.packet, op.bytes) != 0) {
+                        rsvc_errorf(fail, __FILE__, __LINE__, "bad opus tags");
+                        return false;
+                    }
+                    break;
+                default:
+                    rsvc_errorf(fail, __FILE__, __LINE__, "extra packets in header pages");
+                    return false;
             }
-        } else {
-            rsvc_logf(2, "read ogg page (header_len=%lu, body_len=%lu)",
-                      og.header_len, og.body_len);
         }
     }
 
     ogg_sync_clear(&oy);
     ogg_stream_clear(&os);
-    close(fd);
 
     opus_tags_t copy = memdup(&opus, sizeof(opus));
     *tags = &copy->super;
