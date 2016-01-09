@@ -24,6 +24,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <rsvc/common.h>
+#include <rsvc/forward.h>
 
 /// Images
 /// -------
@@ -36,7 +37,7 @@ struct rsvc_image_info {
 
 typedef bool (*rsvc_image_info_f)(
         const char* path, const uint8_t* data, size_t size,
-        struct rsvc_image_info* info, rsvc_done_t fail);
+        rsvc_image_info_t info, rsvc_done_t fail);
 
 /// Formats
 /// -------

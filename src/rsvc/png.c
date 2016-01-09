@@ -66,7 +66,7 @@ static bool png_consume_block_header(
 
 static bool png_info(
         const char* path, const uint8_t* data, size_t size,
-        struct rsvc_image_info* info, rsvc_done_t fail) {
+        rsvc_image_info_t info, rsvc_done_t fail) {
     if (!png_consume_file_header(path, &data, &size, fail)) {
         return false;
     }

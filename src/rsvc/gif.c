@@ -28,7 +28,7 @@
 
 static bool gif_info(
         const char* path, const uint8_t* data, size_t size,
-        struct rsvc_image_info* info, rsvc_done_t fail) {
+        rsvc_image_info_t info, rsvc_done_t fail) {
     if (size < 11) {
         rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
         return false;

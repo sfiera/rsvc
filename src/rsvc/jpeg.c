@@ -50,7 +50,7 @@ static bool jpeg_consume_marker(
 
 static bool jpeg_info(
         const char* path, const uint8_t* data, size_t size,
-        struct rsvc_image_info* info, rsvc_done_t fail) {
+        rsvc_image_info_t info, rsvc_done_t fail) {
     bool got_soi = false;
     uint8_t marker[2];
     while (true) {

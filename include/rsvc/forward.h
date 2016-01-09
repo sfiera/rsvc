@@ -29,6 +29,7 @@ typedef        struct rsvc_cd_session*       rsvc_cd_session_t;
 typedef        struct rsvc_cd_track*         rsvc_cd_track_t;
 typedef        struct rsvc_encode_options*   rsvc_encode_options_t;
 typedef        struct rsvc_error*            rsvc_error_t;
+typedef        struct rsvc_image_info*       rsvc_image_info_t;
 typedef        void*                         rsvc_iter_t;
 typedef        struct rsvc_tags*             rsvc_tags_t;
 typedef        struct rsvc_tags_iter*        rsvc_tags_iter_t;
