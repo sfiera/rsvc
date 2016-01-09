@@ -134,8 +134,6 @@ struct write_image_list {
     struct write_image_list_node {
         int                      index;
         const char*              path;
-        char                     temp_path[MAXPATHLEN];
-        int                      fd;
         write_image_list_node_t  prev, next;
     } *head, *tail;
 };

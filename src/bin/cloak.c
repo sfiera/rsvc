@@ -122,6 +122,72 @@ static bool tag_files(string_list_t list, ops_t ops, rsvc_done_t fail) {
     return true;
 }
 
+static bool write_image(  rsvc_tags_t tags, int index,
+                          const char* audio_path, const char* image_path,
+                          rsvc_done_t fail) {
+    rsvc_logf(1, "writing image %d to %s", index, image_path);
+    int i = 0;
+    bool ok = false;
+    for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_next(it); ) {
+        if (i++ != index) {
+            continue;
+        }
+
+        char true_path[MAXPATHLEN + 10] = {};  // space for extra dot and extension.
+        if (image_path) {
+            strcpy(true_path, image_path);
+        } else {
+            char parent[MAXPATHLEN];
+            rsvc_dirname(audio_path, parent);
+            strcat(true_path, parent);
+            strcat(true_path, "/cover");
+        }
+        char scratch[MAXPATHLEN];
+        if (!rsvc_ext(true_path, scratch)) {
+            strcat(true_path, ".");
+            strcat(true_path, it->format->extension);
+        }
+
+        char temp_path[MAXPATHLEN];
+        int fd;
+        if (rsvc_temp(true_path, temp_path, &fd, fail)) {
+            if (rsvc_write(true_path, fd, it->data, it->size, NULL, NULL, fail) &&
+                rsvc_rename(temp_path, true_path, fail)) {
+                ok = true;
+            }
+            close(fd);
+        }
+        rsvc_break(it);
+        break;
+    }
+    if (!ok) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "bad image index: %d", index);
+        return false;
+    }
+    return ok;
+}
+
+bool add_image(  rsvc_tags_t tags, rsvc_format_t format, const char* image_path, int fd,
+                 rsvc_done_t fail) {
+    uint8_t* data;
+    size_t size;
+    bool ok = false;
+    if (rsvc_mmap(image_path, fd, &data, &size, fail)) {
+        struct rsvc_image_info image_info;
+        if (format->image_info(image_path, data, size, &image_info, fail)) {
+            rsvc_logf(
+                    2, "adding %s image from %s (%zux%zu, depth %zu, %zu-color)",
+                    format->name, image_path, image_info.width, image_info.height,
+                    image_info.depth, image_info.palette_size);
+            if (rsvc_tags_image_add(tags, format, data, size, fail)) {
+                ok = true;
+            }
+        }
+        munmap(data, size);
+    }
+    return ok;
+}
+
 static bool apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, ops_t ops,
                       rsvc_done_t fail) {
     if (ops->remove_all_tags) {
@@ -156,65 +222,15 @@ static bool apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
     }
 
     for (write_image_list_node_t curr = ops->write_images.head; curr; curr = curr->next) {
-        const int index = curr->index;
-        rsvc_logf(1, "writing image %d to %s", index, curr->temp_path);
-        if ((index < 0) || (rsvc_tags_image_size(tags) <= index)) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "bad index: %d", index);
-            return false;
-        }
-
-        int i = 0;
-        bool success = false;
-        for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_next(it); ) {
-            if (index == i++) {
-                char image_path[MAXPATHLEN + 10];  // space for extra dot and extension.
-                strcpy(image_path, curr->path);
-                if (!image_path[0]) {
-                    char parent[MAXPATHLEN];
-                    rsvc_dirname(path, parent);
-                    strcat(image_path, parent);
-                    strcat(image_path, "/cover");
-                }
-                char scratch[MAXPATHLEN];
-                if (!rsvc_ext(image_path, scratch)) {
-                    strcat(image_path, ".");
-                    strcat(image_path, it->format->extension);
-                }
-                success =
-                    rsvc_write(curr->path, curr->fd, it->data, it->size, NULL, NULL, fail)
-                    && rsvc_rename(curr->temp_path, image_path, fail);
-                rsvc_break(it);
-                break;
-            }
-        }
-        if (!success) {
+        if (!write_image(tags, curr->index, path, curr->path, fail)) {
             return false;
         }
     }
 
     for (add_image_list_node_t curr = ops->add_images.head; curr; curr = curr->next) {
-        const char* path = curr->path;
-        int fd = curr->fd;
-        rsvc_format_t format = curr->format;
-        uint8_t* data;
-        size_t size;
-        if (!rsvc_mmap(path, fd, &data, &size, fail)) {
+        if (!add_image(tags, curr->format, curr->path, curr->fd, fail)) {
             return false;
         }
-        struct rsvc_image_info image_info;
-        if (!format->image_info(path, data, size, &image_info, fail)) {
-            munmap(data, size);
-            return false;
-        }
-        rsvc_logf(
-                2, "adding %s image from %s (%zux%zu, depth %zu, %zu-color)",
-                format->name, path, image_info.width, image_info.height, image_info.depth,
-                image_info.palette_size);
-        if (!rsvc_tags_image_add(tags, format, data, size, fail)) {
-            munmap(data, size);
-            return false;
-        }
-        munmap(data, size);
     }
 
     if (!(ops->move_mode ? cloak_move_file(path, format, tags, ops, fail) : true) ||

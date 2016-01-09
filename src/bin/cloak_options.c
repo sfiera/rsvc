@@ -342,19 +342,13 @@ static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_fl
         RSVC_LIST_PUSH(&ops->add_images, copy);
         return true;
     } else if ((flag == WRITE_IMAGE) || (flag == WRITE_IMAGE_DEFAULT)) {
-        char* path = "";
-        int fd;
-        char temp_path[MAXPATHLEN];
+        char* path = NULL;
         if (flag == WRITE_IMAGE) {
             if (!get_value(&path, fail)) {
                 return false;
             }
         }
-        if (!rsvc_temp(path, temp_path, &fd, fail)) {
-            return false;
-        }
-        struct write_image_list_node node = {ops->image_index, path, {}, fd};
-        memcpy(node.temp_path, temp_path, MAXPATHLEN);
+        struct write_image_list_node node = {ops->image_index, path};
         write_image_list_node_t copy = memdup(&node, sizeof(node));
         RSVC_LIST_PUSH(&ops->write_images, copy);
         return true;
