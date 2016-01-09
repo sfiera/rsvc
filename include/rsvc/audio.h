@@ -52,11 +52,11 @@ typedef bool (*rsvc_encode_f)(
 /// --------
 typedef void (^rsvc_decode_metadata_f)(rsvc_audio_meta_t meta);
 
-typedef void (*rsvc_decode_f)(
+typedef bool (*rsvc_decode_f)(
         int src_fd,
         int dst_fd,
         rsvc_decode_metadata_f metadata,
-        rsvc_done_t done);
+        rsvc_done_t fail);
 
 /// Formats
 /// -------

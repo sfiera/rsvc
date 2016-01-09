@@ -70,7 +70,7 @@ struct flac_decode_userdata {
     int                     read_fd;
     int                     write_fd;
     rsvc_decode_metadata_f  metadata;
-    rsvc_done_t             done;
+    rsvc_done_t             fail;
     bool                    called_done;
 };
 
@@ -210,50 +210,48 @@ bool rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
     return true;
 }
 
-void rsvc_flac_decode(int src_fd, int dst_fd,
-                      rsvc_decode_metadata_f metadata, rsvc_done_t done) {
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        FLAC__StreamDecoder *decoder = NULL;
+bool rsvc_flac_decode(int src_fd, int dst_fd,
+                      rsvc_decode_metadata_f metadata, rsvc_done_t fail) {
+    FLAC__StreamDecoder *decoder = NULL;
 
-        decoder = FLAC__stream_decoder_new();
-        if (decoder == NULL) {
-            rsvc_errorf(done, __FILE__, __LINE__, "couldn't allocate FLAC decoder");
-            return;
-        }
-        void (^cleanup)() = ^{
-            FLAC__stream_decoder_delete(decoder);
-        };
+    decoder = FLAC__stream_decoder_new();
+    if (decoder == NULL) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "couldn't allocate FLAC decoder");
+        return false;
+    }
+    void (^cleanup)() = ^{
+        FLAC__stream_decoder_delete(decoder);
+    };
 
-        struct flac_decode_userdata userdata = {
-            .read_fd   = src_fd,
-            .write_fd  = dst_fd,
-            .metadata  = metadata,
-            .done      = done,
-        };
-        FLAC__StreamDecoderInitStatus init_status = FLAC__stream_decoder_init_stream(
-                decoder, flac_decode_read, flac_decode_seek, flac_decode_tell,
-                flac_decode_length, flac_decode_eof, flac_decode_write, flac_decode_metadata,
-                flac_decode_error, &userdata);
-        if (init_status != FLAC__STREAM_DECODER_INIT_STATUS_OK) {
-            const char* message = FLAC__StreamDecoderInitStatusString[init_status];
-            cleanup();
-            rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
-            return;
-        }
-
-        if (!(FLAC__stream_decoder_process_until_end_of_stream(decoder)
-              && FLAC__stream_decoder_finish(decoder))) {
-            FLAC__StreamDecoderState state = FLAC__stream_decoder_get_state(decoder);
-            const char* message = FLAC__StreamDecoderStateString[state];
-            cleanup();
-            if (!userdata.called_done) {
-                rsvc_errorf(done, __FILE__, __LINE__, "%s", message);
-            }
-            return;
-        }
+    struct flac_decode_userdata userdata = {
+        .read_fd   = src_fd,
+        .write_fd  = dst_fd,
+        .metadata  = metadata,
+        .fail      = fail,
+    };
+    FLAC__StreamDecoderInitStatus init_status = FLAC__stream_decoder_init_stream(
+            decoder, flac_decode_read, flac_decode_seek, flac_decode_tell,
+            flac_decode_length, flac_decode_eof, flac_decode_write, flac_decode_metadata,
+            flac_decode_error, &userdata);
+    if (init_status != FLAC__STREAM_DECODER_INIT_STATUS_OK) {
+        const char* message = FLAC__StreamDecoderInitStatusString[init_status];
         cleanup();
-        done(NULL);
-    });
+        rsvc_errorf(fail, __FILE__, __LINE__, "%s", message);
+        return false;
+    }
+
+    if (!(FLAC__stream_decoder_process_until_end_of_stream(decoder)
+          && FLAC__stream_decoder_finish(decoder))) {
+        FLAC__StreamDecoderState state = FLAC__stream_decoder_get_state(decoder);
+        const char* message = FLAC__StreamDecoderStateString[state];
+        cleanup();
+        if (!userdata.called_done) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "%s", message);
+        }
+        return false;
+    }
+    cleanup();
+    return true;
 }
 
 struct rsvc_flac_tags {
@@ -474,10 +472,10 @@ static bool rsvc_flac_tags_image_add(
     return true;
 }
 
-static bool rsvc_flac_tags_save(rsvc_tags_t tags, rsvc_done_t done) {
+static bool rsvc_flac_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     rsvc_flac_tags_t self = DOWN_CAST(struct rsvc_flac_tags, tags);
     if (!FLAC__metadata_chain_write(self->chain, true, false)) {
-        rsvc_errorf(done, __FILE__, __LINE__, "comment error");
+        rsvc_errorf(fail, __FILE__, __LINE__, "comment error");
         return false;
     }
     return true;
@@ -606,7 +604,7 @@ static read_decode_status_t flac_decode_read(const FLAC__StreamDecoder* encoder,
         } else if (bytes_read == 0) {
             return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
         } else if (errno != EINTR) {
-            rsvc_strerrorf(u->done, __FILE__, __LINE__, NULL);
+            rsvc_strerrorf(u->fail, __FILE__, __LINE__, NULL);
             u->called_done = true;
             return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
         }
@@ -635,7 +633,7 @@ static write_decode_status_t flac_decode_write(const FLAC__StreamDecoder* decode
     while (size > 0) {
         ssize_t written = write(u->write_fd, s16, size);
         if (written <= 0) {
-            rsvc_strerrorf(u->done, __FILE__, __LINE__, NULL);
+            rsvc_strerrorf(u->fail, __FILE__, __LINE__, NULL);
             u->called_done = true;
             free(s16);
             return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;

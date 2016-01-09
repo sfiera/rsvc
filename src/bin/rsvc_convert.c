@@ -416,10 +416,15 @@ static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
                     "%s: can't decode %s file", f.input, format->name);
         return;
     }
-    format->decode(f.input_fd, write_fd, ^(rsvc_audio_meta_t meta){
-        got_metadata = true;
-        start(true, meta);
-    }, done);
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        if (!format->decode(f.input_fd, write_fd, ^(rsvc_audio_meta_t meta){
+            got_metadata = true;
+            start(true, meta);
+        }, done)) {
+            return;
+        }
+        done(NULL);
+    });
 }
 
 static void convert_write(struct file_pair f, rsvc_audio_meta_t meta,

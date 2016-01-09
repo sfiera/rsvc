@@ -176,39 +176,35 @@ bool mad_decode(struct mad_userdata* userdata) {
     return result == 0;
 }
 
-void rsvc_mad_decode(int src_fd, int dst_fd,
-                     rsvc_decode_metadata_f metadata, rsvc_done_t done) {
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        if (!rsvc_id3_skip_tags(src_fd, done)) {
-            return;
-        }
-        off_t offset = lseek(src_fd, 0, SEEK_CUR);
-        if (offset < 0) {
-            rsvc_strerrorf(done, __FILE__, __LINE__, NULL);
-            return;
-        }
-        struct mad_userdata userdata = {
-            .src_fd = src_fd,
-            .dst_fd = dst_fd,
-            .fail = done,
-        };
-        if (!mad_pre_decode(&userdata)) {
-            return;
-        }
-        struct rsvc_audio_meta meta = {
-            .sample_rate = userdata.sample_rate,
-            .channels = userdata.channels,
-            .samples_per_channel = userdata.sample_count
-        };
-        metadata(&meta);
+bool rsvc_mad_decode(int src_fd, int dst_fd,
+                     rsvc_decode_metadata_f metadata, rsvc_done_t fail) {
+    if (!rsvc_id3_skip_tags(src_fd, fail)) {
+        return false;
+    }
+    off_t offset = lseek(src_fd, 0, SEEK_CUR);
+    if (offset < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+    struct mad_userdata userdata = {
+        .src_fd = src_fd,
+        .dst_fd = dst_fd,
+        .fail = fail,
+    };
+    if (!mad_pre_decode(&userdata)) {
+        return false;
+    }
+    struct rsvc_audio_meta meta = {
+        .sample_rate = userdata.sample_rate,
+        .channels = userdata.channels,
+        .samples_per_channel = userdata.sample_count
+    };
+    metadata(&meta);
 
-        if (lseek(src_fd, offset, SEEK_SET) < 0) {
-            rsvc_strerrorf(done, __FILE__, __LINE__, NULL);
-            return;
-        }
-        userdata.end_position = 0;
-        if (mad_decode(&userdata)) {
-            done(NULL);
-        }
-    });
+    if (lseek(src_fd, offset, SEEK_SET) < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+    userdata.end_position = 0;
+    return mad_decode(&userdata);
 }
