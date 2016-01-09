@@ -51,6 +51,7 @@ struct rsvc_format {
     rsvc_open_tags_f    open_tags;
     rsvc_encode_f       encode;
     rsvc_decode_f       decode;
+    rsvc_audio_info_f   audio_info;
 
     rsvc_image_info_f   image_info;
 };

@@ -31,6 +31,8 @@ struct rsvc_audio_info {
     size_t  samples_per_channel;
 };
 
+typedef bool (*rsvc_audio_info_f)(int fd, rsvc_audio_info_t info, rsvc_done_t fail);
+
 /// Encoding
 /// --------
 /// ..  type:: void (^rsvc_encode_progress_f)(double progress)
