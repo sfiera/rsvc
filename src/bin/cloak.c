@@ -23,85 +23,54 @@
 
 #include "cloak.h"
 
-static void print_tags(rsvc_tags_t tags);
-static void print_images(rsvc_tags_t tags);
-static void tag_files(string_list_node_t node, ops_t ops, rsvc_done_t done);
-static void apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, ops_t ops,
-                      rsvc_done_t done);
-
-static void register_all_formats() {
-    rsvc_audio_formats_register();
-    rsvc_image_formats_register();
-}
+static bool tag_files(string_list_t list, ops_t ops, rsvc_done_t fail);
+static bool apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, ops_t ops,
+                      rsvc_done_t fail);
 
 static void cloak_main(int argc, char* const* argv) {
     const char* progname = strdup(basename(argv[0]));
     rsvc_done_t fail = ^(rsvc_error_t error){
-        if (error) {
-            errf("%s: %s (%s:%d)\n",
-                      progname, error->message, error->file, error->lineno);
-            exit(1);
-        }
-        exit(0);
+        errf("%s: %s (%s:%d)\n", progname, error->message, error->file, error->lineno);
+        exit(1);
     };
 
     struct ops ops = {};
     struct string_list files = {};
-
-    register_all_formats();
-    if (cloak_options(argc, argv, &ops, &files, fail)) {
-        tag_files(files.head, &ops, fail);
-        dispatch_main();
+    rsvc_audio_formats_register();
+    rsvc_image_formats_register();
+    if (cloak_options(argc, argv, &ops, &files, fail) &&
+        tag_files(&files, &ops, fail)) {
+        exit(0);
     }
 }
 
-static void tag_file(const char* path, ops_t ops, rsvc_done_t done) {
+static bool check_taggable(rsvc_format_t format, rsvc_done_t fail) {
+    if (!format->open_tags) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "can't tag %s file", format->name);
+        return false;
+    }
+    return true;
+}
+
+static bool tag_file(const char* path, ops_t ops, rsvc_done_t fail) {
+    bool result = false;
     int fd;
-    if (!rsvc_open(path, O_RDONLY, 0644, &fd, done)) {
-        return;
-    }
-    // From here on, prepend the file name to the error message, and
-    // close the file when we're done.
-    done = ^(rsvc_error_t error) {
-        close(fd);
-        if (error) {
-            rsvc_errorf(done, error->file, error->lineno, "%s: %s", path, error->message);
-        } else {
-            done(NULL);
-        }
-    };
-
-    rsvc_format_t format;
-    if (!rsvc_format_detect(path, fd, &format, done)) {
-        return;
-    } else if (!format->open_tags) {
-        rsvc_errorf(done, __FILE__, __LINE__, "%s: can't tag %s file", path, format->name);
-        return;
-    }
-
-    rsvc_tags_t tags;
-    if (!format->open_tags(path, cloak_mode(ops), &tags, done)) {
-        return;
-    }
-
-    apply_ops(tags, path, format, ops, ^(rsvc_error_t error){
-        if (error) {
+    if (rsvc_open(path, O_RDONLY, 0644, &fd, fail)) {
+        // From here on, prepend the file name to the error message.
+        fail = ^(rsvc_error_t error) { rsvc_prefix_error(path, error, fail); };
+        rsvc_format_t format;
+        rsvc_tags_t tags;
+        if (rsvc_format_detect(path, fd, &format, fail) &&
+            check_taggable(format, fail) &&
+            format->open_tags(path, cloak_mode(ops), &tags, fail)) {
+            if (apply_ops(tags, path, format, ops, fail)) {
+                result = true;
+            }
             rsvc_tags_destroy(tags);
-            done(error);
-            return;
         }
-        if (ops->list_mode == LIST_MODE_LONG) {
-            outf("%s:\n", path);
-        }
-        if (ops->list_tags) {
-            print_tags(tags);
-        }
-        if (ops->list_images) {
-            print_images(tags);
-        }
-        rsvc_tags_destroy(tags);
-        done(NULL);
-    });
+        close(fd);
+    }
+    return result;
 }
 
 static void print_tags(rsvc_tags_t tags) {
@@ -133,31 +102,24 @@ static void print_tags(rsvc_tags_t tags) {
 static void print_images(rsvc_tags_t tags) {
     for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_next(it); ) {
         struct rsvc_image_info info;
-        rsvc_done_t fail = ^(rsvc_error_t error){
-            (void)error;  // ignore failure and report byte size.
-            outf("%zu-byte %s image\n", it->size, it->format->name);
-        };
-        if (it->format->image_info("embedded image", it->data, it->size, &info, fail)) {
+        rsvc_done_t ignore = ^(rsvc_error_t error){ (void)error; };
+        if (it->format->image_info("embedded image", it->data, it->size, &info, ignore)) {
             outf("%zu×%zu %s image\n", info.width, info.height, it->format->name);
+        } else {
+            outf("%zu-byte %s image\n", it->size, it->format->name);
         }
     }
 }
 
-static void tag_files(string_list_node_t node, ops_t ops, rsvc_done_t done) {
-    if (!node) {
-        done(NULL);
-        return;
-    }
-    tag_file(node->value, ops, ^(rsvc_error_t error){
-        if (error) {
-            done(error);
-            return;
-        }
-        if (ops->list_mode && node->next) {
+static bool tag_files(string_list_t list, ops_t ops, rsvc_done_t fail) {
+    for (string_list_node_t curr = list->head; curr; curr = curr->next) {
+        if (!tag_file(curr->value, ops, fail)) {
+            return false;
+        } else if (ops->list_mode && curr->next) {
             outf("\n");
         }
-        tag_files(node->next, ops, done);
-    });
+    }
+    return true;
 }
 
 typedef struct segment* segment_t;
@@ -297,7 +259,7 @@ static void print_rename(const char* src, const char* dst) {
 }
 
 bool same_file(const char* x, const char* y) {
-    void (^ignore)(rsvc_error_t) = ^(rsvc_error_t error){ (void)error; };
+    rsvc_done_t ignore = ^(rsvc_error_t error){ (void)error; };
     bool same = false;
     int a_fd, b_fd;
     if (rsvc_open(x, O_RDONLY, 0644, &a_fd, ignore)
@@ -376,44 +338,45 @@ end:
     return success;
 }
 
-static void apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, ops_t ops,
-                      rsvc_done_t done) {
+static bool apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, ops_t ops,
+                      rsvc_done_t fail) {
     if (ops->remove_all_tags) {
-        if (!rsvc_tags_clear(tags, done)) {
-            return;
+        if (!rsvc_tags_clear(tags, fail)) {
+            return false;
         }
     } else {
         for (string_list_node_t curr = ops->remove_tags.head; curr; curr = curr->next) {
-            if (!rsvc_tags_remove(tags, curr->value, done)) {
-                return;
+            if (!rsvc_tags_remove(tags, curr->value, fail)) {
+                return false;
             }
         }
     }
 
     if (ops->remove_all_images) {
-        if (!rsvc_tags_image_clear(tags, done)) {
-            return;
+        if (!rsvc_tags_image_clear(tags, fail)) {
+            return false;
         }
     } else {
         for (remove_image_list_node_t curr = ops->remove_images.head; curr; curr = curr->next) {
-            if (!rsvc_tags_image_remove(tags, curr->index, done)) {
-                return;
+            if (!rsvc_tags_image_remove(tags, curr->index, fail)) {
+                return false;
             }
         }
     }
 
     for (string_list_node_t name = ops->add_tag_names.head, value = ops->add_tag_values.head;
          name && value; name = name->next, value = value->next) {
-        if (!rsvc_tags_add(tags, done, name->value, value->value)) {
-            return;
+        if (!rsvc_tags_add(tags, fail, name->value, value->value)) {
+            return false;
         }
     }
+
     for (write_image_list_node_t curr = ops->write_images.head; curr; curr = curr->next) {
         const int index = curr->index;
         rsvc_logf(1, "writing image %d to %s", index, curr->temp_path);
         if ((index < 0) || (rsvc_tags_image_size(tags) <= index)) {
-            rsvc_errorf(done, __FILE__, __LINE__, "bad index: %d", index);
-            return;
+            rsvc_errorf(fail, __FILE__, __LINE__, "bad index: %d", index);
+            return false;
         }
 
         int i = 0;
@@ -434,14 +397,14 @@ static void apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
                     strcat(image_path, format->extension);
                 }
                 success =
-                    rsvc_write(curr->path, curr->fd, it->data, it->size, NULL, NULL, done)
-                    && rsvc_rename(curr->temp_path, image_path, done);
+                    rsvc_write(curr->path, curr->fd, it->data, it->size, NULL, NULL, fail)
+                    && rsvc_rename(curr->temp_path, image_path, fail);
                 rsvc_break(it);
                 break;
             }
         }
         if (!success) {
-            return;
+            return false;
         }
     }
 
@@ -451,31 +414,42 @@ static void apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
         rsvc_format_t format = curr->format;
         uint8_t* data;
         size_t size;
-        if (!rsvc_mmap(path, fd, &data, &size, done)) {
-            return;
+        if (!rsvc_mmap(path, fd, &data, &size, fail)) {
+            return false;
         }
         struct rsvc_image_info image_info;
-        if (!format->image_info(path, data, size, &image_info, done)) {
+        if (!format->image_info(path, data, size, &image_info, fail)) {
             munmap(data, size);
-            return;
+            return false;
         }
         rsvc_logf(
                 2, "adding %s image from %s (%zux%zu, depth %zu, %zu-color)",
                 format->name, path, image_info.width, image_info.height, image_info.depth,
                 image_info.palette_size);
-        if (!rsvc_tags_image_add(tags, format, data, size, done)) {
+        if (!rsvc_tags_image_add(tags, format, data, size, fail)) {
             munmap(data, size);
-            return;
+            return false;
         }
         munmap(data, size);
     }
 
-    if (!((ops->move_mode ? move_file(path, format, tags, ops, done) : true)
-          && (ops->auto_mode ? rsvc_apply_musicbrainz_tags(tags, done) : true)
-          && (!ops->dry_run ? rsvc_tags_save(tags, done) : true))) {
-        return;
+    if (!(ops->move_mode ? move_file(path, format, tags, ops, fail) : true) ||
+        !(ops->auto_mode ? rsvc_apply_musicbrainz_tags(tags, fail) : true) ||
+        !(ops->dry_run ? true : rsvc_tags_save(tags, fail))) {
+        return false;
     }
-    done(NULL);
+
+    if (ops->list_mode == LIST_MODE_LONG) {
+        outf("%s:\n", path);
+    }
+    if (ops->list_tags) {
+        print_tags(tags);
+    }
+    if (ops->list_images) {
+        print_images(tags);
+    }
+
+    return true;
 }
 
 int main(int argc, char* const* argv) {
