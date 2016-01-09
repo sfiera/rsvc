@@ -45,6 +45,7 @@
       [ "src/bin/cloak.h"
       , "src/bin/strlist.h"
       , "src/bin/cloak.c"
+      , "src/bin/cloak_move.c"
       , "src/bin/cloak_options.c"
       ]
     , "dependencies": ["librsvc"]

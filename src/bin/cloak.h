@@ -185,5 +185,7 @@ typedef struct ops* ops_t;
 
 bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t files, rsvc_done_t fail);
 int cloak_mode(ops_t ops);
+bool cloak_move_file(const char* path, rsvc_format_t format, rsvc_tags_t tags, ops_t ops,
+                     rsvc_done_t fail);
 
 #endif  // SRC_BIN_CLOAK_H_
