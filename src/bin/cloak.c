@@ -178,7 +178,7 @@ static bool apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
                 char scratch[MAXPATHLEN];
                 if (!rsvc_ext(image_path, scratch)) {
                     strcat(image_path, ".");
-                    strcat(image_path, format->extension);
+                    strcat(image_path, it->format->extension);
                 }
                 success =
                     rsvc_write(curr->path, curr->fd, it->data, it->size, NULL, NULL, fail)
