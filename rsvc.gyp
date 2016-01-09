@@ -119,6 +119,7 @@
       , "<(DEPTH)/ext/mb5/mb5.gyp:libmusicbrainz"
       , "<(DEPTH)/ext/vorbis/vorbis.gyp:libvorbis"
       , "<(DEPTH)/ext/opus/opus.gyp:libopus"
+      , "<(DEPTH)/ext/opusfile/opusfile.gyp:libopusfile"
       , "<(DEPTH)/ext/ogg/ogg.gyp:libogg"
       ]
     , "export_dependent_settings":
@@ -130,6 +131,7 @@
       , "<(DEPTH)/ext/mb5/mb5.gyp:libmusicbrainz"
       , "<(DEPTH)/ext/vorbis/vorbis.gyp:libvorbis"
       , "<(DEPTH)/ext/opus/opus.gyp:libopus"
+      , "<(DEPTH)/ext/opusfile/opusfile.gyp:libopusfile"
       , "<(DEPTH)/ext/ogg/ogg.gyp:libogg"
       ]
     , "conditions":

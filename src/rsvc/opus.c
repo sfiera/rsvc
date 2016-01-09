@@ -23,6 +23,8 @@
 #include "audio.h"
 
 #include <opus.h>
+#include <opusfile.h>
+#include <string.h>
 #include <rsvc/format.h>
 
 #include "ogg.h"
