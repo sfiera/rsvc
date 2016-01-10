@@ -26,6 +26,8 @@
 #include <opusfile.h>
 #include <string.h>
 #include <sys/param.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <rsvc/format.h>
 
 #include "common.h"
