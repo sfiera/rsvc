@@ -42,5 +42,6 @@ bool                    rsvc_lame_encode(  int src_fd, int dst_fd,
                                            rsvc_encode_options_t options, rsvc_done_t fail);
 bool                    rsvc_mad_decode(int src_fd, int dst_fd,
                                         rsvc_decode_info_f info, rsvc_done_t fail);
+bool                    rsvc_mad_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail);
 
 #endif  // RSVC_AUDIO_H_

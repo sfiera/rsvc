@@ -146,7 +146,7 @@ static enum mad_flow mad_error(void* v, struct mad_stream* stream, struct mad_fr
     }
 }
 
-bool mad_pre_decode(struct mad_userdata* userdata) {
+bool mad_get_audio_info(struct mad_userdata* userdata) {
     struct mad_decoder decoder;
     mad_decoder_init(&decoder, userdata,
                      mad_input,
@@ -191,7 +191,7 @@ bool rsvc_mad_decode(int src_fd, int dst_fd,
         .dst_fd = dst_fd,
         .fail = fail,
     };
-    if (!mad_pre_decode(&userdata)) {
+    if (!mad_get_audio_info(&userdata)) {
         return false;
     }
     struct rsvc_audio_info i = {
@@ -207,4 +207,22 @@ bool rsvc_mad_decode(int src_fd, int dst_fd,
     }
     userdata.end_position = 0;
     return mad_decode(&userdata);
+}
+
+bool rsvc_mad_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
+    struct mad_userdata userdata = {
+        .src_fd = fd,
+        .fail = fail,
+    };
+    if (!(rsvc_id3_skip_tags(fd, fail) &&
+          mad_get_audio_info(&userdata))) {
+        return false;
+    }
+    struct rsvc_audio_info i = {
+        .sample_rate = userdata.sample_rate,
+        .channels = userdata.channels,
+        .samples_per_channel = userdata.sample_count
+    };
+    *info = i;
+    return true;
 }

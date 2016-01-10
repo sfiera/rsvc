@@ -33,6 +33,7 @@ const struct rsvc_format rsvc_mp3 = {
     .open_tags = rsvc_id3_open_tags,
     .encode = rsvc_lame_encode,
     .decode = rsvc_mad_decode,
+    .audio_info = rsvc_mad_audio_info,
 };
 
 // TODO(sfiera): allow alac encoding too.
