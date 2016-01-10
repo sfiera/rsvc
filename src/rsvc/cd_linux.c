@@ -22,7 +22,6 @@
 
 #include <rsvc/cd.h>
 
-#include <Block.h>
 #include <discid/discid.h>
 #include <fcntl.h>
 #include <linux/cdrom.h>
@@ -38,156 +37,170 @@
 #include "unix.h"
 
 struct rsvc_cd {
-    dispatch_queue_t queue;
+    dispatch_queue_t   queue;
 
-    int fd;
-    char* path;
-    struct cdrom_mcn mcn;
+    int                fd;
+    char*              path;
+    struct cdrom_mcn   mcn;
 
-    size_t nsessions;
-    rsvc_cd_session_t sessions;
-    size_t ntracks;
-    rsvc_cd_track_t tracks;
+    size_t             nsessions;
+    rsvc_cd_session_t  sessions;
+    size_t             ntracks;
+    rsvc_cd_track_t    tracks;
 };
 
 struct rsvc_cd_session {
-    size_t number;
-    rsvc_cd_track_t track_begin;
-    rsvc_cd_track_t track_end;
-    size_t lead_out;
-    DiscId* discid;
+    size_t           number;
+    rsvc_cd_track_t  track_begin;
+    rsvc_cd_track_t  track_end;
+    size_t           lead_out;
+    DiscId*          discid;
 };
 
 struct rsvc_cd_track {
-    size_t number;
-    rsvc_cd_t cd;
-    rsvc_cd_session_t session;
-    enum rsvc_cd_track_type type;
-    size_t sector_begin;
-    size_t sector_end;
-    int nchannels;
+    size_t                   number;
+    rsvc_cd_t                cd;
+    rsvc_cd_session_t        session;
+    enum rsvc_cd_track_type  type;
+    size_t                   sector_begin;
+    size_t                   sector_end;
+    int                      nchannels;
 };
 
-void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
-    int fd;
-    if (!rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, ^(rsvc_error_t error){
-        done(NULL, error);
-    })) {
-        return;
-    }
-
-    struct rsvc_cd build_cd = {
-        .queue      = dispatch_queue_create("net.sfiera.ripservice.cd", NULL),
-        .fd         = fd,
-        .path       = strdup(path),
-    };
-    rsvc_cd_t cd = memdup(&build_cd, sizeof(build_cd));
-
-    // Ensure that the done callback does not run in cd->queue.
-    done = ^(rsvc_cd_t cd, rsvc_error_t error){
-        rsvc_error_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), error,
-                         ^(rsvc_error_t error){
-            if (error) {
-                rsvc_cd_destroy(cd);
-                done(NULL, error);
-            } else {
-                done(cd, NULL);
-            }
-        });
-    };
-    rsvc_done_t fail = ^(rsvc_error_t error){
-        done(NULL, error);
-    };
-
-    dispatch_async(cd->queue, ^{
-        // Read the CD's MCN, if it has one.
-        struct cdrom_mcn mcn = {};
-        if (ioctl(fd, CDROM_GET_MCN, &mcn) == 0) {
-            memcpy(&cd->mcn, &mcn, sizeof(mcn));
+bool build_tracks(  rsvc_cd_t cd, rsvc_cd_track_t* track, size_t begin, size_t end,
+                    rsvc_done_t fail) {
+    for (size_t i = begin; i != end; ++i) {
+        struct cdrom_tocentry tocentry = {
+            .cdte_track = i,
+            .cdte_format = CDROM_LBA,
+        };
+        if (ioctl(cd->fd, CDROMREADTOCENTRY, &tocentry) != 0) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+            return false;
         }
+        if (i > begin) {
+            (*track)++->sector_end = tocentry.cdte_addr.lba;
+        }
+        bool data = tocentry.cdte_ctrl & CDROM_DATA_TRACK;
+        bool quad = tocentry.cdte_ctrl & 0x8;
+        struct rsvc_cd_track build_track = {
+            .number        = i,
+            .cd            = cd,
+            .session       = &cd->sessions[0],
+            .type          = data ? RSVC_CD_TRACK_DATA : RSVC_CD_TRACK_AUDIO,
+            .sector_begin  = tocentry.cdte_addr.lba,
+            .nchannels     = quad ? 4 : 2,
+        };
+        **track = build_track;
+    }
+    return true;
+}
 
+bool build_sessions(rsvc_cd_t cd, size_t begin, size_t end, rsvc_done_t fail) {
+    struct rsvc_cd_session build_session = {
+        .number         = 1,
+        .track_begin    = &cd->tracks[0],
+        .track_end      = &cd->tracks[end - begin],
+        .lead_out       = 0,
+        .discid         = discid_new(),
+    };
+    cd->sessions[0] = build_session;
+    (void)fail;
+    return true;
+}
+
+static bool read_leadout(rsvc_cd_t cd, rsvc_cd_track_t track, rsvc_done_t fail) {
+    struct cdrom_tocentry tocentry = {
+        .cdte_track = CDROM_LEADOUT,
+        .cdte_format = CDROM_LBA,
+    };
+    if (ioctl(cd->fd, CDROMREADTOCENTRY, &tocentry) != 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+    track->sector_end = tocentry.cdte_addr.lba;
+    return true;
+}
+
+bool calculate_musicbrainz_discid(rsvc_cd_t cd, rsvc_done_t fail) {
+    for (size_t i = 0; i < cd->nsessions; ++i) {
+        rsvc_cd_session_t session = &cd->sessions[i];
+        int offsets[101] = {};
+        int* offset = offsets;
+        *(offset++) = (session->track_end - 1)->sector_end + 150;
+        for (rsvc_cd_track_t track = session->track_begin;
+             track != session->track_end; ++track) {
+            *(offset++) = track->sector_begin + 150;
+        }
+        size_t ntracks = session->track_end - session->track_begin;
+        if (!discid_put(session->discid, 1, ntracks, offsets)) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "%s", discid_get_error_msg(session->discid));
+            return false;
+        }
+    }
+    return true;
+}
+
+bool rsvc_cd_create(char* path, rsvc_cd_t* cd, rsvc_done_t fail) {
+    fail = ^(rsvc_error_t error){
+        rsvc_prefix_error(path, error, fail);
+    };
+
+    bool ok = false;
+    int fd;
+    if (rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, fail)) {
         struct cdrom_tochdr tochdr = {};
         if (ioctl(fd, CDROMREADTOCHDR, &tochdr) != 0) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-            return;
-        }
+            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        } else {
+            size_t begin = tochdr.cdth_trk0;
+            size_t end = tochdr.cdth_trk1 + 1;
 
-        size_t begin = tochdr.cdth_trk0;
-        size_t end = tochdr.cdth_trk1 + 1;
+            struct rsvc_cd build_cd = {
+                .fd         = fd,
+                .queue      = dispatch_queue_create("net.sfiera.ripservice.cd", NULL),
+                .path       = strdup(path),
+                .nsessions  = 1,
+                .sessions   = calloc(1, sizeof(struct rsvc_cd_session)),
 
-        cd->nsessions = 1;
-        cd->sessions = calloc(cd->nsessions, sizeof(struct rsvc_cd_session));
-
-        cd->ntracks = end - begin;
-        cd->tracks = calloc(cd->ntracks, sizeof(struct rsvc_cd_track));
-        rsvc_cd_track_t track = &cd->tracks[0];
-        for (size_t i = begin; i != end; ++i) {
-            struct cdrom_tocentry tocentry = {
-                .cdte_track = i,
-                .cdte_format = CDROM_LBA,
+                .ntracks    = end - begin,
+                .tracks     = calloc(end - begin, sizeof(struct rsvc_cd_track)),
             };
-            if (ioctl(fd, CDROMREADTOCENTRY, &tocentry) != 0) {
-                rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-                return;
-            }
-            if (i > begin) {
-                (track++)->sector_end = tocentry.cdte_addr.lba;
-            }
-            bool data = tocentry.cdte_ctrl & CDROM_DATA_TRACK;
-            bool quad = tocentry.cdte_ctrl & 0x8;
-            struct rsvc_cd_track build_track = {
-                .number = i,
-                .cd = cd,
-                .session = &cd->sessions[0],
-                .type = data ? RSVC_CD_TRACK_DATA : RSVC_CD_TRACK_AUDIO,
-                .sector_begin = tocentry.cdte_addr.lba,
-                .nchannels = quad ? 4 : 2,
-            };
-            memcpy(track, &build_track, sizeof(build_track));
-        }
+            *cd = memdup(&build_cd, sizeof(build_cd));
 
-        /* read leadout */ {
-            struct cdrom_tocentry tocentry = {
-                .cdte_track = CDROM_LEADOUT,
-                .cdte_format = CDROM_LBA,
-            };
-            if (ioctl(fd, CDROMREADTOCENTRY, &tocentry) != 0) {
-                rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-                return;
+            // Read the CD's MCN, if it has one.
+            struct cdrom_mcn mcn = {};
+            if (ioctl(fd, CDROM_GET_MCN, &mcn) == 0) {
+                (*cd)->mcn = mcn;
             }
-            track->sector_end = tocentry.cdte_addr.lba;
-        }
 
-        struct rsvc_cd_session build_session = {
-            .number         = 1,
-            .track_begin    = &cd->tracks[0],
-            .track_end      = &cd->tracks[end - begin],
-            .lead_out       = 0,
-            .discid         = discid_new(),
-        };
-        memcpy(&cd->sessions[0], &build_session, sizeof(build_session));
-
-        // Calculate the discid for MusicBrainz.
-        for (size_t i = 0; i < cd->nsessions; ++i) {
-            rsvc_cd_session_t session = &cd->sessions[i];
-            int offsets[101] = {};
-            int* offset = offsets;
-            *(offset++) = (session->track_end - 1)->sector_end + 150;
-            for (rsvc_cd_track_t track = session->track_begin;
-                 track != session->track_end; ++track) {
-                *(offset++) = track->sector_begin + 150;
+            rsvc_cd_track_t track = &(*cd)->tracks[0];
+            if (build_tracks(*cd, &track, begin, end, fail) &&
+                read_leadout(*cd, track, fail) &&
+                build_sessions(*cd, begin, end, fail)) {
+                if (calculate_musicbrainz_discid(*cd, fail)) {
+                    ok = true;
+                }
+                if (!ok) {
+                    discid_free((*cd)->sessions[0].discid);
+                }
             }
-            size_t ntracks = session->track_end - session->track_begin;
-            if (!discid_put(session->discid, 1, ntracks, offsets)) {
-                rsvc_errorf(^(rsvc_error_t error){
-                    done(NULL, error);
-                }, __FILE__, __LINE__, "%s: discid failure", cd->path);
-                return;
+            if (!ok) {
+                free((*cd)->sessions);
+                free((*cd)->tracks);
+                free((*cd)->path);
+                dispatch_release((*cd)->queue);
+                free(*cd);
             }
         }
-
-        done(cd, NULL);
-    });
+        if (!ok) {
+            close(fd);
+        }
+    }
+    if (!ok) {
+        *cd = NULL;
+    }
+    return ok;
 }
 
 void rsvc_cd_destroy(rsvc_cd_t cd) {
