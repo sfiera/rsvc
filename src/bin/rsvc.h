@@ -45,6 +45,7 @@ struct rsvc_command {
 
 extern struct rsvc_command rsvc_convert;
 extern struct rsvc_command rsvc_eject;
+extern struct rsvc_command rsvc_info;
 extern struct rsvc_command rsvc_ls;
 extern struct rsvc_command rsvc_print;
 extern struct rsvc_command rsvc_rip;

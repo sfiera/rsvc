@@ -31,6 +31,7 @@
       , "src/bin/rsvc.c"
       , "src/bin/rsvc_convert.c"
       , "src/bin/rsvc_eject.c"
+      , "src/bin/rsvc_info.c"
       , "src/bin/rsvc_ls.c"
       , "src/bin/rsvc_print.c"
       , "src/bin/rsvc_rip.c"

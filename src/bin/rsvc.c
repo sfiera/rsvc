@@ -44,6 +44,7 @@ static rsvc_command_t  commands[]  = {
     &rsvc_watch,
     &rsvc_print,
     &rsvc_eject,
+    &rsvc_info,
     &rsvc_rip,
     &rsvc_convert,
     NULL,
@@ -162,6 +163,7 @@ void rsvc_usage(rsvc_done_t done) {
                 "  ls                    list CDs\n"
                 "  watch                 watch for CDs\n"
                 "  eject [DEVICE]        eject CD\n"
+                "  info FILE...          print audio file info\n"
                 "  rip [DEVICE]          rip tracks to files\n"
                 "  convert IN [-o OUT]   convert files\n"
                 "\n"
