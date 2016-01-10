@@ -57,6 +57,18 @@ static uint16_t u16le(uint8_t data[2]) {
     return (data[0] << 0) | (data[1] << 8);
 }
 
+static void u32le_out(uint8_t* data, uint32_t v) {
+    data[0] = v >> 0;
+    data[1] = v >> 8;
+    data[2] = v >> 16;
+    data[3] = v >> 24;
+}
+
+static void u16le_out(uint8_t* data, uint16_t v) {
+    data[0] = v >> 0;
+    data[1] = v >> 8;
+}
+
 static bool read_riff_chunk_header(int fd, riff_chunk_t rc, rsvc_done_t fail) {
     uint8_t header[8];
     if (!rsvc_read(NULL, fd, header, 8, NULL, NULL, fail)) {
@@ -187,6 +199,45 @@ bool wav_audio_decode(int src_fd, int dst_fd, rsvc_decode_info_f info, rsvc_done
     return true;
 }
 
+bool wav_audio_encode(int src_fd, int dst_fd, rsvc_encode_options_t opts, rsvc_done_t fail) {
+    static const int header_size = 44;
+    uint8_t header[header_size];
+    size_t sampl = opts->info.sample_rate;
+    size_t chans = opts->info.channels;
+    size_t bytes = opts->info.bits_per_sample / 8;
+    size_t data_size = opts->info.samples_per_channel * chans * bytes;
+    size_t riff_size = header_size - 4 + data_size;
+    u32le_out(header + 0,   WAV_RIFF);
+    u32le_out(header + 4,   riff_size);
+    u32le_out(header + 8,   WAV_WAVE);
+    u32le_out(header + 12,  WAV_FMT);
+    u32le_out(header + 16,  16);
+    u16le_out(header + 20,  1);
+    u16le_out(header + 22,  chans);
+    u32le_out(header + 24,  sampl);
+    u32le_out(header + 28,  sampl * chans * bytes);
+    u16le_out(header + 32,  chans * bytes);
+    u16le_out(header + 34,  bytes * 8);
+    u32le_out(header + 36,  WAV_DATA);
+    u32le_out(header + 40,  data_size);
+
+    if (!rsvc_write(NULL, dst_fd, header, header_size, NULL, NULL, fail)) {
+        return false;
+    }
+
+    size_t remainder = data_size;
+    while (remainder) {
+        uint8_t data[4096];
+        size_t size = (remainder > 4096) ? 4096 : remainder;
+        if (!(rsvc_read(NULL, src_fd, data, size, NULL, NULL, fail) &&
+              rsvc_write(NULL, dst_fd, data, size, NULL, NULL, fail))) {
+            return false;
+        }
+        remainder -= size;
+    }
+    return true;
+}
+
 const struct rsvc_format rsvc_wav = {
     .format_group = RSVC_AUDIO,
     .name = "wav",
@@ -197,4 +248,5 @@ const struct rsvc_format rsvc_wav = {
     .lossless = true,
     .audio_info = wav_audio_info,
     .decode = wav_audio_decode,
+    .encode = wav_audio_encode,
 };
