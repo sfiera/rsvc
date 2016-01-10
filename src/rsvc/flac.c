@@ -697,6 +697,93 @@ static void flac_decode_error(const FLAC__StreamDecoder* decoder,
     }
 }
 
+typedef struct flac_audio_info_userdata* flac_audio_info_userdata_t;
+struct flac_audio_info_userdata {
+    int          fd;
+    rsvc_done_t  fail;
+    bool         called_fail;
+    size_t       size_inout;
+    bool         eof;
+};
+
+static size_t flac_audio_info_read(void *ptr, size_t size, size_t count, FLAC__IOHandle handle) {
+    flac_audio_info_userdata_t u = handle;
+    if (!rsvc_cread(NULL, u->fd, ptr, count, size, &count, &u->size_inout, &u->eof, u->fail)) {
+        u->called_fail = true;
+        return -1;
+    }
+    return count;
+}
+
+static int flac_audio_info_seek(FLAC__IOHandle handle, FLAC__int64 offset, int whence) {
+    flac_audio_info_userdata_t u = handle;
+    off_t off = lseek(u->fd, offset, whence);
+    if (off < 0) {
+        rsvc_strerrorf(u->fail, __FILE__, __LINE__, NULL);
+        u->called_fail = true;
+        return -1;
+    }
+    return 0;
+}
+
+static FLAC__int64 flac_audio_info_tell(FLAC__IOHandle handle) {
+    flac_audio_info_userdata_t u = handle;
+    off_t off = lseek(u->fd, 0, SEEK_CUR);
+    if (off < 0) {
+        rsvc_strerrorf(u->fail, __FILE__, __LINE__, NULL);
+        u->called_fail = true;
+        return -1;
+    }
+    return off;
+}
+
+static int flac_audio_info_eof(FLAC__IOHandle handle) {
+    flac_audio_info_userdata_t u = handle;
+    return u->eof;
+}
+
+static bool rsvc_flac_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
+    static FLAC__IOCallbacks cb = {
+        .read  = flac_audio_info_read,
+        .seek  = flac_audio_info_seek,
+        .tell  = flac_audio_info_tell,
+        .eof   = flac_audio_info_eof,
+    };
+    struct flac_audio_info_userdata u = {
+        .fd    = fd,
+        .fail  = fail,
+    };
+
+    bool ok = false;
+    FLAC__Metadata_Chain* chain = FLAC__metadata_chain_new();
+    FLAC__Metadata_Iterator* it = FLAC__metadata_iterator_new();
+    if (!FLAC__metadata_chain_read_with_callbacks(chain, &u, cb)) {
+        if (!u.called_fail) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "%s",
+                    FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(chain)]);
+        }
+    } else {
+        FLAC__metadata_iterator_init(it, chain);
+        if (FLAC__metadata_iterator_get_block_type(it) != FLAC__METADATA_TYPE_STREAMINFO) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "%s",
+                    FLAC__Metadata_ChainStatusString[FLAC__metadata_chain_status(chain)]);
+        } else {
+            FLAC__StreamMetadata* block = FLAC__metadata_iterator_get_block(it);
+            FLAC__StreamMetadata_StreamInfo* si = &block->data.stream_info;
+            struct rsvc_audio_info i = {
+                .channels             = si->channels,
+                .sample_rate          = si->sample_rate,
+                .samples_per_channel  = si->total_samples,
+            };
+            *info = i;
+            ok = true;
+        }
+    }
+    FLAC__metadata_iterator_delete(it);
+    FLAC__metadata_chain_delete(chain);
+    return ok;
+}
+
 const struct rsvc_format rsvc_flac = {
     .format_group = RSVC_AUDIO,
     .name = "flac",
@@ -708,4 +795,5 @@ const struct rsvc_format rsvc_flac = {
     .open_tags = rsvc_flac_open_tags,
     .encode = rsvc_flac_encode,
     .decode = rsvc_flac_decode,
+    .audio_info = rsvc_flac_audio_info,
 };
