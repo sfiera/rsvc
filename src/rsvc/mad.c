@@ -40,9 +40,7 @@ struct mad_userdata {
     unsigned char data[4096];
     unsigned char* end;
     size_t end_position;
-    size_t sample_count;
-    size_t sample_rate;
-    size_t channels;
+    struct rsvc_audio_info info;
     rsvc_done_t fail;
 };
 
@@ -73,18 +71,19 @@ static enum mad_flow mad_input(void* v, struct mad_stream* stream) {
 
 static enum mad_flow mad_header(void* v, struct mad_header const* header) {
     struct mad_userdata* userdata = v;
-    userdata->sample_rate = header->samplerate;
+    userdata->info.bits_per_sample = 16;  // TODO(sfiera): mad outputs 24
+    userdata->info.sample_rate = header->samplerate;
 
     switch (header->mode) {
         case MAD_MODE_SINGLE_CHANNEL:
-            userdata->channels = 1;
+            userdata->info.channels = 1;
             break;
 
         case MAD_MODE_DUAL_CHANNEL:
         case MAD_MODE_STEREO:
         case MAD_MODE_JOINT_STEREO:
         default:
-            userdata->channels = 2;
+            userdata->info.channels = 2;
             break;
     }
 
@@ -111,7 +110,7 @@ static int16_t mad_scale(mad_fixed_t sample) {
 static enum mad_flow mad_count(void* v, struct mad_header const* header, struct mad_pcm* pcm) {
     (void)header;
     struct mad_userdata* userdata = v;
-    userdata->sample_count += pcm->length;
+    userdata->info.samples_per_channel += pcm->length;
     return MAD_FLOW_CONTINUE;
 }
 
@@ -194,12 +193,7 @@ bool rsvc_mad_decode(int src_fd, int dst_fd,
     if (!mad_get_audio_info(&userdata)) {
         return false;
     }
-    struct rsvc_audio_info i = {
-        .sample_rate = userdata.sample_rate,
-        .channels = userdata.channels,
-        .samples_per_channel = userdata.sample_count
-    };
-    info(&i);
+    info(&userdata.info);
 
     if (lseek(src_fd, offset, SEEK_SET) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
@@ -218,11 +212,6 @@ bool rsvc_mad_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
           mad_get_audio_info(&userdata))) {
         return false;
     }
-    struct rsvc_audio_info i = {
-        .sample_rate = userdata.sample_rate,
-        .channels = userdata.channels,
-        .samples_per_channel = userdata.sample_count
-    };
-    *info = i;
+    *info = userdata.info;
     return true;
 }

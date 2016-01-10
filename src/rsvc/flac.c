@@ -771,9 +771,10 @@ static bool rsvc_flac_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fai
             FLAC__StreamMetadata* block = FLAC__metadata_iterator_get_block(it);
             FLAC__StreamMetadata_StreamInfo* si = &block->data.stream_info;
             struct rsvc_audio_info i = {
-                .channels             = si->channels,
                 .sample_rate          = si->sample_rate,
+                .channels             = si->channels,
                 .samples_per_channel  = si->total_samples,
+                .bits_per_sample      = si->bits_per_sample,
             };
             *info = i;
             ok = true;

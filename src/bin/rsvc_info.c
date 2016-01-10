@@ -70,6 +70,7 @@ static bool print_info(const char* value, int fd, rsvc_done_t fail) {
     }
     outf("  - sample rate: %zu\n", info.sample_rate);
     outf("  - channels:    %zu\n", info.channels);
+    outf("  - bits:        %zu\n", info.bits_per_sample);
     return true;
 }
 
