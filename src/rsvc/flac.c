@@ -587,6 +587,7 @@ static void flac_decode_metadata(const FLAC__StreamDecoder* decoder,
         .channels = metadata->data.stream_info.channels,
         .sample_rate = metadata->data.stream_info.sample_rate,
         .samples_per_channel = metadata->data.stream_info.total_samples,
+        .bits_per_sample = metadata->data.stream_info.bits_per_sample,
     };
     u->info(&info);
 }
