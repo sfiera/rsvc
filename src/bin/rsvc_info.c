@@ -22,6 +22,7 @@
 
 #include "rsvc.h"
 
+#include <sys/mman.h>
 #include <string.h>
 #include <rsvc/audio.h>
 #include <rsvc/format.h>
@@ -42,20 +43,9 @@ static void push_string(struct string_list* list, const char* value) {
     RSVC_LIST_PUSH(list, memdup(&tmp, sizeof(tmp)));
 }
 
-static bool check_has_audio_info(rsvc_format_t format, rsvc_done_t fail) {
-    if (!format->audio_info) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "can't get audio info for %s file", format->name);
-        return false;
-    }
-    return true;
-}
-
-static bool print_info(const char* path, int width, int fd, rsvc_done_t fail) {
-    rsvc_format_t format;
+static bool print_audio_info(const char* path, int fd, rsvc_format_t format, int width, rsvc_done_t fail) {
     struct rsvc_audio_info info;
-    if (!(rsvc_format_detect(path, fd, &format, fail)
-          && check_has_audio_info(format, fail)
-          && format->audio_info(fd, &info, fail))) {
+    if (!format->audio_info(fd, &info, fail)) {
         return false;
     }
 
@@ -79,7 +69,7 @@ static bool print_info(const char* path, int width, int fd, rsvc_done_t fail) {
     } else {
         outf(" %zu-channel", info.channels);
     }
-    outf(" %s (%zu-bit,", format->name, info.bits_per_sample);
+    outf(" %s audio (%zu-bit,", format->name, info.bits_per_sample);
 
     int64_t khz = info.sample_rate / 1000;
     int64_t hz = info.sample_rate % 1000;
@@ -94,6 +84,45 @@ static bool print_info(const char* path, int width, int fd, rsvc_done_t fail) {
     }
     outf(")\n");
     return true;
+}
+
+static bool print_image_info(const char* path, int fd, rsvc_format_t format, int width, rsvc_done_t fail) {
+    bool ok = false;
+    uint8_t* data;
+    size_t size;
+    if (rsvc_mmap(path, fd, &data, &size, fail)) {
+        struct rsvc_image_info info;
+        if (format->image_info(path, data, size, &info, fail)) {
+            ok = true;
+            outf("%s: ", path);
+            for (int i = strlen(path); i < width; ++i) {
+                outf(" ");
+            }
+            outf("%zu×%zu %s image (%zu-bit", info.width, info.height, format->name, info.depth);
+            if (info.palette_size != 0) {
+                outf(", %zu colors)\n", info.palette_size);
+            }
+            outf(")\n");
+        }
+        munmap(data, size);
+    }
+    return ok;
+}
+
+static bool print_info(const char* path, int fd, int width, rsvc_done_t fail) {
+    rsvc_format_t format;
+    if (!rsvc_format_detect(path, fd, &format, fail)) {
+        return false;
+    }
+
+    if (format->audio_info) {
+        return print_audio_info(path, fd, format, width, fail);
+    } else if (format->image_info) {
+        return print_image_info(path, fd, format, width, fail);
+    } else {
+        rsvc_errorf(fail, __FILE__, __LINE__, "no info available");
+        return false;
+    }
 }
 
 struct rsvc_command rsvc_info = {
@@ -125,7 +154,7 @@ struct rsvc_command rsvc_info = {
                 close(fd);
                 rsvc_prefix_error(curr->value, error, done);
             };
-            if (!print_info(curr->value, width, fd, file_fail)) {
+            if (!print_info(curr->value, fd, width, file_fail)) {
                 return;
             }
             close(fd);
