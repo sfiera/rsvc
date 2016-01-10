@@ -80,6 +80,6 @@ struct rsvc_disc_watch_callbacks {
 ///     dispatch queue to maintain consistency.
 void                    rsvc_disc_watch(struct rsvc_disc_watch_callbacks callbacks);
 
-void                    rsvc_disc_eject(const char* path, rsvc_done_t done);
+bool                    rsvc_disc_eject(const char* path, rsvc_done_t fail);
 
 #endif  // RSVC_DISC_H_

@@ -104,7 +104,9 @@ struct rsvc_command rsvc_rip = {
                 if (error) {
                     done(error);
                 } else if (opts.eject) {
-                    rsvc_disc_eject(opts.disk, done);
+                    if (rsvc_disc_eject(opts.disk, done)) {
+                        done(NULL);
+                    }
                 } else {
                     done(NULL);
                 }

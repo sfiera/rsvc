@@ -47,7 +47,9 @@ struct rsvc_command rsvc_eject = {
             return;
         }
 
-        rsvc_disc_eject(disk, done);
+        if (rsvc_disc_eject(disk, done)) {
+            done(NULL);
+        }
     },
 
     .argument = ^bool (char* arg, rsvc_done_t fail) {

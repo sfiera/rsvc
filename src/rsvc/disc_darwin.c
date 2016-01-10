@@ -29,6 +29,7 @@
 #include <IOKit/storage/IOCDMedia.h>
 #include <IOKit/storage/IODVDMedia.h>
 #include <IOKit/storage/IOMedia.h>
+#include <mach/error.h>
 #include <sys/param.h>
 
 #include "disc.h"
@@ -158,73 +159,95 @@ void rsvc_disc_watch(struct rsvc_disc_watch_callbacks callbacks) {
     });
 }
 
+struct da_data {
+    bool                  ok;
+    dispatch_semaphore_t  sema;
+    rsvc_done_t           fail;
+};
+
+static void dissent_error(rsvc_done_t fail, const char* file, int lineno, uint32_t status) {
+    if ((status & system_emask) == err_kern) {
+        if ((status & sub_emask) == err_sub(3)) {
+            errno = err_get_code(status);
+            rsvc_strerrorf(fail, file, lineno, NULL);
+        }
+    }
+    rsvc_errorf(fail, file, lineno, "dissent error: $%08x", status);
+}
+
 static void da_callback(DADiskRef disk, DADissenterRef dissenter, void *userdata) {
     (void)disk;
-    rsvc_done_t done = userdata;
-    bool called_done = false;
+    struct da_data* da = userdata;
     if (dissenter) {
-        CFStringRef cfstr = DADissenterGetStatusString(dissenter);
         int status = DADissenterGetStatus(dissenter);
+        CFStringRef cfstr = DADissenterGetStatusString(dissenter);
         if (cfstr) {
             size_t size = CFStringGetLength(cfstr) + 1;
             char* str = malloc(size);
             if (CFStringGetCString(cfstr, str, size, kCFStringEncodingUTF8)) {
-                rsvc_errorf(done, __FILE__, __LINE__, "%s", str);
-                called_done = true;
+                rsvc_errorf(da->fail, __FILE__, __LINE__, "%s", str);
+            } else {
+                dissent_error(da->fail, __FILE__, __LINE__, status);
             }
             free(str);
+        } else {
+            dissent_error(da->fail, __FILE__, __LINE__, status);
         }
-        if (!called_done) {
-            rsvc_errorf(done, __FILE__, __LINE__, "DADissenterGetStatusString: %x", status);
-        }
+        da->ok = false;
     } else {
-        done(NULL);
+        da->ok = true;
     }
-    Block_release(done);
+    dispatch_semaphore_signal(da->sema);
 }
 
-void rsvc_disc_eject(const char* path, rsvc_done_t done) {
+static bool copy_disk_description(DADiskRef disk, CFDictionaryRef* dict, rsvc_done_t fail) {
+    *dict = DADiskCopyDescription(disk);
+    if (!*dict) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "no such disk");
+        return false;
+    }
+    return true;
+}
+
+bool rsvc_disc_eject(const char* path, rsvc_done_t fail) {
     dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
     DASessionRef session = DASessionCreate(NULL);
     DASessionSetDispatchQueue(session, queue);
     DADiskRef disk = DADiskCreateFromBSDName(NULL, session, path);
 
-    done = ^(rsvc_error_t error){
-        if (error) {
-            rsvc_errorf(done, __FILE__, __LINE__,
-                        "%s: %s", DADiskGetBSDName(disk), error->message);
-        } else {
-            done(NULL);
-        }
-        CFRelease(disk);
-        CFRelease(session);
+    fail = ^(rsvc_error_t error){
+        rsvc_errorf(fail, error->file, error->lineno,
+                    "%s: %s", DADiskGetBSDName(disk), error->message);
     };
 
-    dispatch_async(queue, ^{
-        CFDictionaryRef dict = DADiskCopyDescription(disk);
-        if (!dict) {
-            rsvc_errorf(done, __FILE__, __LINE__, "no such disk");
-            return;
-        }
+    struct da_data da = {
+        .ok = false,
+        .fail = fail,
+    };
+    CFDictionaryRef dict;
+    if (copy_disk_description(disk, &dict, fail)) {
         bool mounted = CFDictionaryGetValueIfPresent(dict, kDADiskDescriptionVolumePathKey,
                                                      NULL);
         bool ejectable = CFDictionaryGetValue(dict, kDADiskDescriptionMediaEjectableKey)
                          == kCFBooleanTrue;
         CFRelease(dict);
 
+        da.sema = dispatch_semaphore_create(0);
         if (!ejectable) {
-            rsvc_errorf(done, __FILE__, __LINE__, "not ejectable");
+            rsvc_errorf(fail, __FILE__, __LINE__, "not ejectable");
         } else if (mounted) {
-            rsvc_done_t eject = ^(rsvc_error_t error){
-                if (error) {
-                    done(error);
-                    return;
-                }
-                DADiskEject(disk, kDADiskEjectOptionDefault, da_callback, Block_copy(done));
-            };
-            DADiskUnmount(disk, kDADiskUnmountOptionDefault, da_callback, Block_copy(eject));
+            DADiskUnmount(disk, kDADiskUnmountOptionDefault, da_callback, &da);
+            dispatch_semaphore_wait(da.sema, DISPATCH_TIME_FOREVER);
+            if (da.ok) {
+                DADiskEject(disk, kDADiskEjectOptionDefault, da_callback, &da);
+                dispatch_semaphore_wait(da.sema, DISPATCH_TIME_FOREVER);
+            }
         } else {
-            DADiskEject(disk, kDADiskEjectOptionDefault, da_callback, Block_copy(done));
+            DADiskEject(disk, kDADiskEjectOptionDefault, da_callback, &da);
+            dispatch_semaphore_wait(da.sema, DISPATCH_TIME_FOREVER);
         }
-    });
+        dispatch_release(da.sema);
+    }
+    CFRelease(session);
+    return da.ok;
 }

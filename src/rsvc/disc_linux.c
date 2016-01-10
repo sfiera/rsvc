@@ -217,29 +217,18 @@ void rsvc_disc_watch(struct rsvc_disc_watch_callbacks callbacks) {
     });
 }
 
-void rsvc_disc_eject(const char* path, rsvc_done_t done) {
-    char* path_copy = strdup(path);
-    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
-    dispatch_async(queue, ^{
-        int fd;
-        if (!rsvc_opendev(path_copy, O_RDONLY | O_NONBLOCK, 0, &fd, done)) {
-            free(path_copy);
-            return;
-        }
+bool rsvc_disc_eject(const char* path, rsvc_done_t fail) {
+    bool ok = false;
+    int fd;
+    if (rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, fail)) {
         if (ioctl(fd, CDROM_LOCKDOOR, 0) < 0) {
-            rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path_copy);
-            free(path_copy);
-            close(fd);
-            return;
-        }
-        if (ioctl(fd, CDROMEJECT) < 0) {
-            rsvc_strerrorf(done, __FILE__, __LINE__, "%s", path_copy);
-            free(path_copy);
-            close(fd);
-            return;
+            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
+        } else if (ioctl(fd, CDROMEJECT) < 0) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
+        } else {
+            ok = true;
         }
         close(fd);
-        free(path_copy);
-        done(NULL);
-    });
+    }
+    return ok;
 }
