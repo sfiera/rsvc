@@ -436,15 +436,12 @@ static void convert_write(struct file_pair f, rsvc_audio_info_t info,
 
     rsvc_progress_t node = rsvc_progress_start(f.output);
 
+    struct rsvc_audio_info info_copy = *info;
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         struct rsvc_encode_options encode_options = {
-            .bitrate                  = options.encode.bitrate,
-            .info = {
-                .sample_rate          = info->sample_rate,
-                .channels             = info->channels,
-                .samples_per_channel  = info->samples_per_channel,
-            },
-            .progress = ^(double fraction){
+            .bitrate   = options.encode.bitrate,
+            .info      = info_copy,
+            .progress  = ^(double fraction){
                 rsvc_progress_update(node, fraction);
             },
         };
