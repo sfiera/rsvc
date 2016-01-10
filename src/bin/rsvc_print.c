@@ -53,11 +53,8 @@ struct rsvc_command rsvc_print = {
             return;
         }
 
-        rsvc_cd_create(disk, ^(rsvc_cd_t cd, rsvc_error_t error){
-            if (error) {
-                done(error);
-                return;
-            }
+        rsvc_cd_t cd;
+        if (rsvc_cd_create(disk, &cd, done)) {
             const char* mcn = rsvc_cd_mcn(cd);
             if (*mcn) {
                 outf("MCN: %s\n", mcn);
@@ -66,7 +63,7 @@ struct rsvc_command rsvc_print = {
 
             rsvc_cd_destroy(cd);
             done(NULL);
-        });
+        }
     },
 
     .argument = ^bool (char* arg, rsvc_done_t fail) {

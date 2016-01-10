@@ -30,8 +30,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <util.h>
 
+#include "common.h"
 #include "unix.h"
 
 struct rsvc_cd {
@@ -72,36 +72,20 @@ static inline bool is_normal_track(const CDTOCDescriptor* desc) {
     return (desc->point < 100) && (desc->adr == 1);
 }
 
-void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
-    int fd;
-    if ((fd = opendev(path, O_RDONLY | O_NONBLOCK, 0, NULL)) < 0) {
-        rsvc_strerrorf(^(rsvc_error_t error){
-            done(NULL, error);
-        }, __FILE__, __LINE__, "%s", path);
-        return;
-    }
-
-    rsvc_cd_t cd    = malloc(sizeof(struct rsvc_cd));
-    cd->queue       = dispatch_queue_create("net.sfiera.ripservice.cd", NULL);
-    cd->fd          = fd;
-    cd->path        = strdup(path);
-    cd->mcn[0]      = '\0';
-    cd->ntracks     = 0;
-
-    // Ensure that the done callback does not run in cd->queue.
-    done = ^(rsvc_cd_t cd, rsvc_error_t error){
-        rsvc_error_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), error,
-                         ^(rsvc_error_t error){
-            done(cd, error);
-        });
+bool rsvc_cd_create(char* path, rsvc_cd_t* cd, rsvc_done_t fail) {
+    struct rsvc_cd template = {
+        .queue    = dispatch_queue_create("net.sfiera.ripservice.cd", NULL),
+        .path     = strdup(path),
     };
+    *cd = memdup(&template, sizeof(template));
 
-    dispatch_async(cd->queue, ^{
+    bool ok = false;
+    if (rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0000, &(*cd)->fd, fail)) {
         // Read the CD's MCN, if it has one.
         dk_cd_read_mcn_t cd_read_mcn;
         memset(&cd_read_mcn, 0, sizeof(dk_cd_read_mcn_t));
-        if (ioctl(fd, DKIOCCDREADMCN, &cd_read_mcn) >= 0) {
-            strcpy(cd->mcn, cd_read_mcn.mcn);
+        if (ioctl((*cd)->fd, DKIOCCDREADMCN, &cd_read_mcn) >= 0) {
+            strcpy((*cd)->mcn, cd_read_mcn.mcn);
         }
 
         // Read the CD's table of contents.
@@ -113,104 +97,113 @@ void rsvc_cd_create(char* path, void(^done)(rsvc_cd_t, rsvc_error_t)) {
         cd_read_toc.format          = kCDTOCFormatTOC;
         cd_read_toc.buffer          = buffer;
         cd_read_toc.bufferLength    = sizeof(toc_buffer_t);
-        if (ioctl(fd, DKIOCCDREADTOC, &cd_read_toc) < 0) {
-            rsvc_strerrorf(^(rsvc_error_t error){
-                done(NULL, error);
-            }, __FILE__, __LINE__, "%s", cd->path);
-            goto create_cleanup;
-        }
-        CDTOC* toc = (CDTOC*)buffer;
+        if (ioctl((*cd)->fd, DKIOCCDREADTOC, &cd_read_toc) < 0) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", (*cd)->path);
+        } else {
+            CDTOC* toc = (CDTOC*)buffer;
 
-        // Set up the sessions.
-        cd->nsessions       = (toc->sessionLast - toc->sessionFirst) + 1;
-        cd->sessions        = calloc(cd->nsessions, sizeof(struct rsvc_cd_session));
-        for (size_t i = 0; i < cd->nsessions; ++i) {
-            rsvc_cd_session_t session = &cd->sessions[i];
-            memset(session, 0, sizeof(struct rsvc_cd_session));
-            session->number = toc->sessionFirst + i;
-            session->discid = discid_new();
-        }
-
-        // Count the number of normal tracks.
-        size_t track_map[512];
-        memset(track_map, 0, sizeof(size_t[512]));
-        size_t ndesc = CDTOCGetDescriptorCount(toc);
-        for (size_t i = 0; i < ndesc; ++i) {
-            CDTOCDescriptor* desc = &toc->descriptors[i];
-            if (is_normal_track(desc)) {
-                track_map[desc->point] = cd->ntracks++;
-            } else {
-                track_map[desc->point] = -1;
+            // Set up the sessions.
+            (*cd)->nsessions       = (toc->sessionLast - toc->sessionFirst) + 1;
+            (*cd)->sessions        = calloc((*cd)->nsessions, sizeof(struct rsvc_cd_session));
+            for (size_t i = 0; i < (*cd)->nsessions; ++i) {
+                rsvc_cd_session_t session = &(*cd)->sessions[i];
+                memset(session, 0, sizeof(struct rsvc_cd_session));
+                session->number = toc->sessionFirst + i;
+                session->discid = discid_new();
             }
-        }
 
-        // Load up the tracks.
-        cd->tracks = calloc(cd->ntracks, sizeof(struct rsvc_cd_track));
-        rsvc_cd_track_t track = &cd->tracks[0];
-        for (size_t i = 0; i < ndesc; ++i) {
-            CDTOCDescriptor* desc = &toc->descriptors[i];
-            if (is_normal_track(desc)) {
-                memset(track, 0, sizeof(struct rsvc_cd_track));
-                track->cd               = cd;
-                track->session          = cd->sessions + desc->session - cd->sessions[0].number;
-                track->number           = desc->point;
-                track->sector_begin     = CDConvertMSFToLBA(desc->p);
-
-                track->pre_emphasis     = (desc->control & 0x01) == 0x01;
-                track->copy_permitted   = (desc->control & 0x02) == 0x02;
-                track->type             = (desc->control & 0x04)
-                                        ? RSVC_CD_TRACK_DATA
-                                        : RSVC_CD_TRACK_AUDIO;
-                track->nchannels        = (desc->control & 0x08) ? 4 : 2;
-
-                ++track;
-            } else if (desc->adr == 1) {
-                rsvc_cd_session_t session = cd->sessions + desc->session - cd->sessions[0].number;
-                switch (desc->point) {
-                  case 0xa0:
-                    session->track_begin = cd->tracks + track_map[desc->p.minute];
-                    break;
-                  case 0xa1:
-                    session->track_end = cd->tracks + track_map[desc->p.minute] + 1;
-                    break;
-                  case 0xa2:
-                    session->lead_out = CDConvertMSFToLBA(desc->p);
-                    break;
+            // Count the number of normal tracks.
+            size_t track_map[512];
+            memset(track_map, 0, sizeof(size_t[512]));
+            size_t ndesc = CDTOCGetDescriptorCount(toc);
+            for (size_t i = 0; i < ndesc; ++i) {
+                CDTOCDescriptor* desc = &toc->descriptors[i];
+                if (is_normal_track(desc)) {
+                    track_map[desc->point] = (*cd)->ntracks++;
+                } else {
+                    track_map[desc->point] = -1;
                 }
             }
-        }
 
-        // Set session_end on all tracks.
-        for (size_t i = 0; i < cd->ntracks - 1; ++i) {
-            cd->tracks[i].sector_end = cd->tracks[i + 1].sector_begin;
-        }
-        for (size_t i = 0; i < cd->nsessions; ++i) {
-            (cd->sessions[i].track_end - 1)->sector_end = cd->sessions[i].lead_out;
-        }
+            // Load up the tracks.
+            (*cd)->tracks = calloc((*cd)->ntracks, sizeof(struct rsvc_cd_track));
+            rsvc_cd_track_t track = &(*cd)->tracks[0];
+            for (size_t i = 0; i < ndesc; ++i) {
+                CDTOCDescriptor* desc = &toc->descriptors[i];
+                if (is_normal_track(desc)) {
+                    memset(track, 0, sizeof(struct rsvc_cd_track));
+                    track->cd               = *cd;
+                    track->session          = (*cd)->sessions + desc->session - (*cd)->sessions[0].number;
+                    track->number           = desc->point;
+                    track->sector_begin     = CDConvertMSFToLBA(desc->p);
 
-        // Calculate the discid for MusicBrainz.
-        for (size_t i = 0; i < cd->nsessions; ++i) {
-            rsvc_cd_session_t session = &cd->sessions[i];
-            int offsets[101] = {};
-            int* offset = offsets;
-            *(offset++) = (session->track_end - 1)->sector_end + 150;
-            for (rsvc_cd_track_t track = session->track_begin;
-                 track != session->track_end; ++track) {
-                *(offset++) = track->sector_begin + 150;
+                    track->pre_emphasis     = (desc->control & 0x01) == 0x01;
+                    track->copy_permitted   = (desc->control & 0x02) == 0x02;
+                    track->type             = (desc->control & 0x04)
+                                            ? RSVC_CD_TRACK_DATA
+                                            : RSVC_CD_TRACK_AUDIO;
+                    track->nchannels        = (desc->control & 0x08) ? 4 : 2;
+
+                    ++track;
+                } else if (desc->adr == 1) {
+                    rsvc_cd_session_t session = (*cd)->sessions + desc->session - (*cd)->sessions[0].number;
+                    switch (desc->point) {
+                      case 0xa0:
+                        session->track_begin = (*cd)->tracks + track_map[desc->p.minute];
+                        break;
+                      case 0xa1:
+                        session->track_end = (*cd)->tracks + track_map[desc->p.minute] + 1;
+                        break;
+                      case 0xa2:
+                        session->lead_out = CDConvertMSFToLBA(desc->p);
+                        break;
+                    }
+                }
             }
-            size_t ntracks = session->track_end - session->track_begin;
-            if (!discid_put(session->discid, 1, ntracks, offsets)) {
-                rsvc_errorf(^(rsvc_error_t error){
-                    done(NULL, error);
-                }, __FILE__, __LINE__, "%s: discid failure", cd->path);
-                goto create_cleanup;
+
+            // Set session_end on all tracks.
+            for (size_t i = 0; i < (*cd)->ntracks - 1; ++i) {
+                (*cd)->tracks[i].sector_end = (*cd)->tracks[i + 1].sector_begin;
+            }
+            for (size_t i = 0; i < (*cd)->nsessions; ++i) {
+                ((*cd)->sessions[i].track_end - 1)->sector_end = (*cd)->sessions[i].lead_out;
+            }
+
+            // Calculate the discid for MusicBrainz.
+            for (size_t i = 0; i < (*cd)->nsessions; ++i) {
+                rsvc_cd_session_t session = &(*cd)->sessions[i];
+                int offsets[101] = {};
+                int* offset = offsets;
+                *(offset++) = (session->track_end - 1)->sector_end + 150;
+                for (rsvc_cd_track_t track = session->track_begin;
+                     track != session->track_end; ++track) {
+                    *(offset++) = track->sector_begin + 150;
+                }
+                size_t ntracks = session->track_end - session->track_begin;
+                if (!discid_put(session->discid, 1, ntracks, offsets)) {
+                    rsvc_errorf(fail, __FILE__, __LINE__, "%s: discid failure", (*cd)->path);
+                } else {
+                    ok = true;
+                }
+            }
+            if (!ok) {
+                for (size_t i = 0; i < (*cd)->nsessions; ++i) {
+                    discid_free((*cd)->sessions[i].discid);
+                }
+                free((*cd)->tracks);
+                free((*cd)->sessions);
             }
         }
-
-        done(cd, NULL);
-create_cleanup:
-        ;
-    });
+        if (!ok) {
+            close((*cd)->fd);
+        }
+    }
+    if (!ok) {
+        dispatch_release((*cd)->queue);
+        free((*cd)->path);
+        free(*cd);
+    }
+    return ok;
 }
 
 void rsvc_cd_destroy(rsvc_cd_t cd) {

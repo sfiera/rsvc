@@ -21,7 +21,23 @@
 #include "unix.h"
 
 #include <copyfile.h>
+#include <string.h>
+#include <util.h>
 #include "common.h"
+
+bool rsvc_opendev(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail) {
+    rsvc_logf(3, "open %s", path);
+    bool ok = false;
+    char* dup_path = strdup(path);
+    *fd = opendev(dup_path, oflag, mode, NULL);
+    if (*fd < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
+    } else {
+        ok = true;
+    }
+    free(dup_path);
+    return ok;
+}
 
 bool rsvc_cp(const char* src, const char* dst, rsvc_done_t fail) {
     rsvc_logf(3, "cp %s %s", src, dst);

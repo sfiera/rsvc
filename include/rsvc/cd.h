@@ -44,23 +44,14 @@
 ///     :func:`rsvc_cd_create()` and destroyed with
 ///     :func:`rsvc_cd_destroy()`.
 ///
-/// ..  function:: void rsvc_cd_create(char* path, void (^done)(rsvc_cd_t, rsvc_error_t))
-///
-///     Creates a :type:`rsvc_cd_t` object, reading its content off of
-///     the CD drive.  If initialization completes successfully, calls
-///     `done` with the result as the first argument and `NULL` as the
-///     second.  If it fails, passes `NULL` as the first argument and an
-///     error as the second.
+/// ..  function:: bool rsvc_cd_create(char* path, rsvc_cd_t* cd, rsvc_done_t fail)
 ///
 ///     :param path:    A short-form device name, such as "disk1".
-///     :param done:    A completion callback.  Receives exactly one of
-///                     an initialized :type:`rsvc_cd_t` or an
-///                     :type:`rsvc_error_t`.
 ///
 /// ..  function:: void rsvc_cd_destroy(rsvc_cd_t cd)
 ///
 ///     Destroys a :type:`rsvc_cd_t`, reclaiming its resources.
-void                    rsvc_cd_create(char* path, void (^done)(rsvc_cd_t, rsvc_error_t));
+bool                    rsvc_cd_create(char* path, rsvc_cd_t* cd, rsvc_done_t fail);
 void                    rsvc_cd_destroy(rsvc_cd_t cd);
 
 /// ..  function:: const char* rsvc_cd_mcn(rsvc_cd_t cd)

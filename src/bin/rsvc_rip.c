@@ -94,11 +94,8 @@ struct rsvc_command rsvc_rip = {
             return;
         }
 
-        rsvc_cd_create(opts.disk, ^(rsvc_cd_t cd, rsvc_error_t error){
-            if (error) {
-                done(error);
-                return;
-            }
+        rsvc_cd_t cd;
+        if (rsvc_cd_create(opts.disk, &cd, done)) {
             rip_all(cd, ^(rsvc_error_t error){
                 rsvc_cd_destroy(cd);
                 if (error) {
@@ -111,7 +108,7 @@ struct rsvc_command rsvc_rip = {
                     done(NULL);
                 }
             });
-        });
+        }
     },
 
     .short_option = ^bool (int32_t opt, rsvc_option_value_f get_value, rsvc_done_t fail){
