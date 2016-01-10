@@ -122,6 +122,7 @@ static bool read_wav_fmt(int fd, riff_chunk_t rc, wav_fmt_t wf, rsvc_done_t fail
     return true;
 }
 
+// Leaves `fd` positioned at the start of the data chunk.
 bool wav_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
     struct riff_chunk header;
     if (!(read_riff_chunk_header(fd, &header, fail) &&
@@ -167,6 +168,25 @@ bool wav_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
     }
 }
 
+bool wav_audio_decode(int src_fd, int dst_fd, rsvc_decode_info_f info, rsvc_done_t fail) {
+    struct rsvc_audio_info i;
+    if (!wav_audio_info(src_fd, &i, fail)) {
+        return false;
+    }
+    info(&i);
+    size_t remainder = (i.bits_per_sample / 8) * i.samples_per_channel * i.channels;
+    while (remainder) {
+        uint8_t data[4096];
+        size_t size = (remainder > 4096) ? 4096 : remainder;
+        if (!(rsvc_read(NULL, src_fd, data, size, NULL, NULL, fail) &&
+              rsvc_write(NULL, dst_fd, data, size, NULL, NULL, fail))) {
+            return false;
+        }
+        remainder -= size;
+    }
+    return true;
+}
+
 const struct rsvc_format rsvc_wav = {
     .format_group = RSVC_AUDIO,
     .name = "wav",
@@ -176,4 +196,5 @@ const struct rsvc_format rsvc_wav = {
     .extension = "wav",
     .lossless = true,
     .audio_info = wav_audio_info,
+    .decode = wav_audio_decode,
 };
