@@ -69,4 +69,5 @@ void rsvc_audio_formats_register() {
     rsvc_format_register(&rsvc_m4v);  // TODO(sfiera): video.c
     rsvc_format_register(&rsvc_opus);
     rsvc_format_register(&rsvc_vorbis);
+    rsvc_format_register(&rsvc_wav);
 }

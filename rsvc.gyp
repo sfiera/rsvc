@@ -111,6 +111,7 @@
       , "src/rsvc/tag.c"
       , "src/rsvc/unix.c"
       , "src/rsvc/vorbis.c"
+      , "src/rsvc/wav.c"
       ]
     , "dependencies":
       [ "<(DEPTH)/ext/discid/discid.gyp:libdiscid"
