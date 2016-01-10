@@ -234,6 +234,7 @@ bool wav_audio_encode(int src_fd, int dst_fd, rsvc_encode_options_t opts, rsvc_d
             return false;
         }
         remainder -= size;
+        opts->progress((data_size - remainder) / (double)data_size);
     }
     return true;
 }
