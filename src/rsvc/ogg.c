@@ -49,7 +49,9 @@ bool rsvc_ogg_page_read(int fd, ogg_sync_state* oy, ogg_page* og, bool* eof, rsv
     while (true) {
         const int status = ogg_sync_pageout(oy, og);
         if (status == 1) {
-            *eof = false;
+            if (eof) {
+                *eof = false;
+            }
             return true;
         } else if (status < 0) {
             rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg page");
@@ -58,10 +60,17 @@ bool rsvc_ogg_page_read(int fd, ogg_sync_state* oy, ogg_page* og, bool* eof, rsv
 
         char* data = ogg_sync_buffer(oy, 4096);
         size_t size;
-        if (!rsvc_read(NULL, fd, data, 4096, &size, eof, fail)) {
+        bool inner_eof;
+        if (!rsvc_read(NULL, fd, data, 4096, &size, &inner_eof, fail)) {
             return false;
-        } else if (*eof) {
-            return true;
+        } else if (inner_eof) {
+            if (eof) {
+                *eof = inner_eof;
+                return true;
+            } else {
+                rsvc_errorf(fail, __FILE__, __LINE__, "unexpected end of file");
+                return false;
+            }
         }
         ogg_sync_wrote(oy, size);
     }
@@ -82,6 +91,20 @@ void rsvc_ogg_packet_copy(ogg_packet* dst, const ogg_packet* src) {
     dst->e_o_s          = src->e_o_s;
     dst->granulepos     = src->granulepos;
     dst->packetno       = src->packetno;
+}
+
+bool rsvc_ogg_packet_out(ogg_stream_state* os, ogg_packet* op, bool* have_op, rsvc_done_t fail) {
+    int packetout_status = ogg_stream_packetout(os, op);
+    if (packetout_status < 0) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg packet");
+        return false;
+    } else if (packetout_status == 0) {
+        *have_op = false;
+        return true;
+    } else {
+        *have_op = true;
+        return true;
+    }
 }
 
 bool rsvc_ogg_flush(int dst_fd, ogg_stream_state *os, ogg_page* og, rsvc_done_t fail) {

@@ -31,6 +31,7 @@ bool rsvc_ogg_page_read(int fd, ogg_sync_state* oy, ogg_page* og, bool* eof, rsv
 
 void rsvc_ogg_packet_clear(ogg_packet* op);
 void rsvc_ogg_packet_copy(ogg_packet* dst, const ogg_packet* src);
+bool rsvc_ogg_packet_out(ogg_stream_state* os, ogg_packet* op, bool* have_op, rsvc_done_t fail);
 
 bool rsvc_ogg_flush(int dst_fd, ogg_stream_state *os, ogg_page* og, rsvc_done_t fail);
 bool rsvc_ogg_align_packet(int dst_fd, ogg_stream_state *os,

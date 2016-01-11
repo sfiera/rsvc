@@ -328,135 +328,130 @@ static struct rsvc_tags_methods vorbis_vptr = {
     .iter_begin  = vorbis_begin,
 };
 
+static bool start_stream(ogg_stream_state* os, ogg_page* og, uint32_t* serial, rsvc_done_t fail) {
+    if (!ogg_page_bos(og)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "ogg file does not begin with bos page");
+        return false;
+    } else if (ogg_stream_init(os, ogg_page_serialno(og)) < 0) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "couldn't initialize ogg stream");
+        return false;
+    }
+    *serial = ogg_page_serialno(og);
+    return true;
+}
+
+static bool continue_stream(ogg_page* og, uint32_t serial, rsvc_done_t fail) {
+    if (ogg_page_bos(og) || (ogg_page_serialno(og) != serial)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "multiplexed ogg files not supported");
+        return false;
+    }
+    return true;
+}
+
+static bool rsvc_ogg_stream_pagein(ogg_stream_state* os, ogg_page* og, rsvc_done_t fail) {
+    if (ogg_stream_pagein(os, og) < 0) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg page");
+        return false;
+    }
+    return true;
+}
+
+bool read_header(  int fd, rsvc_vorbis_tags_t ogv, vorbis_info* vi,
+                   ogg_sync_state* oy, ogg_stream_state* os, ogg_page* og, ogg_packet* op,
+                   rsvc_done_t fail) {
+    bool first_page = true;
+    int header_packets = 3;
+    while (header_packets > 0) {
+        if (!(rsvc_ogg_page_read(fd, oy, og, NULL, fail) &&
+              (first_page  ? start_stream(os, og, &ogv->serial, fail)
+                           : continue_stream(og, ogv->serial, fail)) &&
+              rsvc_ogg_stream_pagein(os, og, fail))) {
+            return false;
+        }
+        first_page = false;
+
+        while (true) {
+            bool have_packet;
+            if (!rsvc_ogg_packet_out(os, op, &have_packet, fail)) {
+                return false;
+            } else if (!have_packet) {
+                break;
+            }
+
+            if (header_packets <= 0) {
+                rsvc_errorf(fail, __FILE__, __LINE__, "extra packets in ogg header pages");
+                return false;
+            } else if (vorbis_synthesis_headerin(vi, &ogv->vc, op) < 0) {
+                rsvc_errorf(fail, __FILE__, __LINE__, "ogg file is not a vorbis file");
+                return false;
+            }
+            if (header_packets == 3) {
+                rsvc_ogg_packet_copy(&ogv->header, op);
+            } else if (header_packets == 1) {
+                rsvc_ogg_packet_copy(&ogv->header_code, op);
+            }
+            --header_packets;
+        }
+    }
+    return true;
+}
+
+bool read_all_packets(  int fd, rsvc_vorbis_tags_t ogv, ogg_sync_state* oy, ogg_page* og,
+                        rsvc_done_t fail) {
+    while (true) {
+        bool eof;
+        if (!rsvc_ogg_page_read(fd, oy, og, &eof, fail)) {
+            return false;
+        } else if (eof) {
+            break;
+        }
+        rsvc_logf(2, "read ogg page (header_len=%lu, body_len=%lu)",
+                  og->header_len, og->body_len);
+        struct rsvc_ogg_page_node node = {};
+        rsvc_ogg_page_copy(&node.page, og);
+        RSVC_LIST_PUSH(&ogv->pages, memdup(&node, sizeof(node)));
+    }
+
+    return true;
+}
+
 bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_done_t fail) {
-    __block struct rsvc_vorbis_tags ogv = {
+    struct rsvc_vorbis_tags ogv = {
         .super = {
             .vptr   = &vorbis_vptr,
             .flags  = flags,
         },
         .path = strdup(path),
     };
-    fail = ^(rsvc_error_t error){
-        rsvc_vorbis_tags_clear(&ogv.super);
-        fail(error);
-    };
+    bool ok = false;
 
     int fd;
-    if (!rsvc_open(ogv.path, O_RDONLY, 0644, &fd, fail)) {
-        return false;
-    }
-    fail = ^(rsvc_error_t error){
-        close(fd);
-        fail(error);
-    };
+    if (rsvc_open(ogv.path, O_RDONLY, 0644, &fd, fail)) {
+        ogg_sync_state    oy = {};
+        ogg_stream_state  os = {};
+        vorbis_info       vi = {};
+        ogg_page          og = {};
+        ogg_packet        op = {};
 
-    __block ogg_sync_state      oy;
-    __block ogg_stream_state    os;
-    __block vorbis_info         vi;
-    ogg_page                    og;
-    ogg_packet                  op;
+        ogg_sync_init(&oy);
+        vorbis_info_init(&vi);
+        vorbis_comment_init(&ogv.vc);
 
-    ogg_sync_init(&oy);
-    vorbis_info_init(&vi);
-    vorbis_comment_init(&ogv.vc);
+        ok =  read_header(fd, &ogv, &vi, &oy, &os, &og, &op, fail) &&
+              read_all_packets(fd, &ogv, &oy, &og, fail);
 
-    fail = ^(rsvc_error_t error){
         ogg_sync_clear(&oy);
         ogg_stream_clear(&os);
         vorbis_info_clear(&vi);
-        fail(error);
-    };
-
-    bool first_page = true;
-    int header_packets = 3;
-
-    // Read all of the pages from the ogg file in a loop.
-    while (true) {
-        bool eof;
-        if (!rsvc_ogg_page_read(fd, &oy, &og, &eof, fail)) {
-            return false;
-        } else if (eof) {
-            if (header_packets > 0) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "unexpected end of file");
-                return false;
-            }
-            break;
-        }
-
-        if (first_page) {
-            // First page must be a bos page.
-            if (!ogg_page_bos(&og)) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "ogg file does not begin with bos page");
-                return false;
-            } else if (ogg_stream_init(&os, ogg_page_serialno(&og)) < 0) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "couldn't initialize ogg stream");
-                return false;
-            }
-            ogv.serial = ogg_page_serialno(&og);
-            first_page = false;
-        } else {
-            // Subsequent pages must not be bos pages, and must have
-            // the same serial as the first page.
-            if (ogg_page_bos(&og) || (ogg_page_serialno(&og) != ogv.serial)) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "multiplexed ogg files not supported");
-                return false;
-            }
-        }
-
-        if (header_packets > 0) {
-            // The first three packets are special and define the
-            // parameters of the vorbis stream within the ogg file.
-            // Parse them out of the pages.
-            if (ogg_stream_pagein(&os, &og) < 0) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg page");
-                return false;
-            }
-
-            while (true) {
-                int packetout_status = ogg_stream_packetout(&os, &op);
-                if (packetout_status == 0) {
-                    break;
-                } else if (packetout_status < 0) {
-                    rsvc_errorf(fail, __FILE__, __LINE__, "error reading ogg packet");
-                    return false;
-                }
-
-                if (header_packets <= 0) {
-                    rsvc_errorf(fail, __FILE__, __LINE__, "extra packets in ogg header pages");
-                    return false;
-                } else if (vorbis_synthesis_headerin(&vi, &ogv.vc, &op) < 0) {
-                    rsvc_errorf(fail, __FILE__, __LINE__, "ogg file is not a vorbis file");
-                    return false;
-                }
-                if (header_packets == 3) {
-                    rsvc_ogg_packet_copy(&ogv.header, &op);
-                } else if (header_packets == 1) {
-                    rsvc_ogg_packet_copy(&ogv.header_code, &op);
-                }
-                --header_packets;
-            }
-        } else {
-            rsvc_logf(2, "read ogg page (header_len=%lu, body_len=%lu)",
-                      og.header_len, og.body_len);
-            struct rsvc_ogg_page_node node = {};
-            rsvc_ogg_page_copy(&node.page, &og);
-            RSVC_LIST_PUSH(&ogv.pages, memdup(&node, sizeof(node)));
-        }
+        close(fd);
     }
-
-    if (header_packets > 0) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "unexpected end of file");
-        return false;
+    if (ok) {
+        struct rsvc_vorbis_tags* copy = memdup(&ogv, sizeof(ogv));
+        *tags = &copy->super;
+    } else {
+        rsvc_vorbis_tags_clear(&ogv.super);
     }
-
-    ogg_sync_clear(&oy);
-    ogg_stream_clear(&os);
-    vorbis_info_clear(&vi);
-    close(fd);
-
-    struct rsvc_vorbis_tags* copy = memdup(&ogv, sizeof(ogv));
-    *tags = &copy->super;
-    return true;
+    return ok;
 }
 
 const struct rsvc_format rsvc_vorbis = {
