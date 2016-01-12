@@ -454,6 +454,108 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
     return ok;
 }
 
+#define MAX_READ_BACK          65536
+#define READ_BACK_CHUNK_SIZE   4096
+#define READ_BACK_CHUNK_COUNT  (MAX_READ_BACK / READ_BACK_CHUNK_SIZE)
+
+bool read_last_page(  int fd, ogg_sync_state* oy, ogg_page* og,
+                      rsvc_done_t fail) {
+    const off_t end = lseek(fd, 0, SEEK_END);
+    if (end < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+
+    bool ok = false;
+    off_t chunk_end = end;
+    uint8_t* chunk_data[READ_BACK_CHUNK_COUNT] = {};
+    size_t chunk_sizes[READ_BACK_CHUNK_COUNT] = {};
+    for (int i = 0; ; ++i) {
+        // If we've read 64kiB (or the whole file), then give up.
+        if ((chunk_end == 0) || (i == READ_BACK_CHUNK_COUNT)) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "couldn't find last ogg page");
+            break;
+        }
+
+        // Seek back and read another new chunk.
+        off_t chunk_start = (end > READ_BACK_CHUNK_SIZE) ? end - READ_BACK_CHUNK_SIZE : 0;
+        if (lseek(fd, chunk_start, SEEK_SET) < 0) {
+            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+            break;
+        }
+
+        chunk_sizes[i] = chunk_end - chunk_start;
+        chunk_data[i] = malloc(chunk_sizes[i]);
+        if (!rsvc_read(NULL, fd, chunk_data[i], chunk_sizes[i], NULL, NULL, fail)) {
+            break;
+        }
+
+        // Read back the chunks in `chunk_data` in reverse order.
+        ogg_sync_reset(oy);
+        for (int j = 0; j < i; ++j) {
+            char* buf = ogg_sync_buffer(oy, READ_BACK_CHUNK_SIZE);
+            memcpy(buf, chunk_data[i-j-1], chunk_sizes[i-j-1]);
+            ogg_sync_wrote(oy, chunk_sizes[i-j-1]);
+        }
+
+        while (true) {
+            int result = ogg_sync_pageseek(oy, og);
+            if (result == 0) {
+                break;
+            } else if (result < 0) {
+                continue;
+            }
+
+            ok = true;  // have one, but keep looping.
+        }
+
+        if (ok) {
+            break;
+        }
+
+        chunk_end = chunk_start;
+    }
+
+    for (int i = 0; i < READ_BACK_CHUNK_COUNT; ++i) {
+        free(chunk_data[i]);
+    }
+
+    return ok;
+}
+
+bool rsvc_vorbis_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
+    struct rsvc_vorbis_tags ogv = {};
+    bool ok = false;
+
+    ogg_sync_state    oy = {};
+    ogg_stream_state  os = {};
+    vorbis_info       vi = {};
+    ogg_page          og = {};
+    ogg_packet        op = {};
+
+    ogg_sync_init(&oy);
+    vorbis_info_init(&vi);
+    vorbis_comment_init(&ogv.vc);
+
+    if (read_header(fd, &ogv, &vi, &oy, &os, &og, &op, fail) &&
+        read_last_page(fd, &oy, &og, fail)) {
+        struct rsvc_audio_info i = {
+            .sample_rate = vi.rate,
+            .channels = vi.channels,
+            .samples_per_channel = ogg_page_granulepos(&og),
+            .bits_per_sample = 16,
+        };
+        *info = i;
+        ok = true;
+    }
+
+    ogg_sync_clear(&oy);
+    ogg_stream_clear(&os);
+    vorbis_info_clear(&vi);
+    rsvc_vorbis_tags_clear(&ogv.super);
+    return ok;
+}
+
 const struct rsvc_format rsvc_vorbis = {
     .format_group = RSVC_AUDIO,
     .name = "vorbis",
@@ -463,5 +565,6 @@ const struct rsvc_format rsvc_vorbis = {
     .extension = "ogv",
     .lossless = false,
     .open_tags = rsvc_vorbis_open_tags,
+    .audio_info = rsvc_vorbis_audio_info,
     .encode = rsvc_vorbis_encode,
 };
