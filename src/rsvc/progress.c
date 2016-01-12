@@ -55,7 +55,7 @@ static dispatch_queue_t io_queue() {
 // io queue only.
 static void progress_hide() {
     for (rsvc_progress_t curr = progress.head; curr; curr = curr->next) {
-        printf("\033[1A\033[2K");
+        fprintf(stderr, "x\033[1A\033[2K");
     }
 }
 
@@ -67,9 +67,10 @@ static void progress_show() {
     }
     for (rsvc_progress_t curr = progress.head; curr; curr = curr->next) {
         if ((curr->namelen + 9) >= sz.ws_col) {
-            printf("%4d%%   ...%s\n", curr->percent, curr->name + (curr->namelen - sz.ws_col + 12));
+            fprintf(  stderr, "%4d%%   ...%s\n",
+                      curr->percent, curr->name + (curr->namelen - sz.ws_col + 12));
         } else {
-            printf("%4d%%   %s\n", curr->percent, curr->name);
+            fprintf(stderr, "%4d%%   %s\n", curr->percent, curr->name);
         }
     }
 }
@@ -101,7 +102,7 @@ void rsvc_progress_update(rsvc_progress_t item, double fraction) {
         for (rsvc_progress_t curr = item; curr; curr = curr->next) {
             line_delta++;
         }
-        printf("\033[s\033[%dA%4d%%\033[u", line_delta, item->percent);
+        fprintf(stderr, "\033[s\033[%dA%4d%%\033[u", line_delta, item->percent);
         fflush(stdout);
     });
 }
