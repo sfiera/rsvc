@@ -87,12 +87,22 @@ static four_char_t fourcc(uint32_t value) {
     return result;
 }
 
+bool core_audio_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t fail) {
+    if (!rsvc_audio_info_validate(&opts->info, fail)) {
+        return false;
+    }
+    return true;
+}
+
 static bool core_audio_encode(
         int src_fd, int dst_fd, rsvc_encode_options_t options,
         int container_id, int codec_id, rsvc_done_t fail) {
     int32_t                 bitrate   = options->bitrate;
     struct rsvc_audio_info  info      = options->info;
     rsvc_encode_progress_f  progress  = options->progress;
+    if (!core_audio_encode_options_validate(options, fail)) {
+        return false;
+    }
 
     OSStatus err;
     AudioStreamBasicDescription asbd_out = {

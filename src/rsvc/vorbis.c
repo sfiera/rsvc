@@ -41,12 +41,22 @@
 #include "ogg.h"
 #include "unix.h"
 
+bool rsvc_vorbis_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t fail) {
+    if (!rsvc_audio_info_validate(&opts->info, fail)) {
+        return false;
+    }
+    return true;
+}
+
 bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
                           rsvc_done_t fail) {
     int32_t                 bitrate   = options->bitrate;
     struct rsvc_audio_info  info      = options->info;
     rsvc_encode_progress_f  progress  = options->progress;
     float                   div       = 1 << (info.bits_per_sample - 1);
+    if (!rsvc_vorbis_encode_options_validate(options, fail)) {
+        return false;
+    }
 
     ogg_stream_state  os;
     ogg_page          og;

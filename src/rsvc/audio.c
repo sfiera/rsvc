@@ -22,6 +22,38 @@
 
 #include <rsvc/format.h>
 
+static bool valid_channels(size_t channels) {
+    return (1 <= channels) && (channels <= 8);
+}
+
+static bool valid_sample_rate(size_t sample_rate) {
+    return sample_rate >= 1;
+}
+
+static bool valid_bit_depth(size_t depth) {
+    return (depth == 32)
+        || (depth == 24)
+        || (depth == 16)
+        || (depth == 8)
+        || (depth == 4)
+        || (depth == 2)
+        || (depth == 1);
+}
+
+bool rsvc_audio_info_validate(rsvc_audio_info_t info, rsvc_done_t fail) {
+    if (!valid_channels(info->channels)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid channel count: %zu", info->channels);
+        return false;
+    } else if (!valid_sample_rate(info->sample_rate)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid sample rate: %zu", info->sample_rate);
+        return false;
+    } else if (!valid_bit_depth(info->bits_per_sample)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "invalid bit depth: %zu", info->bits_per_sample);
+        return false;
+    }
+    return true;
+}
+
 const struct rsvc_format rsvc_mp3 = {
     .format_group = RSVC_AUDIO,
     .name = "mp3",

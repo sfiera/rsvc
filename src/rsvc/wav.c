@@ -211,16 +211,19 @@ bool wav_audio_decode(int src_fd, int dst_fd, rsvc_decode_info_f info, rsvc_done
     return true;
 }
 
-static bool wav_check_options(rsvc_audio_info_t info, rsvc_done_t fail) {
-    if (info->bits_per_sample != 16) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "can't encode %zu-bit wav", info->bits_per_sample);
+static bool wav_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t fail) {
+    if (!rsvc_audio_info_validate(&opts->info, fail)) {
+        return false;
+    } else if (opts->info.bits_per_sample != 16) {
+        rsvc_errorf(  fail, __FILE__, __LINE__,
+                      "can't encode %zu-bit wav", opts->info.bits_per_sample);
         return false;
     }
     return true;
 }
 
 bool wav_audio_encode(int src_fd, int dst_fd, rsvc_encode_options_t opts, rsvc_done_t fail) {
-    if (!wav_check_options(&opts->info, fail)) {
+    if (!wav_encode_options_validate(opts, fail)) {
         return false;
     }
     static const int header_size = 44;

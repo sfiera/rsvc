@@ -25,13 +25,28 @@
 #include <rsvc/format.h>
 #include "unix.h"
 
+bool rsvc_lame_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t fail) {
+    if (!rsvc_audio_info_validate(&opts->info, fail)) {
+        return false;
+    } else if (opts->info.bits_per_sample != 16) {
+        rsvc_errorf(  fail, __FILE__, __LINE__,
+                      "can't encode %zu-bit mp3", opts->info.bits_per_sample);
+        return false;
+    } else if (opts->info.channels > 2) {
+        rsvc_errorf(  fail, __FILE__, __LINE__,
+                      "can't encode %zu-channel mp3", opts->info.channels);
+        return false;
+    }
+
+    return true;
+}
+
 bool rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t fail) {
     int32_t                 bitrate   = options->bitrate;
     struct rsvc_audio_info  info      = options->info;
     rsvc_encode_progress_f  progress  = options->progress;
 
-    if (info.bits_per_sample != 16) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "can't encode %zu-bit mp3", info.bits_per_sample);
+    if (!rsvc_lame_encode_options_validate(options, fail)) {
         return false;
     }
 

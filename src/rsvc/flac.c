@@ -109,9 +109,19 @@ static void                    flac_decode_error(const FLAC__StreamDecoder* deco
 //     });
 // }
 
+bool rsvc_flac_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t fail) {
+    if (!rsvc_audio_info_validate(&opts->info, fail)) {
+        return false;
+    }
+    return true;
+}
+
 bool rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t fail) {
     struct rsvc_audio_info info         = options->info;
     rsvc_encode_progress_f progress     = options->progress;
+    if (!rsvc_flac_encode_options_validate(options, fail)) {
+        return false;
+    }
 
     FLAC__StreamEncoder *encoder = NULL;
     // FLAC__StreamMetadata* comment_metadata = NULL;

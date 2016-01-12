@@ -55,7 +55,7 @@ static dispatch_queue_t io_queue() {
 // io queue only.
 static void progress_hide() {
     for (rsvc_progress_t curr = progress.head; curr; curr = curr->next) {
-        fprintf(stderr, "x\033[1A\033[2K");
+        fprintf(stderr, "\033[1A\033[2K");
     }
 }
 
