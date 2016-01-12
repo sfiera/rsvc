@@ -23,12 +23,13 @@
 
 #include <fcntl.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <rsvc/common.h>
 #include <sys/stat.h>
 
-bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail);
+bool rsvc_open(const char* path, int oflag, mode_t mode, FILE** file, rsvc_done_t fail);
 bool rsvc_opendev(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail);
-bool rsvc_temp(const char* base, char* path, int* fd, rsvc_done_t fail);
+bool rsvc_temp(const char* base, char* path, FILE** file, rsvc_done_t fail);
 bool rsvc_rename(const char* src, const char* dst, rsvc_done_t fail);
 bool rsvc_refile(const char* src, const char* dst, rsvc_done_t fail);
 bool rsvc_rm(const char* path, rsvc_done_t fail);

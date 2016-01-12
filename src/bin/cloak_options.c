@@ -323,11 +323,11 @@ static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_fl
                          rsvc_done_t fail) {
     if ((flag == IMAGE) || (flag == ADD_IMAGE)) {
         char* path;
-        int fd;
+        FILE* file;
         rsvc_format_t format;
         if (!(get_value(&path, fail)
-              && rsvc_open(path, O_RDONLY, 0644, &fd, fail)
-              && rsvc_format_detect(path, fd, &format, fail))) {
+              && rsvc_open(path, O_RDONLY, 0644, &file, fail)
+              && rsvc_format_detect(path, fileno(file), &format, fail))) {
             return false;
         }
         if (!format->image_info) {
@@ -337,7 +337,7 @@ static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_fl
         if (flag == IMAGE) {
             ops->remove_all_images = true;
         }
-        struct add_image_list_node node = {path, fd, format};
+        struct add_image_list_node node = {path, file, format};
         add_image_list_node_t copy = memdup(&node, sizeof(node));
         RSVC_LIST_PUSH(&ops->add_images, copy);
         return true;

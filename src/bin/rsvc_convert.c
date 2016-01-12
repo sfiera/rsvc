@@ -41,9 +41,9 @@
 
 struct file_pair {
     char*  input;
-    int    input_fd;
+    FILE*  input_file;
     char*  output;
-    int    output_fd;
+    FILE*  output_file;
 };
 
 static struct convert_options {
@@ -167,11 +167,11 @@ static void convert(struct file_pair f, rsvc_done_t done) {
         done(error);
     };
 
-    if (!rsvc_open(f.input, O_RDONLY, 0644, &f.input_fd, done)) {
+    if (!rsvc_open(f.input, O_RDONLY, 0644, &f.input_file, done)) {
         return;
     }
     done = ^(rsvc_error_t error){
-        close(f.input_fd);
+        fclose(f.input_file);
         done(error);
     };
 
@@ -183,7 +183,7 @@ static void convert(struct file_pair f, rsvc_done_t done) {
     //
     // Then, if --update was passed, skip if the output is newer.
     struct stat st_input, st_output;
-    if ((fstat(f.input_fd, &st_input) == 0)
+    if ((fstat(fileno(f.input_file), &st_input) == 0)
         && (stat(f.output, &st_output) == 0)) {
         if ((st_input.st_dev == st_output.st_dev)
             && (st_input.st_ino == st_output.st_ino)) {
@@ -208,12 +208,12 @@ static void convert(struct file_pair f, rsvc_done_t done) {
 
     // Open a temporary file next to the output path.
     char path_storage[MAXPATHLEN];
-    if (!rsvc_temp(f.output, path_storage, &f.output_fd, done)) {
+    if (!rsvc_temp(f.output, path_storage, &f.output_file, done)) {
         return;
     }
     char* tmp_path = strdup(path_storage);
     done = ^(rsvc_error_t error){
-        close(f.output_fd);
+        fclose(f.output_file);
         unlink(tmp_path);
         free(tmp_path);
         done(error);
@@ -409,7 +409,7 @@ static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
             done(error);
         }
     };
-    if (!rsvc_format_detect(f.input, f.input_fd, &format, cant_decode)) {
+    if (!rsvc_format_detect(f.input, fileno(f.input_file), &format, cant_decode)) {
         return;
     } else if (!format->decode) {
         rsvc_errorf(cant_decode, __FILE__, __LINE__,
@@ -417,7 +417,7 @@ static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
         return;
     }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        if (!format->decode(f.input_fd, write_fd, ^(rsvc_audio_info_t info){
+        if (!format->decode(fileno(f.input_file), write_fd, ^(rsvc_audio_info_t info){
             got_info = true;
             start(true, info);
         }, done)) {
@@ -446,7 +446,7 @@ static void convert_write(struct file_pair f, rsvc_audio_info_t info,
             },
         };
 
-        if (!options.encode.format->encode(read_fd, f.output_fd, &encode_options, done)) {
+        if (!options.encode.format->encode(read_fd, fileno(f.output_file), &encode_options, done)) {
             rsvc_progress_done(node, "fail");
             return;
         }
@@ -495,9 +495,9 @@ static void copy_tags(struct file_pair f, const char* tmp_path, rsvc_done_t done
     // formats (e.g. conversion to/from WAV), then silently do nothing.
     rsvc_format_t read_fmt, write_fmt;
     rsvc_done_t ignore = ^(rsvc_error_t error){ (void)error; /* do nothing */ };
-    if (!(rsvc_format_detect(f.input, f.input_fd, &read_fmt, ignore)
+    if (!(rsvc_format_detect(f.input, fileno(f.input_file), &read_fmt, ignore)
           && read_fmt->open_tags
-          && rsvc_format_detect(tmp_path, f.output_fd, &write_fmt, ignore)
+          && rsvc_format_detect(tmp_path, fileno(f.output_file), &write_fmt, ignore)
           && write_fmt->open_tags)) {
         done(NULL);
         return;

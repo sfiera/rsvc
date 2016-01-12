@@ -199,7 +199,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
 
         char parent[MAXPATHLEN];
         rsvc_dirname(path, parent);
-        int file;
+        FILE* file;
         if (!(rsvc_makedirs(parent, 0755, rip_done)
               && rsvc_open(path, O_RDWR | O_CREAT | O_EXCL, 0644, &file, rip_done))) {
             rsvc_tags_destroy(tags);
@@ -213,7 +213,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
 
         int read_pipe, write_pipe;
         if (!rsvc_pipe(&read_pipe, &write_pipe, rip_done)) {
-            close(file);
+            fclose(file);
             free(path);
             return;
         }
@@ -230,7 +230,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
         size_t nsamples = rsvc_cd_track_nsamples(track);
 
         encode_done = ^(rsvc_error_t error){
-            close(file);
+            fclose(file);
             close(read_pipe);
             rsvc_tags_destroy(tags);
             if (error) {
@@ -254,10 +254,10 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
                 },
             };
 
-            if (opts.encode.format->encode(read_pipe, file, &encode_options, encode_done)) {
+            if (opts.encode.format->encode(read_pipe, fileno(file), &encode_options, encode_done)) {
                 return;
             }
-            set_tags(file, path, tags, encode_done);
+            set_tags(fileno(file), path, tags, encode_done);
         });
     });
 }

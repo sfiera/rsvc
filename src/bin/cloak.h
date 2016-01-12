@@ -117,7 +117,7 @@ typedef struct format_path_list_node*   format_path_list_node_t;
 struct add_image_list {
     struct add_image_list_node {
         const char*            path;
-        int                    fd;
+        FILE*                  file;
         rsvc_format_t          format;
         add_image_list_node_t  prev, next;
     } *head, *tail;

@@ -34,17 +34,32 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-bool rsvc_open(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail) {
+bool rsvc_open(const char* path, int oflag, mode_t mode, FILE** file, rsvc_done_t fail) {
     rsvc_logf(3, "open %s", path);
-    *fd = open(path, oflag, mode);
-    if (*fd < 0) {
+    int fd = open(path, oflag, mode);
+    if (fd < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
         return false;
+    }
+    if (mode & O_RDWR) {
+        if (mode & O_APPEND) {
+            *file = fdopen(fd, "a+");
+        } else {
+            *file = fdopen(fd, "r+");
+        }
+    } else if (mode & O_WRONLY) {
+        if (mode & O_APPEND) {
+            *file = fdopen(fd, "a");
+        } else {
+            *file = fdopen(fd, "w");
+        }
+    } else {
+        *file = fdopen(fd, "r");
     }
     return true;
 }
 
-bool rsvc_temp(const char* base, char* path, int* fd, rsvc_done_t fail) {
+bool rsvc_temp(const char* base, char* path, FILE** file, rsvc_done_t fail) {
     if ((strlen(base) + 12) >= MAXPATHLEN) {
         rsvc_errorf(fail, __FILE__, __LINE__, "%s: File name too long", base);
         return false;
@@ -78,9 +93,9 @@ bool rsvc_temp(const char* base, char* path, int* fd, rsvc_done_t fail) {
 
     while (true) {
         memset(result + prefix_size, 'X', 10);
-        *fd = mkstemps(result, suffix_size);
+        int fd = mkstemps(result, suffix_size);
         rsvc_logf(3, "temp %s", result);
-        if (*fd < 0) {
+        if (fd < 0) {
             switch (errno) {
               case EEXIST:
               case EINTR:
@@ -93,6 +108,7 @@ bool rsvc_temp(const char* base, char* path, int* fd, rsvc_done_t fail) {
                 return false;
             }
         }
+        *file = fdopen(fd, "r+");
         break;
     }
 

@@ -168,9 +168,9 @@ static void rsvc_opus_tags_out(OpusTags* tags, ogg_packet* op) {
 static bool rsvc_opus_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     opus_tags_t self = DOWN_CAST(struct opus_tags, tags);
 
-    int fd;
+    FILE* file;
     char tmp_path[MAXPATHLEN];
-    if (!rsvc_temp(self->path, tmp_path, &fd, fail)) {
+    if (!rsvc_temp(self->path, tmp_path, &file, fail)) {
         return false;
     }
 
@@ -182,8 +182,8 @@ static bool rsvc_opus_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     rsvc_opus_head_out(&self->head, &op_head);
     ogg_packet op_tags;
     rsvc_opus_tags_out(&self->tags, &op_tags);
-    if (!(rsvc_ogg_align_packet(fd, &os, &og, &op_head, fail) &&
-          rsvc_ogg_align_packet(fd, &os, &og, &op_tags, fail))) {
+    if (!(rsvc_ogg_align_packet(fileno(file), &os, &og, &op_head, fail) &&
+          rsvc_ogg_align_packet(fileno(file), &os, &og, &op_tags, fail))) {
         // TODO(sfiera): cleanup
         return false;
     }
@@ -199,7 +199,7 @@ static bool rsvc_opus_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     while (!eof) {
         size_t size;
         if (!(rsvc_read(self->path, self->fd, buffer, 4096, &size, &eof, fail) &&
-              (eof || rsvc_write(tmp_path, fd, buffer, size, NULL, NULL, fail)))) {
+              (eof || rsvc_write(tmp_path, fileno(file), buffer, size, NULL, NULL, fail)))) {
             return false;
         }
     }
@@ -297,9 +297,12 @@ bool rsvc_opus_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_do
         fail(error);
     };
 
-    if (!rsvc_open(opus.path, O_RDONLY, 0644, &opus.fd, fail)) {
+    FILE* file;
+    if (!rsvc_open(opus.path, O_RDONLY, 0644, &file, fail)) {
         return false;
     }
+    opus.fd = dup(fileno(file));
+    fclose(file);
     fail = ^(rsvc_error_t error){
         close(opus.fd);
         fail(error);

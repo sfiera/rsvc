@@ -147,18 +147,18 @@ struct rsvc_command rsvc_info = {
         }
 
         for (string_list_node_t curr = options.paths.head; curr; curr = curr->next) {
-            int fd;
-            if (!rsvc_open(curr->value, O_RDONLY, 0644, &fd, done)) {
+            FILE* file;
+            if (!rsvc_open(curr->value, O_RDONLY, 0644, &file, done)) {
                 return;
             }
             rsvc_done_t file_fail = ^(rsvc_error_t error){
-                close(fd);
+                fclose(file);
                 rsvc_prefix_error(curr->value, error, done);
             };
-            if (!print_info(curr->value, fd, width, file_fail)) {
+            if (!print_info(curr->value, fileno(file), width, file_fail)) {
                 return;
             }
-            close(fd);
+            fclose(file);
         }
         done(NULL);
     },

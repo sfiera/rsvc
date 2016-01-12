@@ -571,9 +571,15 @@ bool rsvc_id3_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_don
         fail(error);
     };
     bool rdwr = flags & RSVC_TAG_RDWR;
-    if (!(rsvc_open(id3.path, rdwr ? O_RDWR : O_RDONLY, 0644, &id3.fd, fail)
-          && read_id3_header(&id3, fail)
-          && read_id3_frames(&id3, fail))) {
+    FILE* file;
+    if (!rsvc_open(id3.path, rdwr ? O_RDWR : O_RDONLY, 0644, &file, fail)) {
+        return false;
+    }
+    id3.fd = dup(fileno(file));
+    fclose(file);
+
+    if (!(read_id3_header(&id3, fail) &&
+          read_id3_frames(&id3, fail))) {
         return false;
     }
 
@@ -771,11 +777,11 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     // TODO(sfiera): if there's enough space in the original file to
     // write out the new ID3 tags, then reuse that space without
     // creating a new file.
-    int fd;
+    FILE* file;
     char tmp_path[MAXPATHLEN];
-    if (!(rsvc_temp(tags->path, tmp_path, &fd, fail)
-          && rsvc_write(tmp_path, fd, header, 10, NULL, NULL, fail)
-          && rsvc_write(tmp_path, fd, body, body_size, NULL, NULL, fail))) {
+    if (!(rsvc_temp(tags->path, tmp_path, &file, fail)
+          && rsvc_write(tmp_path, fileno(file), header, 10, NULL, NULL, fail)
+          && rsvc_write(tmp_path, fileno(file), body, body_size, NULL, NULL, fail))) {
         return false;
     }
 
@@ -789,7 +795,7 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
         } else if (eof) {
             break;
         }
-        if (!rsvc_write(tmp_path, fd, buffer, size, NULL, NULL, fail)) {
+        if (!rsvc_write(tmp_path, fileno(file), buffer, size, NULL, NULL, fail)) {
             return false;
         }
     }
@@ -799,11 +805,12 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     // We'll use that if we try to write the file again.
     rsvc_logf(2, "renaming %s to %s", tmp_path, tags->path);
     if (!rsvc_refile(tmp_path, tags->path, fail)) {
-        close(fd);
+        fclose(file);
         return false;
     }
     close(tags->fd);
-    tags->fd = fd;
+    tags->fd = dup(fileno(file));
+    fclose(file);
 
     free(body);
     return true;

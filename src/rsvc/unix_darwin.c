@@ -41,19 +41,20 @@ bool rsvc_opendev(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t
 
 bool rsvc_cp(const char* src, const char* dst, rsvc_done_t fail) {
     rsvc_logf(3, "cp %s %s", src, dst);
-    int src_fd, dst_fd;
-    if (!rsvc_open(src, O_RDONLY, 0644, &src_fd, fail)) {
+    FILE* src_file;
+    FILE* dst_file;
+    if (!rsvc_open(src, O_RDONLY, 0644, &src_file, fail)) {
         return false;
-    } else if (!rsvc_open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0600, &dst_fd, fail)) {
-        close(src_fd);
+    } else if (!rsvc_open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0600, &dst_file, fail)) {
+        fclose(src_file);
         return false;
-    } else if (fcopyfile(src_fd, dst_fd, NULL, COPYFILE_ALL) < 0) {
-        close(src_fd);
-        close(dst_fd);
+    } else if (fcopyfile(fileno(src_file), fileno(dst_file), NULL, COPYFILE_ALL) < 0) {
+        fclose(src_file);
+        fclose(dst_file);
         rsvc_strerrorf(fail, __FILE__, __LINE__, "copy %s to %s", src, dst);
         return false;
     }
-    close(src_fd);
-    close(dst_fd);
+    fclose(src_file);
+    fclose(dst_file);
     return true;
 }

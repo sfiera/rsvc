@@ -259,13 +259,13 @@ static bool vorbis_next(rsvc_iter_t super_it) {
 
 static bool rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     rsvc_vorbis_tags_t self = DOWN_CAST(struct rsvc_vorbis_tags, tags);
-    int fd;
+    FILE* file;
     char tmp_path[MAXPATHLEN];
-    if (!rsvc_temp(self->path, tmp_path, &fd, fail)) {
+    if (!rsvc_temp(self->path, tmp_path, &file, fail)) {
         return false;
     }
     rsvc_done_t done = ^(rsvc_error_t error){
-        close(fd);
+        fclose(file);
         if (error) {
             fail(error);
         }
@@ -281,9 +281,9 @@ static bool rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
 
     ogg_packet header_comm;
     vorbis_commentheader_out(&self->vc, &header_comm);
-    if (!(rsvc_ogg_align_packet(fd, &os, &og, &self->header, done) &&
-          rsvc_ogg_align_packet(fd, &os, &og, &header_comm, done) &&
-          rsvc_ogg_align_packet(fd, &os, &og, &self->header_code, done))) {
+    if (!(rsvc_ogg_align_packet(fileno(file), &os, &og, &self->header, done) &&
+          rsvc_ogg_align_packet(fileno(file), &os, &og, &header_comm, done) &&
+          rsvc_ogg_align_packet(fileno(file), &os, &og, &self->header_code, done))) {
         // TODO(sfiera): cleanup
         return false;
     }
@@ -293,15 +293,15 @@ static bool rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
         if (result == 0) {
             break;
         }
-        if (!(rsvc_write(NULL, fd, og.header, og.header_len, NULL, NULL, done) &&
-              rsvc_write(NULL, fd, og.body, og.body_len, NULL, NULL, done))) {
+        if (!(rsvc_write(NULL, fileno(file), og.header, og.header_len, NULL, NULL, done) &&
+              rsvc_write(NULL, fileno(file), og.body, og.body_len, NULL, NULL, done))) {
             return false;  // TODO(sfiera): cleanup?
         }
     }
 
     for (rsvc_ogg_page_node_t curr = self->pages.head; curr; curr = curr->next) {
-        if (!(rsvc_write(NULL, fd, curr->page.header, curr->page.header_len, NULL, NULL, done) &&
-              rsvc_write(NULL, fd, curr->page.body, curr->page.body_len, NULL, NULL, done))) {
+        if (!(rsvc_write(NULL, fileno(file), curr->page.header, curr->page.header_len, NULL, NULL, done) &&
+              rsvc_write(NULL, fileno(file), curr->page.body, curr->page.body_len, NULL, NULL, done))) {
             return false;
         }
     }
@@ -436,8 +436,11 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
     };
     bool ok = false;
 
-    int fd;
-    if (rsvc_open(ogv.path, O_RDONLY, 0644, &fd, fail)) {
+    FILE* file;
+    if (rsvc_open(ogv.path, O_RDONLY, 0644, &file, fail)) {
+        int fd = dup(fileno(file));
+        fclose(file);
+
         ogg_sync_state    oy = {};
         ogg_stream_state  os = {};
         vorbis_info       vi = {};

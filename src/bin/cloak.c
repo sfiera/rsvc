@@ -54,13 +54,13 @@ static bool check_taggable(rsvc_format_t format, rsvc_done_t fail) {
 
 static bool tag_file(const char* path, ops_t ops, rsvc_done_t fail) {
     bool result = false;
-    int fd;
-    if (rsvc_open(path, O_RDONLY, 0644, &fd, fail)) {
+    FILE* file;
+    if (rsvc_open(path, O_RDONLY, 0644, &file, fail)) {
         // From here on, prepend the file name to the error message.
         fail = ^(rsvc_error_t error) { rsvc_prefix_error(path, error, fail); };
         rsvc_format_t format;
         rsvc_tags_t tags;
-        if (rsvc_format_detect(path, fd, &format, fail) &&
+        if (rsvc_format_detect(path, fileno(file), &format, fail) &&
             check_taggable(format, fail) &&
             format->open_tags(path, cloak_mode(ops), &tags, fail)) {
             if (apply_ops(tags, path, format, ops, fail)) {
@@ -68,7 +68,7 @@ static bool tag_file(const char* path, ops_t ops, rsvc_done_t fail) {
             }
             rsvc_tags_destroy(tags);
         }
-        close(fd);
+        fclose(file);
     }
     return result;
 }
@@ -149,13 +149,13 @@ static bool write_image(  rsvc_tags_t tags, int index,
         }
 
         char temp_path[MAXPATHLEN];
-        int fd;
-        if (rsvc_temp(true_path, temp_path, &fd, fail)) {
-            if (rsvc_write(true_path, fd, it->data, it->size, NULL, NULL, fail) &&
+        FILE* file;
+        if (rsvc_temp(true_path, temp_path, &file, fail)) {
+            if (rsvc_write(true_path, fileno(file), it->data, it->size, NULL, NULL, fail) &&
                 rsvc_rename(temp_path, true_path, fail)) {
                 ok = true;
             }
-            close(fd);
+            fclose(file);
         }
         rsvc_break(it);
         break;
@@ -228,7 +228,7 @@ static bool apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
     }
 
     for (add_image_list_node_t curr = ops->add_images.head; curr; curr = curr->next) {
-        if (!add_image(tags, curr->format, curr->path, curr->fd, fail)) {
+        if (!add_image(tags, curr->format, curr->path, fileno(curr->file), fail)) {
             return false;
         }
     }

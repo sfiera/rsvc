@@ -25,16 +25,17 @@
 static bool same_file(const char* x, const char* y) {
     rsvc_done_t ignore = ^(rsvc_error_t error){ (void)error; };
     bool same = false;
-    int a_fd, b_fd;
-    if (rsvc_open(x, O_RDONLY, 0644, &a_fd, ignore)
-            && rsvc_open(y, O_RDONLY, 0644, &b_fd, ignore)) {
+    FILE* a_file;
+    FILE* b_file;
+    if (rsvc_open(x, O_RDONLY, 0644, &a_file, ignore)
+            && rsvc_open(y, O_RDONLY, 0644, &b_file, ignore)) {
         struct stat a_st, b_st;
-        if ((fstat(a_fd, &a_st) >= 0) && (fstat(b_fd, &b_st) >= 0)) {
+        if ((fstat(fileno(a_file), &a_st) >= 0) && (fstat(fileno(b_file), &b_st) >= 0)) {
             same = (a_st.st_dev == b_st.st_dev)
                 && (a_st.st_ino == b_st.st_ino);
         }
-        close(a_fd);
-        close(b_fd);
+        fclose(a_file);
+        fclose(b_file);
     }
     return same;
 }
