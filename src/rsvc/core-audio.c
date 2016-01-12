@@ -133,7 +133,7 @@ static bool core_audio_encode(
         .mFormatFlags       = kAudioFormatFlagIsSignedInteger
                             | kAudioFormatFlagsNativeEndian
                             | kAudioFormatFlagIsPacked,
-        .mBitsPerChannel    = 16,
+        .mBitsPerChannel    = info.bits_per_sample,
         .mSampleRate        = info.sample_rate,
         .mChannelsPerFrame  = info.channels,
         .mFramesPerPacket   = 1,

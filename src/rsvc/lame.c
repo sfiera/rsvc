@@ -30,6 +30,11 @@ bool rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
     struct rsvc_audio_info  info      = options->info;
     rsvc_encode_progress_f  progress  = options->progress;
 
+    if (info.bits_per_sample != 16) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "can't encode %zu-bit mp3", info.bits_per_sample);
+        return false;
+    }
+
     lame_global_flags* lame = lame_init();
     lame_set_num_channels(lame, info.channels);
     lame_set_brate(lame, bitrate >> 10);

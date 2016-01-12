@@ -130,7 +130,7 @@ bool rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
     if (!(FLAC__stream_encoder_set_verify(encoder, true) &&
           FLAC__stream_encoder_set_compression_level(encoder, 8) &&
           FLAC__stream_encoder_set_channels(encoder, info.channels) &&
-          FLAC__stream_encoder_set_bits_per_sample(encoder, 16) &&
+          FLAC__stream_encoder_set_bits_per_sample(encoder, info.bits_per_sample) &&
           FLAC__stream_encoder_set_sample_rate(encoder, info.sample_rate) &&
           FLAC__stream_encoder_set_total_samples_estimate(encoder, info.samples_per_channel))) {
         FLAC__StreamEncoderState state = FLAC__stream_encoder_get_state(encoder);
@@ -587,7 +587,7 @@ static void flac_decode_metadata(const FLAC__StreamDecoder* decoder,
         .channels = metadata->data.stream_info.channels,
         .sample_rate = metadata->data.stream_info.sample_rate,
         .samples_per_channel = metadata->data.stream_info.total_samples,
-        .bits_per_sample = metadata->data.stream_info.bits_per_sample,
+        .bits_per_sample = 16,  // TODO(sfiera): metadata->data.stream_info.bits_per_sample
     };
     u->info(&info);
 }

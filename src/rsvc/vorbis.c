@@ -46,6 +46,7 @@ bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
     int32_t                 bitrate   = options->bitrate;
     struct rsvc_audio_info  info      = options->info;
     rsvc_encode_progress_f  progress  = options->progress;
+    float                   div       = 1 << (info.bits_per_sample - 1);
 
     ogg_stream_state  os;
     ogg_page          og;
@@ -98,7 +99,7 @@ bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
             float** out = vorbis_analysis_buffer(&vd, sizeof(in));
             for (int16_t* p = in; p < in + (nsamples * info.channels); ) {
                 for (int i = 0; i < info.channels; ++i) {
-                    *(out[i]++) = *(p++) / 32768.f;
+                    *(out[i]++) = *(p++) / div;
                 }
             }
             vorbis_analysis_wrote(&vd, nsamples);
