@@ -30,6 +30,7 @@ struct rsvc_audio_info {
     size_t  channels;
     size_t  samples_per_channel;
     size_t  bits_per_sample;
+    size_t  block_align;
 };
 
 typedef bool (*rsvc_audio_info_f)(int fd, rsvc_audio_info_t info, rsvc_done_t fail);

@@ -71,9 +71,6 @@ static enum mad_flow mad_input(void* v, struct mad_stream* stream) {
 
 static enum mad_flow mad_header(void* v, struct mad_header const* header) {
     struct mad_userdata* userdata = v;
-    userdata->info.bits_per_sample = 16;  // TODO(sfiera): mad outputs 24
-    userdata->info.sample_rate = header->samplerate;
-
     switch (header->mode) {
         case MAD_MODE_SINGLE_CHANNEL:
             userdata->info.channels = 1;
@@ -86,6 +83,9 @@ static enum mad_flow mad_header(void* v, struct mad_header const* header) {
             userdata->info.channels = 2;
             break;
     }
+    userdata->info.bits_per_sample = 16;  // TODO(sfiera): mad outputs 24
+    userdata->info.block_align = 2 * userdata->info.channels;
+    userdata->info.sample_rate = header->samplerate;
 
     return MAD_FLOW_CONTINUE;
 }

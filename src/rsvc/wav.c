@@ -98,6 +98,24 @@ static bool check_is_wav(int fd, riff_chunk_t header, rsvc_done_t fail) {
     return true;
 }
 
+static bool wav_fmt_validate(wav_fmt_t wf, rsvc_done_t fail) {
+    if (wf->audio_format != 1) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "unsupported audio format: %hu", wf->audio_format);
+        return false;
+    } else if (wf->byte_rate != (wf->block_align * wf->sample_rate)) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "unsupported byte rate: %u", wf->byte_rate);
+        return false;
+    } else {
+        struct rsvc_audio_info info = {
+            .sample_rate      = wf->sample_rate,
+            .channels         = wf->channels,
+            .bits_per_sample  = wf->bits_per_sample,
+            .block_align      = wf->block_align,
+        };
+        return rsvc_audio_info_validate(&info, fail);
+    }
+}
+
 static bool read_wav_fmt(int fd, riff_chunk_t rc, wav_fmt_t wf, rsvc_done_t fail) {
     if (rc->size < WAV_FMT_SIZE) {
         rsvc_errorf(fail, __FILE__, __LINE__, "malformed wav fmt chunk");
@@ -115,23 +133,9 @@ static bool read_wav_fmt(int fd, riff_chunk_t rc, wav_fmt_t wf, rsvc_done_t fail
     wf->block_align      = u16le(data + 12);
     wf->bits_per_sample  = u16le(data + 14);
 
-    if (wf->audio_format != 1) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "unsupported audio format: %hu", wf->audio_format);
+    if (!wav_fmt_validate(wf, fail)) {
         return false;
-    } else if (wf->channels == 0) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "bad channel count: %hu", wf->audio_format);
-        return false;
-    } else if (wf->bits_per_sample != 16) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "unsupported bits: %hu", wf->bits_per_sample);
-        return false;
-    } else if (wf->block_align != (2 * wf->channels)) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "unsupported block align: %hu", wf->block_align);
-        return false;
-    } else if (wf->byte_rate != (wf->block_align * wf->sample_rate)) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "unsupported byte rate: %u", wf->byte_rate);
-        return false;
-    }
-    if (lseek(fd, rc->size - WAV_FMT_SIZE, SEEK_CUR) < 0) {
+    } else if (lseek(fd, rc->size - WAV_FMT_SIZE, SEEK_CUR) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
     }
@@ -173,6 +177,7 @@ bool wav_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
             info->sample_rate      = wf.sample_rate;
             info->channels         = wf.channels;
             info->bits_per_sample  = wf.bits_per_sample;
+            info->block_align      = wf.block_align;
         } else if (rc.code == WAV_DATA) {
             if (!have_fmt) {
                 rsvc_errorf(fail, __FILE__, __LINE__, "missing wav fmt chunk");
@@ -198,10 +203,11 @@ bool wav_audio_decode(int src_fd, int dst_fd, rsvc_decode_info_f info, rsvc_done
         return false;
     }
     info(&i);
-    size_t remainder = (i.bits_per_sample / 8) * i.samples_per_channel * i.channels;
+    size_t remainder = i.block_align * i.samples_per_channel;
     while (remainder) {
         uint8_t data[4096];
         size_t size = (remainder > 4096) ? 4096 : remainder;
+        // TODO(sfiera): endianness.
         if (!(rsvc_read(NULL, src_fd, data, size, NULL, NULL, fail) &&
               rsvc_write(NULL, dst_fd, data, size, NULL, NULL, fail))) {
             return false;
@@ -211,39 +217,28 @@ bool wav_audio_decode(int src_fd, int dst_fd, rsvc_decode_info_f info, rsvc_done
     return true;
 }
 
-static bool wav_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t fail) {
-    if (!rsvc_audio_info_validate(&opts->info, fail)) {
-        return false;
-    } else if (opts->info.bits_per_sample != 16) {
-        rsvc_errorf(  fail, __FILE__, __LINE__,
-                      "can't encode %zu-bit wav", opts->info.bits_per_sample);
-        return false;
-    }
-    return true;
-}
-
 bool wav_audio_encode(int src_fd, int dst_fd, rsvc_encode_options_t opts, rsvc_done_t fail) {
-    if (!wav_encode_options_validate(opts, fail)) {
+    if (!rsvc_audio_info_validate(&opts->info, fail)) {
         return false;
     }
     static const int header_size = 44;
     uint8_t header[header_size];
-    size_t sampl = opts->info.sample_rate;
-    size_t chans = opts->info.channels;
-    size_t bytes = opts->info.bits_per_sample / 8;
-    size_t data_size = opts->info.samples_per_channel * chans * bytes;
+    size_t block = opts->info.block_align;
+    static const int fmt_size = 16;
+    size_t data_size = opts->info.samples_per_channel * block;
     size_t riff_size = header_size - 4 + data_size;
+
     u32le_out(header + 0,   WAV_RIFF);
     u32le_out(header + 4,   riff_size);
     u32le_out(header + 8,   WAV_WAVE);
     u32le_out(header + 12,  WAV_FMT);
-    u32le_out(header + 16,  opts->info.bits_per_sample);
+    u32le_out(header + 16,  fmt_size);
     u16le_out(header + 20,  1);
-    u16le_out(header + 22,  chans);
-    u32le_out(header + 24,  sampl);
-    u32le_out(header + 28,  sampl * chans * bytes);
-    u16le_out(header + 32,  chans * bytes);
-    u16le_out(header + 34,  bytes * 8);
+    u16le_out(header + 22,  opts->info.channels);
+    u32le_out(header + 24,  opts->info.sample_rate);
+    u32le_out(header + 28,  block * opts->info.sample_rate);
+    u16le_out(header + 32,  block);
+    u16le_out(header + 34,  opts->info.bits_per_sample);
     u32le_out(header + 36,  WAV_DATA);
     u32le_out(header + 40,  data_size);
 
@@ -255,6 +250,7 @@ bool wav_audio_encode(int src_fd, int dst_fd, rsvc_encode_options_t opts, rsvc_d
     while (remainder) {
         uint8_t data[4096];
         size_t size = (remainder > 4096) ? 4096 : remainder;
+        // TODO(sfiera): endianness.
         if (!(rsvc_read(NULL, src_fd, data, size, NULL, NULL, fail) &&
               rsvc_write(NULL, dst_fd, data, size, NULL, NULL, fail))) {
             return false;

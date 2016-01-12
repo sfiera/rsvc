@@ -555,6 +555,7 @@ bool rsvc_vorbis_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
             .channels = vi.channels,
             .samples_per_channel = ogg_page_granulepos(&og),
             .bits_per_sample = 16,
+            .block_align = 2 * vi.channels,
         };
         *info = i;
         ok = true;

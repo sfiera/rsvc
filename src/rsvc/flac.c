@@ -112,6 +112,9 @@ static void                    flac_decode_error(const FLAC__StreamDecoder* deco
 bool rsvc_flac_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t fail) {
     if (!rsvc_audio_info_validate(&opts->info, fail)) {
         return false;
+    } else if (opts->info.block_align != 16) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "need 16-bit input");
+        return false;
     }
     return true;
 }
@@ -598,6 +601,7 @@ static void flac_decode_metadata(const FLAC__StreamDecoder* decoder,
         .sample_rate = metadata->data.stream_info.sample_rate,
         .samples_per_channel = metadata->data.stream_info.total_samples,
         .bits_per_sample = 16,  // TODO(sfiera): metadata->data.stream_info.bits_per_sample
+        .block_align = 2 * metadata->data.stream_info.channels,
     };
     u->info(&info);
 }
@@ -786,6 +790,7 @@ static bool rsvc_flac_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fai
                 .channels             = si->channels,
                 .samples_per_channel  = si->total_samples,
                 .bits_per_sample      = si->bits_per_sample,
+                .block_align          = 0,  // TODO(sfiera): compute
             };
             *info = i;
             ok = true;

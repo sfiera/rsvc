@@ -40,6 +40,19 @@ static bool valid_bit_depth(size_t depth) {
         || (depth == 1);
 }
 
+static bool valid_block_align(size_t block_align, size_t channels, size_t bit_depth) {
+    // TODO(sfiera): allow packing for bit_depth < 8
+    if (bit_depth <= 8) {
+        return block_align == (channels * sizeof(int8_t));
+    } else if (bit_depth == 16) {
+        return block_align == (channels * sizeof(int16_t));
+    } else if (bit_depth <= 32) {
+        return block_align == (channels * sizeof(int32_t));
+    } else {
+        return false;
+    }
+}
+
 bool rsvc_audio_info_validate(rsvc_audio_info_t info, rsvc_done_t fail) {
     if (!valid_channels(info->channels)) {
         rsvc_errorf(fail, __FILE__, __LINE__, "invalid channel count: %zu", info->channels);
@@ -49,6 +62,11 @@ bool rsvc_audio_info_validate(rsvc_audio_info_t info, rsvc_done_t fail) {
         return false;
     } else if (!valid_bit_depth(info->bits_per_sample)) {
         rsvc_errorf(fail, __FILE__, __LINE__, "invalid bit depth: %zu", info->bits_per_sample);
+        return false;
+    } else if (!valid_block_align(info->block_align, info->channels, info->bits_per_sample)) {
+        rsvc_errorf(  fail, __FILE__, __LINE__,
+                      "invalid %zu-bit block align: %zu",
+                      info->bits_per_sample, info->block_align);
         return false;
     }
     return true;

@@ -147,8 +147,8 @@ static bool core_audio_encode(
         .mSampleRate        = info.sample_rate,
         .mChannelsPerFrame  = info.channels,
         .mFramesPerPacket   = 1,
-        .mBytesPerPacket    = 2 * info.channels,
-        .mBytesPerFrame     = 2 * info.channels,
+        .mBytesPerPacket    = info.block_align,
+        .mBytesPerFrame     = info.block_align,
     };
     err = ExtAudioFileSetProperty(
             file_ref, kExtAudioFileProperty_ClientDataFormat, sizeof(asbd_in), &asbd_in);
