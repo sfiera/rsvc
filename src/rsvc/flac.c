@@ -714,7 +714,7 @@ static void flac_decode_error(const FLAC__StreamDecoder* decoder,
 
 typedef struct flac_audio_info_userdata* flac_audio_info_userdata_t;
 struct flac_audio_info_userdata {
-    int          fd;
+    FILE*        file;
     rsvc_done_t  fail;
     bool         called_fail;
     size_t       size_inout;
@@ -723,7 +723,7 @@ struct flac_audio_info_userdata {
 
 static size_t flac_audio_info_read(void *ptr, size_t size, size_t count, FLAC__IOHandle handle) {
     flac_audio_info_userdata_t u = handle;
-    if (!rsvc_cread(NULL, u->fd, ptr, count, size, &count, &u->size_inout, &u->eof, u->fail)) {
+    if (!rsvc_cread(NULL, fileno(u->file), ptr, count, size, &count, &u->size_inout, &u->eof, u->fail)) {
         u->called_fail = true;
         return -1;
     }
@@ -732,7 +732,7 @@ static size_t flac_audio_info_read(void *ptr, size_t size, size_t count, FLAC__I
 
 static int flac_audio_info_seek(FLAC__IOHandle handle, FLAC__int64 offset, int whence) {
     flac_audio_info_userdata_t u = handle;
-    off_t off = lseek(u->fd, offset, whence);
+    off_t off = lseek(fileno(u->file), offset, whence);
     if (off < 0) {
         rsvc_strerrorf(u->fail, __FILE__, __LINE__, NULL);
         u->called_fail = true;
@@ -743,7 +743,7 @@ static int flac_audio_info_seek(FLAC__IOHandle handle, FLAC__int64 offset, int w
 
 static FLAC__int64 flac_audio_info_tell(FLAC__IOHandle handle) {
     flac_audio_info_userdata_t u = handle;
-    off_t off = lseek(u->fd, 0, SEEK_CUR);
+    off_t off = lseek(fileno(u->file), 0, SEEK_CUR);
     if (off < 0) {
         rsvc_strerrorf(u->fail, __FILE__, __LINE__, NULL);
         u->called_fail = true;
@@ -757,7 +757,7 @@ static int flac_audio_info_eof(FLAC__IOHandle handle) {
     return u->eof;
 }
 
-static bool rsvc_flac_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
+static bool rsvc_flac_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
     static FLAC__IOCallbacks cb = {
         .read  = flac_audio_info_read,
         .seek  = flac_audio_info_seek,
@@ -765,7 +765,7 @@ static bool rsvc_flac_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fai
         .eof   = flac_audio_info_eof,
     };
     struct flac_audio_info_userdata u = {
-        .fd    = fd,
+        .file  = file,
         .fail  = fail,
     };
 

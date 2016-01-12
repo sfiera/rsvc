@@ -537,7 +537,7 @@ bool read_last_page(  int fd, ogg_sync_state* oy, ogg_page* og,
     return ok;
 }
 
-bool rsvc_vorbis_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
+bool rsvc_vorbis_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
     struct rsvc_vorbis_tags ogv = {};
     bool ok = false;
 
@@ -551,8 +551,8 @@ bool rsvc_vorbis_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
     vorbis_info_init(&vi);
     vorbis_comment_init(&ogv.vc);
 
-    if (read_header(fd, &ogv, &vi, &oy, &os, &og, &op, fail) &&
-        read_last_page(fd, &oy, &og, fail)) {
+    if (read_header(fileno(file), &ogv, &vi, &oy, &os, &og, &op, fail) &&
+        read_last_page(fileno(file), &oy, &og, fail)) {
         struct rsvc_audio_info i = {
             .sample_rate = vi.rate,
             .channels = vi.channels,

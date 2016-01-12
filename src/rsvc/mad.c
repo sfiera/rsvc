@@ -203,12 +203,12 @@ bool rsvc_mad_decode(int src_fd, int dst_fd,
     return mad_decode(&userdata);
 }
 
-bool rsvc_mad_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
+bool rsvc_mad_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
     struct mad_userdata userdata = {
-        .src_fd = fd,
+        .src_fd = fileno(file),
         .fail = fail,
     };
-    if (!(rsvc_id3_skip_tags(fd, fail) &&
+    if (!(rsvc_id3_skip_tags(fileno(file), fail) &&
           mad_get_audio_info(&userdata))) {
         return false;
     }

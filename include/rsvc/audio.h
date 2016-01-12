@@ -21,6 +21,7 @@
 #ifndef RSVC_AUDIO_H_
 #define RSVC_AUDIO_H_
 
+#include <stdio.h>
 #include <rsvc/common.h>
 
 /// Audio
@@ -33,7 +34,7 @@ struct rsvc_audio_info {
     size_t  block_align;
 };
 
-typedef bool (*rsvc_audio_info_f)(int fd, rsvc_audio_info_t info, rsvc_done_t fail);
+typedef bool (*rsvc_audio_info_f)(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail);
 
 bool rsvc_audio_info_validate(rsvc_audio_info_t info, rsvc_done_t fail);
 

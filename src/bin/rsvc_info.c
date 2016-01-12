@@ -44,9 +44,9 @@ static void push_string(struct string_list* list, const char* value) {
     RSVC_LIST_PUSH(list, memdup(&tmp, sizeof(tmp)));
 }
 
-static bool print_audio_info(const char* path, int fd, rsvc_format_t format, int width, rsvc_done_t fail) {
+static bool print_audio_info(const char* path, FILE* file, rsvc_format_t format, int width, rsvc_done_t fail) {
     struct rsvc_audio_info info;
-    if (!format->audio_info(fd, &info, fail)) {
+    if (!format->audio_info(file, &info, fail)) {
         return false;
     }
 
@@ -117,7 +117,7 @@ static bool print_info(const char* path, FILE* file, int width, rsvc_done_t fail
     }
 
     if (format->audio_info) {
-        return print_audio_info(path, fileno(file), format, width, fail);
+        return print_audio_info(path, file, format, width, fail);
     } else if (format->image_info) {
         return print_image_info(path, fileno(file), format, width, fail);
     } else {

@@ -143,10 +143,10 @@ static bool read_wav_fmt(int fd, riff_chunk_t rc, wav_fmt_t wf, rsvc_done_t fail
 }
 
 // Leaves `fd` positioned at the start of the data chunk.
-bool wav_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
+bool wav_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
     struct riff_chunk header;
-    if (!(read_riff_chunk_header(fd, &header, fail) &&
-          check_is_wav(fd, &header, fail))) {
+    if (!(read_riff_chunk_header(fileno(file), &header, fail) &&
+          check_is_wav(fileno(file), &header, fail))) {
         return false;
     }
     off_t end = RIFF_HEADER_SIZE + header.size;
@@ -156,7 +156,7 @@ bool wav_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
     bool have_fmt = false;
     while (true) {
         struct riff_chunk rc;
-        if (!read_riff_chunk_header(fd, &rc, fail)) {
+        if (!read_riff_chunk_header(fileno(file), &rc, fail)) {
             return false;
         }
         at += RIFF_HEADER_SIZE + rc.size;
@@ -171,7 +171,7 @@ bool wav_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
             } else {
                 have_fmt = true;
             }
-            if (!read_wav_fmt(fd, &rc, &wf, fail)) {
+            if (!read_wav_fmt(fileno(file), &rc, &wf, fail)) {
                 return false;
             }
             info->sample_rate      = wf.sample_rate;
@@ -189,7 +189,7 @@ bool wav_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
             info->samples_per_channel = rc.size / wf.block_align;
             return true;
         } else {
-            if (!lseek(fd, rc.size, SEEK_CUR)) {
+            if (!lseek(fileno(file), rc.size, SEEK_CUR)) {
                 rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
                 return false;
             }
@@ -199,7 +199,10 @@ bool wav_audio_info(int fd, rsvc_audio_info_t info, rsvc_done_t fail) {
 
 bool wav_audio_decode(int src_fd, int dst_fd, rsvc_decode_info_f info, rsvc_done_t fail) {
     struct rsvc_audio_info i;
-    if (!wav_audio_info(src_fd, &i, fail)) {
+    src_fd = dup(src_fd);
+    FILE* src_file = fdopen(src_fd, "r");
+    if (!wav_audio_info(src_file, &i, fail)) {
+        fclose(src_file);
         return false;
     }
     info(&i);
@@ -210,10 +213,12 @@ bool wav_audio_decode(int src_fd, int dst_fd, rsvc_decode_info_f info, rsvc_done
         // TODO(sfiera): endianness.
         if (!(rsvc_read(NULL, src_fd, data, size, NULL, NULL, fail) &&
               rsvc_write(NULL, dst_fd, data, size, NULL, NULL, fail))) {
+            fclose(src_file);
             return false;
         }
         remainder -= size;
     }
+    fclose(src_file);
     return true;
 }
 
