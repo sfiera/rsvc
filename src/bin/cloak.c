@@ -60,7 +60,7 @@ static bool tag_file(const char* path, ops_t ops, rsvc_done_t fail) {
         fail = ^(rsvc_error_t error) { rsvc_prefix_error(path, error, fail); };
         rsvc_format_t format;
         rsvc_tags_t tags;
-        if (rsvc_format_detect(path, fileno(file), &format, fail) &&
+        if (rsvc_format_detect(path, file, &format, fail) &&
             check_taggable(format, fail) &&
             format->open_tags(path, cloak_mode(ops), &tags, fail)) {
             if (apply_ops(tags, path, format, ops, fail)) {

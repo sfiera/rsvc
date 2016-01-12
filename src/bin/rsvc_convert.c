@@ -409,7 +409,7 @@ static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
             done(error);
         }
     };
-    if (!rsvc_format_detect(f.input, fileno(f.input_file), &format, cant_decode)) {
+    if (!rsvc_format_detect(f.input, f.input_file, &format, cant_decode)) {
         return;
     } else if (!format->decode) {
         rsvc_errorf(cant_decode, __FILE__, __LINE__,
@@ -495,9 +495,9 @@ static void copy_tags(struct file_pair f, const char* tmp_path, rsvc_done_t done
     // formats (e.g. conversion to/from WAV), then silently do nothing.
     rsvc_format_t read_fmt, write_fmt;
     rsvc_done_t ignore = ^(rsvc_error_t error){ (void)error; /* do nothing */ };
-    if (!(rsvc_format_detect(f.input, fileno(f.input_file), &read_fmt, ignore)
+    if (!(rsvc_format_detect(f.input, f.input_file, &read_fmt, ignore)
           && read_fmt->open_tags
-          && rsvc_format_detect(tmp_path, fileno(f.output_file), &write_fmt, ignore)
+          && rsvc_format_detect(tmp_path, f.output_file, &write_fmt, ignore)
           && write_fmt->open_tags)) {
         done(NULL);
         return;

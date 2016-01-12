@@ -327,7 +327,7 @@ static bool image_option(ops_t ops, rsvc_option_value_f get_value, enum short_fl
         rsvc_format_t format;
         if (!(get_value(&path, fail)
               && rsvc_open(path, O_RDONLY, 0644, &file, fail)
-              && rsvc_format_detect(path, fileno(file), &format, fail))) {
+              && rsvc_format_detect(path, file, &format, fail))) {
             return false;
         }
         if (!format->image_info) {

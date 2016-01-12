@@ -49,7 +49,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
                       rsvc_cd_t cd, rsvc_cd_session_t session);
 static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t track,
                      void (^done)(rsvc_error_t error, rsvc_tags_t tags));
-static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done);
+static void set_tags(FILE* file, char* path, rsvc_tags_t source, rsvc_done_t done);
 
 struct rsvc_command rsvc_rip = {
     .name = "rip",
@@ -257,7 +257,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
             if (opts.encode.format->encode(read_pipe, fileno(file), &encode_options, encode_done)) {
                 return;
             }
-            set_tags(fileno(file), path, tags, encode_done);
+            set_tags(file, path, tags, encode_done);
         });
     });
 }
@@ -296,10 +296,10 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
     wrapped_done(NULL);
 }
 
-static void set_tags(int fd, char* path, rsvc_tags_t source, rsvc_done_t done) {
+static void set_tags(FILE* file, char* path, rsvc_tags_t source, rsvc_done_t done) {
     rsvc_format_t format;
     rsvc_tags_t tags;
-    if (!rsvc_format_detect(path, fd, &format, done)) {
+    if (!rsvc_format_detect(path, file, &format, done)) {
         return;
     }
     if (!format->open_tags) {

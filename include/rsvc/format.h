@@ -21,6 +21,7 @@
 #ifndef RSVC_FORMAT_H_
 #define RSVC_FORMAT_H_
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <rsvc/audio.h>
@@ -63,7 +64,7 @@ void                    rsvc_format_register(rsvc_format_t format);
 
 rsvc_format_t           rsvc_format_named(const char* name);
 rsvc_format_t           rsvc_format_with_mime(const char* mime);
-bool                    rsvc_format_detect(const char* path, int fd,
+bool                    rsvc_format_detect(const char* path, FILE* file,
                                            rsvc_format_t* format, rsvc_done_t fail);
 const char*             rsvc_format_group_name(enum rsvc_format_group format_group);
 

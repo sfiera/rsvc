@@ -65,14 +65,14 @@ rsvc_format_t rsvc_format_with_mime(const char* mime) {
     return NULL;
 }
 
-static bool check_magic(rsvc_format_t format, int fd,
+static bool check_magic(rsvc_format_t format, FILE* file,
                         bool* matches, rsvc_format_t* out, rsvc_done_t fail) {
     if (!format->magic_size) {
         return true;
     }
     uint8_t* data = malloc(format->magic_size);
 
-    ssize_t size = pread(fd, data, format->magic_size, 0);
+    ssize_t size = pread(fileno(file), data, format->magic_size, 0);
     if (size < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         free(data);
@@ -125,11 +125,11 @@ static bool check_extension(rsvc_format_t format, const char* path,
     return true;
 }
 
-bool rsvc_format_detect(const char* path, int fd,
+bool rsvc_format_detect(const char* path, FILE* file,
                         rsvc_format_t* format, rsvc_done_t fail) {
     // Don't open directories.
     struct stat st;
-    if (fstat(fd, &st) < 0) {
+    if (fstat(fileno(file), &st) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
     }
@@ -140,7 +140,7 @@ bool rsvc_format_detect(const char* path, int fd,
 
     rsvc_formats_foreach(fmt) {
         bool matches = false;
-        if (!(check_magic(fmt, fd, &matches, format, fail) &&
+        if (!(check_magic(fmt, file, &matches, format, fail) &&
               check_extension(fmt, path, &matches, format, fail))) {
             return false;
         } else if (matches) {
