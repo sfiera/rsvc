@@ -180,9 +180,8 @@ bool rsvc_mad_decode(FILE* src_file, FILE* dst_file,
     if (!rsvc_id3_skip_tags(src_file, fail)) {
         return false;
     }
-    off_t offset = lseek(fileno(src_file), 0, SEEK_CUR);
-    if (offset < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+    off_t offset;
+    if (!rsvc_tell(src_file, &offset, fail)) {
         return false;
     }
     struct mad_userdata userdata = {
@@ -195,8 +194,7 @@ bool rsvc_mad_decode(FILE* src_file, FILE* dst_file,
     }
     info(&userdata.info);
 
-    if (lseek(fileno(src_file), offset, SEEK_SET) < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+    if (!rsvc_seek(src_file, offset, SEEK_SET, fail)) {
         return false;
     }
     userdata.end_position = 0;

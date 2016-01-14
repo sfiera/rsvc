@@ -732,9 +732,7 @@ static size_t flac_audio_info_read(void *ptr, size_t size, size_t count, FLAC__I
 
 static int flac_audio_info_seek(FLAC__IOHandle handle, FLAC__int64 offset, int whence) {
     flac_audio_info_userdata_t u = handle;
-    off_t off = lseek(fileno(u->file), offset, whence);
-    if (off < 0) {
-        rsvc_strerrorf(u->fail, __FILE__, __LINE__, NULL);
+    if (!rsvc_seek(u->file, offset, whence, u->fail)) {
         u->called_fail = true;
         return -1;
     }
@@ -743,11 +741,10 @@ static int flac_audio_info_seek(FLAC__IOHandle handle, FLAC__int64 offset, int w
 
 static FLAC__int64 flac_audio_info_tell(FLAC__IOHandle handle) {
     flac_audio_info_userdata_t u = handle;
-    off_t off = lseek(fileno(u->file), 0, SEEK_CUR);
-    if (off < 0) {
-        rsvc_strerrorf(u->fail, __FILE__, __LINE__, NULL);
+    off_t off;
+    if (!rsvc_tell(u->file, &off, u->fail)) {
         u->called_fail = true;
-        return -1;
+        return false;
     }
     return off;
 }

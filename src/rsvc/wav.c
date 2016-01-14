@@ -135,8 +135,7 @@ static bool read_wav_fmt(FILE* file, riff_chunk_t rc, wav_fmt_t wf, rsvc_done_t 
 
     if (!wav_fmt_validate(wf, fail)) {
         return false;
-    } else if (lseek(fileno(file), rc->size - WAV_FMT_SIZE, SEEK_CUR) < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+    } else if (!rsvc_seek(file, rc->size - WAV_FMT_SIZE, SEEK_CUR, fail)) {
         return false;
     }
     return true;
@@ -189,8 +188,7 @@ bool wav_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
             info->samples_per_channel = rc.size / wf.block_align;
             return true;
         } else {
-            if (!lseek(fileno(file), rc.size, SEEK_CUR)) {
-                rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+            if (!rsvc_seek(file, rc.size, SEEK_CUR, fail)) {
                 return false;
             }
         }

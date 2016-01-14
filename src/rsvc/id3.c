@@ -762,8 +762,7 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     if (tags->version[0]) {
         offset = 10 + tags->size;
     }
-    if (lseek(fileno(tags->file), offset, SEEK_SET) < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+    if (!rsvc_seek(tags->file, offset, SEEK_SET, fail)) {
         return false;
     }
 
@@ -1369,8 +1368,7 @@ bool rsvc_id3_skip_tags(FILE* file, rsvc_done_t fail) {
     }
 
     if (tags.version[0]) {
-        if (lseek(fileno(tags.file), tags.size, SEEK_CUR) < 0) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        if (!rsvc_seek(tags.file, tags.size, SEEK_CUR, fail)) {
             return false;
         }
     }

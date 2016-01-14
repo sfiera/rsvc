@@ -188,8 +188,7 @@ static bool rsvc_opus_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
         return false;
     }
 
-    if (lseek(fileno(self->file), self->data_offset, SEEK_SET) < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+    if (!rsvc_seek(self->file, self->data_offset, SEEK_SET, fail)) {
         return false;
     }
 

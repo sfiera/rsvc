@@ -471,9 +471,8 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
 
 bool read_last_page(  FILE* file, ogg_sync_state* oy, ogg_page* og,
                       rsvc_done_t fail) {
-    const off_t end = lseek(fileno(file), 0, SEEK_END);
-    if (end < 0) {
-        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+    off_t end;
+    if (!rsvc_tell(file, &end, fail)) {
         return false;
     }
 
@@ -490,8 +489,7 @@ bool read_last_page(  FILE* file, ogg_sync_state* oy, ogg_page* og,
 
         // Seek back and read another new chunk.
         off_t chunk_start = (end > READ_BACK_CHUNK_SIZE) ? end - READ_BACK_CHUNK_SIZE : 0;
-        if (lseek(fileno(file), chunk_start, SEEK_SET) < 0) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        if (!rsvc_seek(file, chunk_start, SEEK_SET, fail)) {
             break;
         }
 

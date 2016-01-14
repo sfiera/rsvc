@@ -190,6 +190,22 @@ bool rsvc_mmap(const char* path, FILE* file, uint8_t** data, size_t* size, rsvc_
     return true;
 }
 
+bool rsvc_seek(FILE* file, off_t where, int whence, rsvc_done_t fail) {
+    if (fseek(file, where, whence) < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+    return true;
+}
+
+bool rsvc_tell(FILE* file, off_t* where, rsvc_done_t fail) {
+    if ((*where = ftell(file)) < 0) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+    return true;
+}
+
 static int compare_names(const FTSENT** x, const FTSENT** y) {
     return strcmp((*x)->fts_name, (*y)->fts_name);
 }
