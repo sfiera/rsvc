@@ -46,7 +46,7 @@ typedef FLAC__StreamEncoderSeekStatus seek_encode_status_t;
 typedef FLAC__StreamEncoderTellStatus tell_encode_status_t;
 typedef struct flac_encode_userdata* flac_encode_userdata_t;
 struct flac_encode_userdata {
-    int fd;
+    FILE* file;
 };
 
 static write_encode_status_t   flac_encode_write(const FLAC__StreamEncoder* encoder,
@@ -67,8 +67,8 @@ typedef FLAC__StreamDecoderTellStatus tell_decode_status_t;
 typedef FLAC__StreamDecoderLengthStatus length_decode_status_t;
 typedef struct flac_decode_userdata* flac_decode_userdata_t;
 struct flac_decode_userdata {
-    int                 read_fd;
-    int                 write_fd;
+    FILE*               read_file;
+    FILE*               write_file;
     rsvc_decode_info_f  info;
     rsvc_done_t         fail;
     bool                called_done;
@@ -169,7 +169,7 @@ bool rsvc_flac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opti
     // }
 
     struct flac_encode_userdata userdata = {
-        .fd = fileno(dst_file),
+        .file = dst_file,
     };
     FLAC__StreamEncoderInitStatus init_status = FLAC__stream_encoder_init_stream(
             encoder, flac_encode_write, flac_encode_seek, flac_encode_tell, NULL, &userdata);
@@ -237,10 +237,10 @@ bool rsvc_flac_decode(FILE* src_file, FILE* dst_file,
     };
 
     struct flac_decode_userdata userdata = {
-        .read_fd   = fileno(src_file),
-        .write_fd  = fileno(dst_file),
-        .info      = info,
-        .fail      = fail,
+        .read_file   = src_file,
+        .write_file  = dst_file,
+        .info        = info,
+        .fail        = fail,
     };
     FLAC__StreamDecoderInitStatus init_status = FLAC__stream_decoder_init_stream(
             decoder, flac_decode_read, flac_decode_seek, flac_decode_tell,
@@ -557,7 +557,7 @@ static write_encode_status_t flac_encode_write(const FLAC__StreamEncoder* encode
     flac_encode_userdata_t u = (flac_encode_userdata_t)userdata;
     const void* data = bytes;
     while (nbytes > 0) {
-        ssize_t written = write(u->fd, data, nbytes);
+        ssize_t written = write(fileno(u->file), data, nbytes);
         if (written <= 0) {
             return FLAC__STREAM_ENCODER_WRITE_STATUS_FATAL_ERROR;
         }
@@ -570,7 +570,7 @@ static seek_encode_status_t flac_encode_seek(const FLAC__StreamEncoder* encoder,
                                              FLAC__uint64 absolute_byte_offset, void* userdata) {
     (void)encoder;
     flac_encode_userdata_t u = (flac_encode_userdata_t)userdata;
-    if (lseek(u->fd, absolute_byte_offset, SEEK_SET) < 0) {
+    if (lseek(fileno(u->file), absolute_byte_offset, SEEK_SET) < 0) {
         return FLAC__STREAM_ENCODER_SEEK_STATUS_ERROR;
     }
     return FLAC__STREAM_ENCODER_SEEK_STATUS_OK;
@@ -580,7 +580,7 @@ static tell_encode_status_t flac_encode_tell(const FLAC__StreamEncoder* encoder,
                                              FLAC__uint64* absolute_byte_offset, void* userdata) {
     (void)encoder;
     flac_encode_userdata_t u = (flac_encode_userdata_t)userdata;
-    off_t offset = lseek(u->fd, 0, SEEK_CUR);
+    off_t offset = lseek(fileno(u->file), 0, SEEK_CUR);
     if (offset < 0) {
         return FLAC__STREAM_ENCODER_TELL_STATUS_ERROR;
     }
@@ -612,7 +612,7 @@ static read_decode_status_t flac_decode_read(const FLAC__StreamDecoder* encoder,
     flac_decode_userdata_t u = (flac_decode_userdata_t)userdata;
     void* data = bytes;
     while (true) {
-        ssize_t bytes_read = read(u->read_fd, data, *nbytes);
+        ssize_t bytes_read = read(fileno(u->read_file), data, *nbytes);
         if (bytes_read > 0) {
             *nbytes = bytes_read;
             return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
@@ -646,7 +646,7 @@ static write_decode_status_t flac_decode_write(const FLAC__StreamDecoder* decode
         }
     }
     while (size > 0) {
-        ssize_t written = write(u->write_fd, s16, size);
+        ssize_t written = write(fileno(u->write_file), s16, size);
         if (written <= 0) {
             rsvc_strerrorf(u->fail, __FILE__, __LINE__, NULL);
             u->called_done = true;
@@ -665,7 +665,7 @@ static seek_decode_status_t flac_decode_seek(const FLAC__StreamDecoder* decoder,
                                              void* userdata) {
     (void)decoder;
     flac_decode_userdata_t u = (flac_decode_userdata_t)userdata;
-    if (lseek(u->read_fd, absolute_byte_offset, SEEK_SET) < 0) {
+    if (lseek(fileno(u->read_file), absolute_byte_offset, SEEK_SET) < 0) {
         return FLAC__STREAM_DECODER_SEEK_STATUS_ERROR;
     }
     return FLAC__STREAM_DECODER_SEEK_STATUS_OK;
@@ -676,7 +676,7 @@ static tell_decode_status_t flac_decode_tell(const FLAC__StreamDecoder* decoder,
                                              void* userdata) {
     (void)decoder;
     flac_decode_userdata_t u = (flac_decode_userdata_t)userdata;
-    off_t offset = lseek(u->read_fd, 0, SEEK_CUR);
+    off_t offset = lseek(fileno(u->read_file), 0, SEEK_CUR);
     if (offset < 0) {
         return FLAC__STREAM_DECODER_TELL_STATUS_ERROR;
     }
@@ -690,7 +690,7 @@ static length_decode_status_t flac_decode_length(const FLAC__StreamDecoder* deco
     (void)decoder;
     flac_decode_userdata_t u = (flac_decode_userdata_t)userdata;
     struct stat st;
-    if (fstat(u->read_fd, &st) < 0) {
+    if (fstat(fileno(u->read_file), &st) < 0) {
         return FLAC__STREAM_DECODER_LENGTH_STATUS_ERROR;
     }
     *absolute_byte_offset = st.st_size;

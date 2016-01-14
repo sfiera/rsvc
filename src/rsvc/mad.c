@@ -35,8 +35,8 @@
 #include "unix.h"
 
 struct mad_userdata {
-    int src_fd;
-    int dst_fd;
+    FILE* src_file;
+    FILE* dst_file;
     unsigned char data[4096];
     unsigned char* end;
     size_t end_position;
@@ -57,7 +57,7 @@ static enum mad_flow mad_input(void* v, struct mad_stream* stream) {
     }
 
     bool eof = false;
-    if (!rsvc_read("pipe", userdata->src_fd, data, size, &size, &eof, userdata->fail)) {
+    if (!rsvc_read("pipe", fileno(userdata->src_file), data, size, &size, &eof, userdata->fail)) {
         return MAD_FLOW_BREAK;
     } else if (eof) {
         return MAD_FLOW_STOP;
@@ -125,7 +125,7 @@ static enum mad_flow mad_output(void* v, struct mad_header const* header, struct
             data[size++] = mad_scale(*(channels[chan]++));
         }
     }
-    if (!rsvc_write("pipe", userdata->dst_fd, &data, size * sizeof(int16_t), NULL, NULL,
+    if (!rsvc_write("pipe", fileno(userdata->dst_file), &data, size * sizeof(int16_t), NULL, NULL,
                     userdata->fail)) {
         return MAD_FLOW_BREAK;
     }
@@ -186,8 +186,8 @@ bool rsvc_mad_decode(FILE* src_file, FILE* dst_file,
         return false;
     }
     struct mad_userdata userdata = {
-        .src_fd = fileno(src_file),
-        .dst_fd = fileno(dst_file),
+        .src_file = src_file,
+        .dst_file = dst_file,
         .fail = fail,
     };
     if (!mad_get_audio_info(&userdata)) {
@@ -205,7 +205,7 @@ bool rsvc_mad_decode(FILE* src_file, FILE* dst_file,
 
 bool rsvc_mad_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
     struct mad_userdata userdata = {
-        .src_fd = fileno(file),
+        .src_file = file,
         .fail = fail,
     };
     if (!(rsvc_id3_skip_tags(file, fail) &&
