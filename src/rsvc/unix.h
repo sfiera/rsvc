@@ -57,8 +57,8 @@ bool rsvc_pipe(FILE** read_file, FILE** write_file, rsvc_done_t fail);
 bool rsvc_read(const char* name, FILE* file, void* data, size_t size,
                size_t* size_out, bool* eof, rsvc_done_t fail);
 bool rsvc_cread(const char* name, FILE* file, void* data, size_t count, size_t size,
-                size_t* count_out, size_t* size_inout, bool* eof, rsvc_done_t fail);
+                size_t* count_out, bool* eof, rsvc_done_t fail);
 bool rsvc_write(const char* name, FILE* file, const void* data, size_t size,
-                size_t* size_out, bool* eof, rsvc_done_t fail);
+                rsvc_done_t fail);
 
 #endif  // SRC_RSVC_POSIX_H_

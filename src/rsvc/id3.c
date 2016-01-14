@@ -776,8 +776,8 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     FILE* file;
     char tmp_path[MAXPATHLEN];
     if (!(rsvc_temp(tags->path, tmp_path, &file, fail)
-          && rsvc_write(tmp_path, file, header, 10, NULL, NULL, fail)
-          && rsvc_write(tmp_path, file, body, body_size, NULL, NULL, fail))) {
+          && rsvc_write(tmp_path, file, header, 10, fail)
+          && rsvc_write(tmp_path, file, body, body_size, fail))) {
         return false;
     }
 
@@ -791,7 +791,7 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
         } else if (eof) {
             break;
         }
-        if (!rsvc_write(tmp_path, file, buffer, size, NULL, NULL, fail)) {
+        if (!rsvc_write(tmp_path, file, buffer, size, fail)) {
             return false;
         }
     }

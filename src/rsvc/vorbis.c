@@ -97,12 +97,11 @@ bool rsvc_vorbis_encode(  FILE* src_file, FILE* dst_file, rsvc_encode_options_t 
 
     bool eos = false;
     int16_t in[2048];
-    size_t size_inout = 0;
     while (!eos) {
         bool eof = false;
         size_t nsamples;
         if (!rsvc_cread("pipe", src_file, in, 2048 / info.channels, info.channels * sizeof(int16_t),
-                        &nsamples, &size_inout, &eof, fail)) {
+                        &nsamples, &eof, fail)) {
             return false;
         } else if (nsamples) {
             samples_per_channel_read += nsamples;
@@ -127,8 +126,8 @@ bool rsvc_vorbis_encode(  FILE* src_file, FILE* dst_file, rsvc_encode_options_t 
                     if (result == 0) {
                         break;
                     }
-                    if (!(rsvc_write(NULL, dst_file, og.header, og.header_len, NULL, NULL, fail) &&
-                          rsvc_write(NULL, dst_file, og.body, og.body_len, NULL, NULL, fail))) {
+                    if (!(rsvc_write(NULL, dst_file, og.header, og.header_len, fail) &&
+                          rsvc_write(NULL, dst_file, og.body, og.body_len, fail))) {
                         return false;  // TODO(sfiera): cleanup?
                     }
                     if (ogg_page_eos(&og)) {
@@ -293,15 +292,15 @@ static bool rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
         if (result == 0) {
             break;
         }
-        if (!(rsvc_write(NULL, file, og.header, og.header_len, NULL, NULL, done) &&
-              rsvc_write(NULL, file, og.body, og.body_len, NULL, NULL, done))) {
+        if (!(rsvc_write(NULL, file, og.header, og.header_len, done) &&
+              rsvc_write(NULL, file, og.body, og.body_len, done))) {
             return false;  // TODO(sfiera): cleanup?
         }
     }
 
     for (rsvc_ogg_page_node_t curr = self->pages.head; curr; curr = curr->next) {
-        if (!(rsvc_write(NULL, file, curr->page.header, curr->page.header_len, NULL, NULL, done) &&
-              rsvc_write(NULL, file, curr->page.body, curr->page.body_len, NULL, NULL, done))) {
+        if (!(rsvc_write(NULL, file, curr->page.header, curr->page.header_len, done) &&
+              rsvc_write(NULL, file, curr->page.body, curr->page.body_len, done))) {
             return false;
         }
     }

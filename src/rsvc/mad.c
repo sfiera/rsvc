@@ -125,8 +125,7 @@ static enum mad_flow mad_output(void* v, struct mad_header const* header, struct
             data[size++] = mad_scale(*(channels[chan]++));
         }
     }
-    if (!rsvc_write("pipe", userdata->dst_file, &data, size * sizeof(int16_t), NULL, NULL,
-                    userdata->fail)) {
+    if (!rsvc_write("pipe", userdata->dst_file, &data, size * sizeof(int16_t), userdata->fail)) {
         return MAD_FLOW_BREAK;
     }
     return MAD_FLOW_CONTINUE;

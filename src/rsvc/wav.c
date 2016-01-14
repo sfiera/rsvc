@@ -208,7 +208,7 @@ bool wav_audio_decode(FILE* src_file, FILE* dst_file, rsvc_decode_info_f info, r
         size_t size = (remainder > 4096) ? 4096 : remainder;
         // TODO(sfiera): endianness.
         if (!(rsvc_read(NULL, src_file, data, size, NULL, NULL, fail) &&
-              rsvc_write(NULL, dst_file, data, size, NULL, NULL, fail))) {
+              rsvc_write(NULL, dst_file, data, size, fail))) {
             fclose(src_file);
             return false;
         }
@@ -243,7 +243,7 @@ bool wav_audio_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opts
     u32le_out(header + 36,  WAV_DATA);
     u32le_out(header + 40,  data_size);
 
-    if (!rsvc_write(NULL, dst_file, header, header_size, NULL, NULL, fail)) {
+    if (!rsvc_write(NULL, dst_file, header, header_size, fail)) {
         return false;
     }
 
@@ -253,7 +253,7 @@ bool wav_audio_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opts
         size_t size = (remainder > 4096) ? 4096 : remainder;
         // TODO(sfiera): endianness.
         if (!(rsvc_read(NULL, src_file, data, size, NULL, NULL, fail) &&
-              rsvc_write(NULL, dst_file, data, size, NULL, NULL, fail))) {
+              rsvc_write(NULL, dst_file, data, size, fail))) {
             return false;
         }
         remainder -= size;

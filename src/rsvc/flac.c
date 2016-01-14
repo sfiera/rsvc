@@ -188,12 +188,11 @@ bool rsvc_flac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opti
 
     static const int kSamples = 2048;
     int16_t buffer[kSamples * 2];
-    size_t size_inout = 0;
     bool eof = false;
     while (!eof) {
         size_t nsamples;
         if (!rsvc_cread("pipe", src_file, buffer, kSamples, 2 * sizeof(int16_t),
-                        &nsamples, &size_inout, &eof, fail)) {
+                        &nsamples, &eof, fail)) {
             return false;
         } else if (nsamples) {
             samples_per_channel_read += nsamples;
@@ -706,13 +705,12 @@ struct flac_audio_info_userdata {
     FILE*        file;
     rsvc_done_t  fail;
     bool         called_fail;
-    size_t       size_inout;
     bool         eof;
 };
 
 static size_t flac_audio_info_read(void *ptr, size_t size, size_t count, FLAC__IOHandle handle) {
     flac_audio_info_userdata_t u = handle;
-    if (!rsvc_cread(NULL, u->file, ptr, count, size, &count, &u->size_inout, &u->eof, u->fail)) {
+    if (!rsvc_cread(NULL, u->file, ptr, count, size, &count, &u->eof, u->fail)) {
         u->called_fail = true;
         return -1;
     }

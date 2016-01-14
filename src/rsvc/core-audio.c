@@ -209,7 +209,7 @@ static bool core_audio_encode(
         bool eof;
         size_t nsamples;
         if (!rsvc_cread(NULL, src_file, buffer, kSamples / info.block_align, info.block_align,
-                &nsamples, NULL, &eof, fail)) {
+                &nsamples, &eof, fail)) {
             return false;
         } else if (eof) {
             break;

@@ -69,12 +69,11 @@ bool rsvc_lame_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opti
     static const int kMp3BufSize = kSamples * 5 + 7200;
     unsigned char* mp3buf = malloc(kMp3BufSize);
     int16_t buffer[kSamples * 2];
-    size_t size_inout = 0;
     bool eof = false;
     while (!eof) {
         size_t nsamples;
         if (!rsvc_cread("pipe", src_file, buffer, kSamples, 2 * sizeof(int16_t),
-                        &nsamples, &size_inout, &eof, fail)) {
+                        &nsamples, &eof, fail)) {
             return false;
         } else if (nsamples) {
             samples_per_channel_read += nsamples;
@@ -90,7 +89,7 @@ bool rsvc_lame_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opti
                 rsvc_errorf(fail, __FILE__, __LINE__, "encode error");
                 return false;
             }
-            if (!rsvc_write("pipe", dst_file, mp3buf, mp3buf_written, NULL, NULL, fail)) {
+            if (!rsvc_write("pipe", dst_file, mp3buf, mp3buf_written, fail)) {
                 return false;
             }
             progress(samples_per_channel_read * 2.0 / info.channels / info.samples_per_channel);

@@ -362,17 +362,16 @@ bool rsvc_pipe(FILE** read_pipe, FILE** write_pipe, rsvc_done_t fail) {
 
 bool rsvc_read(const char* name, FILE* file, void* data, size_t size,
                size_t* size_out, bool* eof, rsvc_done_t fail) {
-    return rsvc_cread(name, file, data, size, 1, size_out, NULL, eof, fail);
+    return rsvc_cread(name, file, data, size, 1, size_out, eof, fail);
 }
 
 bool rsvc_cread(const char* name, FILE* file, void* data, size_t count, size_t size,
-                size_t* count_out, size_t* size_inout, bool* eof, rsvc_done_t fail) {
+                size_t* count_out, bool* eof, rsvc_done_t fail) {
     if (!!eof != !!count_out) {
         rsvc_errorf(fail, __FILE__, __LINE__, "passing !!eof != !!count_out is nonsensical");
         return false;
     }
 
-    (void)size_inout;
     size_t n = fread(data, size, count, file);
     if (n < count) {
         if (feof(file)) {
@@ -394,9 +393,7 @@ bool rsvc_cread(const char* name, FILE* file, void* data, size_t count, size_t s
 }
 
 bool rsvc_write(const char* name, FILE* file, const void* data, size_t size,
-                size_t* size_out, bool* eof, rsvc_done_t fail) {
-    (void)size_out;
-    (void)eof;
+                rsvc_done_t fail) {
     size_t n = fwrite(data, 1, size, file);
     if (n < size) {
         rsvc_errorf(fail, __FILE__, __LINE__, "%s: write error", name);
