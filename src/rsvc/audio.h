@@ -25,8 +25,8 @@
 #include <rsvc/tag.h>
 
 #ifdef __APPLE__
-bool rsvc_aac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t fail);
-bool rsvc_alac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t fail);
+bool rsvc_aac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t options, rsvc_done_t fail);
+bool rsvc_alac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t options, rsvc_done_t fail);
 #else
 #define rsvc_aac_encode NULL
 #define rsvc_alac_encode NULL
@@ -38,7 +38,7 @@ bool                    rsvc_mp4_open_tags(const char* path, int flags,
 bool                    rsvc_id3_open_tags(const char* path, int flags,
                                            rsvc_tags_t* tags, rsvc_done_t fail);
 bool                    rsvc_id3_skip_tags(FILE* file, rsvc_done_t fail);
-bool                    rsvc_lame_encode(  int src_fd, int dst_fd,
+bool                    rsvc_lame_encode(  FILE* src_file, FILE* dst_file,
                                            rsvc_encode_options_t options, rsvc_done_t fail);
 bool                    rsvc_mad_decode(FILE* src_file, FILE* dst_file,
                                         rsvc_decode_info_f info, rsvc_done_t fail);

@@ -48,7 +48,7 @@ bool rsvc_vorbis_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t
     return true;
 }
 
-bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
+bool rsvc_vorbis_encode(  FILE* src_file, FILE* dst_file, rsvc_encode_options_t options,
                           rsvc_done_t fail) {
     int32_t                 bitrate   = options->bitrate;
     struct rsvc_audio_info  info      = options->info;
@@ -88,9 +88,9 @@ bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
     vorbis_comment_init(&vc);
     vorbis_analysis_headerout(&vd, &vc, &header, &header_comm, &header_code);
 
-    if (!(rsvc_ogg_align_packet(dst_fd, &os, &og, &header, fail) &&
-          rsvc_ogg_align_packet(dst_fd, &os, &og, &header_comm, fail) &&
-          rsvc_ogg_align_packet(dst_fd, &os, &og, &header_code, fail))) {
+    if (!(rsvc_ogg_align_packet(fileno(dst_file), &os, &og, &header, fail) &&
+          rsvc_ogg_align_packet(fileno(dst_file), &os, &og, &header_comm, fail) &&
+          rsvc_ogg_align_packet(fileno(dst_file), &os, &og, &header_code, fail))) {
         // TODO(sfiera): cleanup
         return false;
     }
@@ -101,7 +101,7 @@ bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
     while (!eos) {
         bool eof = false;
         size_t nsamples;
-        if (!rsvc_cread("pipe", src_fd, in, 2048 / info.channels, info.channels * sizeof(int16_t),
+        if (!rsvc_cread("pipe", fileno(src_file), in, 2048 / info.channels, info.channels * sizeof(int16_t),
                         &nsamples, &size_inout, &eof, fail)) {
             return false;
         } else if (nsamples) {
@@ -127,8 +127,8 @@ bool rsvc_vorbis_encode(  int src_fd, int dst_fd, rsvc_encode_options_t options,
                     if (result == 0) {
                         break;
                     }
-                    if (!(rsvc_write(NULL, dst_fd, og.header, og.header_len, NULL, NULL, fail) &&
-                          rsvc_write(NULL, dst_fd, og.body, og.body_len, NULL, NULL, fail))) {
+                    if (!(rsvc_write(NULL, fileno(dst_file), og.header, og.header_len, NULL, NULL, fail) &&
+                          rsvc_write(NULL, fileno(dst_file), og.body, og.body_len, NULL, NULL, fail))) {
                         return false;  // TODO(sfiera): cleanup?
                     }
                     if (ogg_page_eos(&og)) {

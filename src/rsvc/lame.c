@@ -45,7 +45,7 @@ bool rsvc_lame_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t f
     return true;
 }
 
-bool rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t fail) {
+bool rsvc_lame_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t options, rsvc_done_t fail) {
     int32_t                 bitrate   = options->bitrate;
     struct rsvc_audio_info  info      = options->info;
     rsvc_encode_progress_f  progress  = options->progress;
@@ -73,7 +73,7 @@ bool rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
     bool eof = false;
     while (!eof) {
         size_t nsamples;
-        if (!rsvc_cread("pipe", src_fd, buffer, kSamples, 2 * sizeof(int16_t),
+        if (!rsvc_cread("pipe", fileno(src_file), buffer, kSamples, 2 * sizeof(int16_t),
                         &nsamples, &size_inout, &eof, fail)) {
             return false;
         } else if (nsamples) {
@@ -90,7 +90,7 @@ bool rsvc_lame_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
                 rsvc_errorf(fail, __FILE__, __LINE__, "encode error");
                 return false;
             }
-            if (!rsvc_write("pipe", dst_fd, mp3buf, mp3buf_written, NULL, NULL, fail)) {
+            if (!rsvc_write("pipe", fileno(dst_file), mp3buf, mp3buf_written, NULL, NULL, fail)) {
                 return false;
             }
             progress(samples_per_channel_read * 2.0 / info.channels / info.samples_per_channel);

@@ -35,8 +35,8 @@
 
 OSStatus core_audio_read(
         void* userdata, SInt64 offset, UInt32 size, void* data, UInt32* actual_size) {
-    int fd = *(int*)userdata;
-    ssize_t read = pread(fd, data, size, offset);
+    FILE* file = userdata;
+    ssize_t read = pread(fileno(file), data, size, offset);
     if (read < 0) {
         return kAudioFileUnspecifiedError;
     }
@@ -46,8 +46,8 @@ OSStatus core_audio_read(
 
 OSStatus core_audio_write(
         void* userdata, SInt64 offset, UInt32 size, const void* data, UInt32* actual_size) {
-    int fd = *(int*)userdata;
-    ssize_t wrote = pwrite(fd, data, size, offset);
+    FILE* file = userdata;
+    ssize_t wrote = pwrite(fileno(file), data, size, offset);
     if (wrote < 0) {
         return kAudioFileUnspecifiedError;
     }
@@ -56,17 +56,17 @@ OSStatus core_audio_write(
 }
 
 SInt64 core_audio_get_size(void* userdata) {
-    int fd = *(int*)userdata;
+    FILE* file = userdata;
     struct stat st;
-    if (fstat(fd, &st) < 0) {
+    if (fstat(fileno(file), &st) < 0) {
         return -1;
     }
     return st.st_size;
 }
 
 OSStatus core_audio_set_size(void* userdata, SInt64 size) {
-    int fd = *(int*)userdata;
-    if (ftruncate(fd, size) < 0) {
+    FILE* file = userdata;
+    if (ftruncate(fileno(file), size) < 0) {
         return kAudioFileUnspecifiedError;
     }
     return noErr;
@@ -95,7 +95,7 @@ bool core_audio_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t 
 }
 
 static bool core_audio_encode(
-        int src_fd, int dst_fd, rsvc_encode_options_t options,
+        FILE* src_file, FILE* dst_file, rsvc_encode_options_t options,
         int container_id, int codec_id, rsvc_done_t fail) {
     int32_t                 bitrate   = options->bitrate;
     struct rsvc_audio_info  info      = options->info;
@@ -114,10 +114,10 @@ static bool core_audio_encode(
         asbd_out.mFormatFlags = kAppleLosslessFormatFlag_16BitSourceData;
     }
 
-    int fd = dst_fd;
+    FILE* file = dst_file;
     AudioFileID file_id = NULL;
     err = AudioFileInitializeWithCallbacks(
-        &fd, core_audio_read, core_audio_write, core_audio_get_size, core_audio_set_size,
+        file, core_audio_read, core_audio_write, core_audio_get_size, core_audio_set_size,
         container_id, &asbd_out, 0, &file_id);
     if (err != noErr) {
         rsvc_errorf(fail, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
@@ -206,7 +206,7 @@ static bool core_audio_encode(
     static const int kSamples = 4096;
     uint8_t buffer[kSamples];
     while (true) {
-        ssize_t result = read(src_fd, buffer + start, sizeof(buffer) - start);
+        ssize_t result = read(fileno(src_file), buffer + start, sizeof(buffer) - start);
         if (result > 0) {
             result += start;
             size_t remainder = result % (2 * info.channels);
@@ -246,12 +246,12 @@ static bool core_audio_encode(
     return true;
 }
 
-bool rsvc_aac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t fail) {
-    return core_audio_encode(  src_fd, dst_fd, options,
+bool rsvc_aac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t options, rsvc_done_t fail) {
+    return core_audio_encode(  src_file, dst_file, options,
                                kAudioFileM4AType, kAudioFormatMPEG4AAC, fail);
 }
 
-bool rsvc_alac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t fail) {
-    return core_audio_encode(  src_fd, dst_fd, options,
+bool rsvc_alac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t options, rsvc_done_t fail) {
+    return core_audio_encode(  src_file, dst_file, options,
                                kAudioFileM4AType, kAudioFormatAppleLossless, fail);
 }

@@ -50,8 +50,8 @@ struct rsvc_encode_options {
 };
 
 typedef bool (*rsvc_encode_f)(
-        int src_fd,
-        int dst_fd,
+        FILE* src_file,
+        FILE* dst_file,
         rsvc_encode_options_t options,
         rsvc_done_t fail);
 

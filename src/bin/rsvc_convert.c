@@ -61,7 +61,7 @@ static bool validate_convert_options(rsvc_done_t fail);
 static void convert_read(struct file_pair f, FILE* write_file, rsvc_done_t done,
                          void (^start)(bool ok, rsvc_audio_info_t info));
 static void convert_write(struct file_pair f, rsvc_audio_info_t info,
-                          int read_fd, const char* tmp_path, rsvc_done_t done);
+                          FILE* read_file, const char* tmp_path, rsvc_done_t done);
 static bool change_extension(const char* path, const char* extension, char* new_path,
                              rsvc_done_t fail);
 static void copy_tags(struct file_pair f, const char* tmp_path, rsvc_done_t done);
@@ -227,7 +227,7 @@ static void convert(struct file_pair f, rsvc_done_t done) {
     rsvc_group_t group = rsvc_group_create(done);
     convert_read(f, fdopen(write_pipe, "w"), rsvc_group_add(group), ^(bool ok, rsvc_audio_info_t info){
         if (ok) {
-            convert_write(f, info, read_pipe, tmp_path, rsvc_group_add(group));
+            convert_write(f, info, fdopen(read_pipe, "r"), tmp_path, rsvc_group_add(group));
         } else {
             close(read_pipe);
         }
@@ -428,9 +428,9 @@ static void convert_read(struct file_pair f, FILE* write_file, rsvc_done_t done,
 }
 
 static void convert_write(struct file_pair f, rsvc_audio_info_t info,
-                          int read_fd, const char* tmp_path, rsvc_done_t done) {
+                          FILE* read_file, const char* tmp_path, rsvc_done_t done) {
     done = ^(rsvc_error_t error){
-        close(read_fd);
+        fclose(read_file);
         done(error);
     };
 
@@ -446,7 +446,7 @@ static void convert_write(struct file_pair f, rsvc_audio_info_t info,
             },
         };
 
-        if (!options.encode.format->encode(read_fd, fileno(f.output_file), &encode_options, done)) {
+        if (!options.encode.format->encode(read_file, f.output_file, &encode_options, done)) {
             rsvc_progress_done(node, "fail");
             return;
         }

@@ -119,7 +119,7 @@ bool rsvc_flac_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t f
     return true;
 }
 
-bool rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsvc_done_t fail) {
+bool rsvc_flac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t options, rsvc_done_t fail) {
     struct rsvc_audio_info info         = options->info;
     rsvc_encode_progress_f progress     = options->progress;
     if (!rsvc_flac_encode_options_validate(options, fail)) {
@@ -169,7 +169,7 @@ bool rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
     // }
 
     struct flac_encode_userdata userdata = {
-        .fd = dst_fd,
+        .fd = fileno(dst_file),
     };
     FLAC__StreamEncoderInitStatus init_status = FLAC__stream_encoder_init_stream(
             encoder, flac_encode_write, flac_encode_seek, flac_encode_tell, NULL, &userdata);
@@ -192,7 +192,7 @@ bool rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
     bool eof = false;
     while (!eof) {
         size_t nsamples;
-        if (!rsvc_cread("pipe", src_fd, buffer, kSamples, 2 * sizeof(int16_t),
+        if (!rsvc_cread("pipe", fileno(src_file), buffer, kSamples, 2 * sizeof(int16_t),
                         &nsamples, &size_inout, &eof, fail)) {
             return false;
         } else if (nsamples) {
