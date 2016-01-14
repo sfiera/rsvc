@@ -88,9 +88,9 @@ bool rsvc_vorbis_encode(  FILE* src_file, FILE* dst_file, rsvc_encode_options_t 
     vorbis_comment_init(&vc);
     vorbis_analysis_headerout(&vd, &vc, &header, &header_comm, &header_code);
 
-    if (!(rsvc_ogg_align_packet(fileno(dst_file), &os, &og, &header, fail) &&
-          rsvc_ogg_align_packet(fileno(dst_file), &os, &og, &header_comm, fail) &&
-          rsvc_ogg_align_packet(fileno(dst_file), &os, &og, &header_code, fail))) {
+    if (!(rsvc_ogg_align_packet(dst_file, &os, &og, &header, fail) &&
+          rsvc_ogg_align_packet(dst_file, &os, &og, &header_comm, fail) &&
+          rsvc_ogg_align_packet(dst_file, &os, &og, &header_code, fail))) {
         // TODO(sfiera): cleanup
         return false;
     }
@@ -281,9 +281,9 @@ static bool rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
 
     ogg_packet header_comm;
     vorbis_commentheader_out(&self->vc, &header_comm);
-    if (!(rsvc_ogg_align_packet(fileno(file), &os, &og, &self->header, done) &&
-          rsvc_ogg_align_packet(fileno(file), &os, &og, &header_comm, done) &&
-          rsvc_ogg_align_packet(fileno(file), &os, &og, &self->header_code, done))) {
+    if (!(rsvc_ogg_align_packet(file, &os, &og, &self->header, done) &&
+          rsvc_ogg_align_packet(file, &os, &og, &header_comm, done) &&
+          rsvc_ogg_align_packet(file, &os, &og, &self->header_code, done))) {
         // TODO(sfiera): cleanup
         return false;
     }
@@ -367,13 +367,13 @@ static bool rsvc_ogg_stream_pagein(ogg_stream_state* os, ogg_page* og, rsvc_done
     return true;
 }
 
-bool read_header(  int fd, rsvc_vorbis_tags_t ogv, vorbis_info* vi,
+bool read_header(  FILE* file, rsvc_vorbis_tags_t ogv, vorbis_info* vi,
                    ogg_sync_state* oy, ogg_stream_state* os, ogg_page* og, ogg_packet* op,
                    rsvc_done_t fail) {
     bool first_page = true;
     int header_packets = 3;
     while (header_packets > 0) {
-        if (!(rsvc_ogg_page_read(fd, oy, og, NULL, fail) &&
+        if (!(rsvc_ogg_page_read(file, oy, og, NULL, fail) &&
               (first_page  ? start_stream(os, og, &ogv->serial, fail)
                            : continue_stream(og, ogv->serial, fail)) &&
               rsvc_ogg_stream_pagein(os, og, fail))) {
@@ -407,11 +407,11 @@ bool read_header(  int fd, rsvc_vorbis_tags_t ogv, vorbis_info* vi,
     return true;
 }
 
-bool read_all_packets(  int fd, rsvc_vorbis_tags_t ogv, ogg_sync_state* oy, ogg_page* og,
+bool read_all_packets(  FILE* file, rsvc_vorbis_tags_t ogv, ogg_sync_state* oy, ogg_page* og,
                         rsvc_done_t fail) {
     while (true) {
         bool eof;
-        if (!rsvc_ogg_page_read(fd, oy, og, &eof, fail)) {
+        if (!rsvc_ogg_page_read(file, oy, og, &eof, fail)) {
             return false;
         } else if (eof) {
             break;
@@ -448,8 +448,8 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
         vorbis_info_init(&vi);
         vorbis_comment_init(&ogv.vc);
 
-        ok =  read_header(fileno(file), &ogv, &vi, &oy, &os, &og, &op, fail) &&
-              read_all_packets(fileno(file), &ogv, &oy, &og, fail);
+        ok =  read_header(file, &ogv, &vi, &oy, &os, &og, &op, fail) &&
+              read_all_packets(file, &ogv, &oy, &og, fail);
 
         ogg_sync_clear(&oy);
         ogg_stream_clear(&os);
@@ -548,7 +548,7 @@ bool rsvc_vorbis_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail
     vorbis_info_init(&vi);
     vorbis_comment_init(&ogv.vc);
 
-    if (read_header(fileno(file), &ogv, &vi, &oy, &os, &og, &op, fail) &&
+    if (read_header(file, &ogv, &vi, &oy, &os, &og, &op, fail) &&
         read_last_page(fileno(file), &oy, &og, fail)) {
         struct rsvc_audio_info i = {
             .sample_rate = vi.rate,

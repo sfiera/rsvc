@@ -45,7 +45,7 @@ void rsvc_ogg_page_copy(ogg_page* dst, const ogg_page* src) {
     dst->body_len       = src->body_len;
 }
 
-bool rsvc_ogg_page_read(int fd, ogg_sync_state* oy, ogg_page* og, bool* eof, rsvc_done_t fail) {
+bool rsvc_ogg_page_read(FILE* file, ogg_sync_state* oy, ogg_page* og, bool* eof, rsvc_done_t fail) {
     while (true) {
         const int status = ogg_sync_pageout(oy, og);
         if (status == 1) {
@@ -61,7 +61,7 @@ bool rsvc_ogg_page_read(int fd, ogg_sync_state* oy, ogg_page* og, bool* eof, rsv
         char* data = ogg_sync_buffer(oy, 4096);
         size_t size;
         bool inner_eof;
-        if (!rsvc_read(NULL, fd, data, 4096, &size, &inner_eof, fail)) {
+        if (!rsvc_read(NULL, fileno(file), data, 4096, &size, &inner_eof, fail)) {
             return false;
         } else if (inner_eof) {
             if (eof) {
@@ -107,22 +107,22 @@ bool rsvc_ogg_packet_out(ogg_stream_state* os, ogg_packet* op, bool* have_op, rs
     }
 }
 
-bool rsvc_ogg_flush(int dst_fd, ogg_stream_state *os, ogg_page* og, rsvc_done_t fail) {
+bool rsvc_ogg_flush(FILE* file, ogg_stream_state *os, ogg_page* og, rsvc_done_t fail) {
     if (ogg_stream_flush(os, og)) {
-        return rsvc_write(NULL, dst_fd, og->header, og->header_len, NULL, NULL, fail)
-            && rsvc_write(NULL, dst_fd, og->body, og->body_len, NULL, NULL, fail);
+        return rsvc_write(NULL, fileno(file), og->header, og->header_len, NULL, NULL, fail)
+            && rsvc_write(NULL, fileno(file), og->body, og->body_len, NULL, NULL, fail);
     }
     return true;
 }
 
-bool rsvc_ogg_align_packet(int dst_fd, ogg_stream_state *os,
+bool rsvc_ogg_align_packet(FILE* file, ogg_stream_state *os,
                            ogg_page* og, ogg_packet* op, rsvc_done_t fail) {
     ogg_stream_packetin(os, op);
     while (ogg_stream_pageout(os, og)) {
-        if (!(rsvc_write(NULL, dst_fd, og->header, og->header_len, NULL, NULL, fail) &&
-              rsvc_write(NULL, dst_fd, og->body, og->body_len, NULL, NULL, fail))) {
+        if (!(rsvc_write(NULL, fileno(file), og->header, og->header_len, NULL, NULL, fail) &&
+              rsvc_write(NULL, fileno(file), og->body, og->body_len, NULL, NULL, fail))) {
             return false;
         }
     }
-    return rsvc_ogg_flush(dst_fd, os, og, fail);
+    return rsvc_ogg_flush(file, os, og, fail);
 }

@@ -182,8 +182,8 @@ static bool rsvc_opus_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     rsvc_opus_head_out(&self->head, &op_head);
     ogg_packet op_tags;
     rsvc_opus_tags_out(&self->tags, &op_tags);
-    if (!(rsvc_ogg_align_packet(fileno(file), &os, &og, &op_head, fail) &&
-          rsvc_ogg_align_packet(fileno(file), &os, &og, &op_tags, fail))) {
+    if (!(rsvc_ogg_align_packet(file, &os, &og, &op_head, fail) &&
+          rsvc_ogg_align_packet(file, &os, &og, &op_tags, fail))) {
         // TODO(sfiera): cleanup
         return false;
     }
@@ -324,7 +324,7 @@ bool rsvc_opus_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_do
     // Read all of the pages from the ogg file in a loop.
     while (packetno < 2) {
         bool eof;
-        if (!rsvc_ogg_page_read(fileno(opus.file), &oy, &og, &eof, fail)) {
+        if (!rsvc_ogg_page_read(opus.file, &oy, &og, &eof, fail)) {
             return false;
         } else if (eof) {
             if (packetno < 2) {
