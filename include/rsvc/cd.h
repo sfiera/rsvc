@@ -21,6 +21,7 @@
 #ifndef RSVC_CD_H_
 #define RSVC_CD_H_
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <rsvc/common.h>
 #include <rsvc/cancel.h>
@@ -187,9 +188,9 @@ size_t                  rsvc_cd_track_nsamples(rsvc_cd_track_t track);
 void                    rsvc_cd_track_isrc(rsvc_cd_track_t track,
                                            void (^done)(const char* isrc));
 
-/// ..  function:: void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_done_t done)
+/// ..  function:: void rsvc_cd_track_rip(rsvc_cd_track_t track, FILE* file, rsvc_done_t done)
 ///
-///     Begins ripping data from the track and writing it to `fd`.  The
+///     Begins ripping data from the track and writing it to `file`.  The
 ///     data written will be a sequence of native-endian int16_t
 ///     samples, interleaved between channels.
 ///
@@ -197,14 +198,14 @@ void                    rsvc_cd_track_isrc(rsvc_cd_track_t track,
 ///     dedicated IO queue; only one rip may be active for a given CD at
 ///     a time.
 ///
-///     :param fd:      An open, writable file descriptor.
+///     :param file:    An open, writable file.
 ///     :param done:    Invoked when the rip is complete; either with
 ///                     `NULL` to indicate success, or with an error to
 ///                     indicate failure.
 ///     :returns:       A block that can be invoked to cancel the rip. 
 ///                     Must not be called after the :type:`rsvc_cd_t`
 ///                     containing `track` is destroyed.
-void                    rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_cancel_t cancel,
+void                    rsvc_cd_track_rip(rsvc_cd_track_t track, FILE* file, rsvc_cancel_t cancel,
                                           rsvc_done_t done);
 
 #endif  // RSVC_CD_H_

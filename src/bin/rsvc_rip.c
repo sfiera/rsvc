@@ -221,7 +221,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
 
         // Rip the current track.  If that fails, bail.  If it succeeds,
         // start ripping the next track.
-        rsvc_cd_track_rip(track, fileno(write_pipe), &rsvc_sigint, ^(rsvc_error_t error){
+        rsvc_cd_track_rip(track, write_pipe, &rsvc_sigint, ^(rsvc_error_t error){
             fclose(write_pipe);
             decode_done(error);
         });

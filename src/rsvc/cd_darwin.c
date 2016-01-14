@@ -335,7 +335,7 @@ static void read_range(
     }
 }
 
-void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_cancel_t cancel, rsvc_done_t done) {
+void rsvc_cd_track_rip(rsvc_cd_track_t track, FILE* file, rsvc_cancel_t cancel, rsvc_done_t done) {
     // Ensure that the done callback does not run in cd->queue.
     done = ^(rsvc_error_t error){
         rsvc_error_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
@@ -361,6 +361,6 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_cancel_t cancel, rsvc
 
         size_t begin = track->sector_begin * kCDSectorSizeCDDA;
         size_t end = track->sector_end * kCDSectorSizeCDDA;
-        read_range(track, fd, &stopped, begin, end, done);
+        read_range(track, fileno(file), &stopped, begin, end, done);
     });
 }
