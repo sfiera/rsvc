@@ -32,6 +32,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include "unix.h"
 
 OSStatus core_audio_read(
         void* userdata, SInt64 offset, UInt32 size, void* data, UInt32* actual_size) {
@@ -202,43 +203,33 @@ static bool core_audio_encode(
     }
 
     size_t samples_per_channel_read = 0;
-    size_t start = 0;
     static const int kSamples = 4096;
     uint8_t buffer[kSamples];
     while (true) {
-        ssize_t result = read(fileno(src_file), buffer + start, sizeof(buffer) - start);
-        if (result > 0) {
-            result += start;
-            size_t remainder = result % (2 * info.channels);
-            result -= remainder;
-            size_t nsamples = result / (2 * info.channels);
-            samples_per_channel_read += nsamples;
-            if (result > 0) {
-                AudioBufferList buffer_list = {
-                    .mNumberBuffers = 1,
-                    .mBuffers = {{
-                        .mData = buffer,
-                        .mNumberChannels = info.channels,
-                        .mDataByteSize = nsamples * info.channels * 2,
-                    }},
-                };
-                err = ExtAudioFileWrite(file_ref, nsamples, &buffer_list);
-                if (err != noErr) {
-                    cleanup();
-                    rsvc_errorf(fail, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
-                    return false;
-                }
-                memcpy(buffer, buffer + result, remainder);
-            }
-            start = remainder;
-            progress(samples_per_channel_read * 1.0 / info.samples_per_channel);
-        } else if (result == 0) {
+        bool eof;
+        size_t nsamples;
+        if (!rsvc_cread(NULL, src_file, buffer, kSamples / info.block_align, info.block_align,
+                &nsamples, NULL, &eof, fail)) {
+            return false;
+        } else if (eof) {
             break;
-        } else if (errno != EINTR) {
+        }
+        samples_per_channel_read += nsamples;
+        AudioBufferList buffer_list = {
+            .mNumberBuffers = 1,
+            .mBuffers = {{
+                .mData = buffer,
+                .mNumberChannels = info.channels,
+                .mDataByteSize = nsamples * info.block_align,
+            }},
+        };
+        err = ExtAudioFileWrite(file_ref, nsamples, &buffer_list);
+        if (err != noErr) {
             cleanup();
-            rsvc_strerrorf(fail, __FILE__, __LINE__, "pipe");
+            rsvc_errorf(fail, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
             return false;
         }
+        progress(samples_per_channel_read * 1.0 / info.samples_per_channel);
     }
     ExtAudioFileDispose(file_ref);
     AudioFileClose(file_id);

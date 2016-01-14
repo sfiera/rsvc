@@ -362,80 +362,45 @@ bool rsvc_pipe(FILE** read_pipe, FILE** write_pipe, rsvc_done_t fail) {
 
 bool rsvc_read(const char* name, FILE* file, void* data, size_t size,
                size_t* size_out, bool* eof, rsvc_done_t fail) {
-    void* begin = data;
-    void* end = begin + size;
-    while (begin != end) {
-        ssize_t result = read(fileno(file), begin, end - begin);
-        if (result > 0) {
-            begin += result;
-            if (size_out) {
-                break;
-            }
-        } else if (result == 0) {
-            if (eof) {
-                *eof = true;
-                break;
-            }
-            rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", name);
-            return false;
-        } else if (errno != EINTR) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", name);
-        }
-    }
-    if (size_out) {
-        *size_out = begin - data;
-    }
-    return true;
+    return rsvc_cread(name, file, data, size, 1, size_out, NULL, eof, fail);
 }
 
 bool rsvc_cread(const char* name, FILE* file, void* data, size_t count, size_t size,
                 size_t* count_out, size_t* size_inout, bool* eof, rsvc_done_t fail) {
-    void* begin = data;
-    void* end = begin + (count * size);
-    if ((*size_inout > size) && (*size_inout % size)) {
-        size_t mod = *size_inout % 4;
-        size_t base = *size_inout - mod;
-        memcpy(begin, begin + base, mod);
-        begin += mod;
+    if (!!eof != !!count_out) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "passing !!eof != !!count_out is nonsensical");
+        return false;
     }
 
-    if (!rsvc_read(name, file, begin, end - begin, size_inout, eof, fail)) {
-        return false;
-    } else if (*eof) {
-        size_t mod = *size_inout % size;
-        if (mod) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "%s: %zu extra bytes", name, mod);
+    (void)size_inout;
+    size_t n = fread(data, size, count, file);
+    if (n < count) {
+        if (feof(file)) {
+            if (!eof) {
+                rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", name);
+                return false;
+            } else if (n == 0) {
+                *eof = true;
+            }
+        } else if (ferror(file)) {
+            rsvc_errorf(fail, __FILE__, __LINE__, "%s: read error", name);
             return false;
         }
     }
-    *count_out = *size_inout / size;
+    if (count_out) {
+        *count_out = n;
+    }
     return true;
 }
 
 bool rsvc_write(const char* name, FILE* file, const void* data, size_t size,
                 size_t* size_out, bool* eof, rsvc_done_t fail) {
-    const void* begin = data;
-    const void* end = begin + size;
-    while (begin != end) {
-        ssize_t result = write(fileno(file), begin, end - begin);
-        if (result > 0) {
-            begin += result;
-            if (size_out) {
-                break;
-            }
-        } else if (result == 0) {
-            if (eof) {
-                *eof = true;
-                break;
-            }
-            rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", name);
-            return false;
-        } else if (errno != EINTR) {
-            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", name);
-        }
-    }
-    if (size_out) {
-        *size_out = begin - data;
+    (void)size_out;
+    (void)eof;
+    size_t n = fwrite(data, 1, size, file);
+    if (n < size) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "%s: write error", name);
+        return false;
     }
     return true;
 }
