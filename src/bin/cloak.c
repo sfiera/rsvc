@@ -167,12 +167,12 @@ static bool write_image(  rsvc_tags_t tags, int index,
     return ok;
 }
 
-bool add_image(  rsvc_tags_t tags, rsvc_format_t format, const char* image_path, int fd,
+bool add_image(  rsvc_tags_t tags, rsvc_format_t format, const char* image_path, FILE* file,
                  rsvc_done_t fail) {
     uint8_t* data;
     size_t size;
     bool ok = false;
-    if (rsvc_mmap(image_path, fd, &data, &size, fail)) {
+    if (rsvc_mmap(image_path, file, &data, &size, fail)) {
         struct rsvc_image_info image_info;
         if (format->image_info(image_path, data, size, &image_info, fail)) {
             rsvc_logf(
@@ -228,7 +228,7 @@ static bool apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
     }
 
     for (add_image_list_node_t curr = ops->add_images.head; curr; curr = curr->next) {
-        if (!add_image(tags, curr->format, curr->path, fileno(curr->file), fail)) {
+        if (!add_image(tags, curr->format, curr->path, curr->file, fail)) {
             return false;
         }
     }

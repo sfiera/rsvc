@@ -174,15 +174,15 @@ bool rsvc_rmdir(const char* path, rsvc_done_t fail) {
     return true;
 }
 
-bool rsvc_mmap(const char* path, int fd, uint8_t** data, size_t* size, rsvc_done_t fail) {
+bool rsvc_mmap(const char* path, FILE* file, uint8_t** data, size_t* size, rsvc_done_t fail) {
     rsvc_logf(3, "mmap %s", path);
     struct stat st;
-    if (fstat(fd, &st) < 0) {
+    if (fstat(fileno(file), &st) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "stat %s", path);
         return false;
     }
     *size = st.st_size;
-    *data = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    *data = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fileno(file), 0);
     if (*data == MAP_FAILED) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "mmap %s", path);
         return false;

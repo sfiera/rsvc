@@ -87,11 +87,11 @@ static bool print_audio_info(const char* path, FILE* file, rsvc_format_t format,
     return true;
 }
 
-static bool print_image_info(const char* path, int fd, rsvc_format_t format, int width, rsvc_done_t fail) {
+static bool print_image_info(const char* path, FILE* file, rsvc_format_t format, int width, rsvc_done_t fail) {
     bool ok = false;
     uint8_t* data;
     size_t size;
-    if (rsvc_mmap(path, fd, &data, &size, fail)) {
+    if (rsvc_mmap(path, file, &data, &size, fail)) {
         struct rsvc_image_info info;
         if (format->image_info(path, data, size, &info, fail)) {
             ok = true;
@@ -119,7 +119,7 @@ static bool print_info(const char* path, FILE* file, int width, rsvc_done_t fail
     if (format->audio_info) {
         return print_audio_info(path, file, format, width, fail);
     } else if (format->image_info) {
-        return print_image_info(path, fileno(file), format, width, fail);
+        return print_image_info(path, file, format, width, fail);
     } else {
         rsvc_errorf(fail, __FILE__, __LINE__, "no info available");
         return false;
