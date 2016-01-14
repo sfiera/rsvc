@@ -177,7 +177,9 @@ bool mad_decode(struct mad_userdata* userdata) {
 
 bool rsvc_mad_decode(int src_fd, int dst_fd,
                      rsvc_decode_info_f info, rsvc_done_t fail) {
-    if (!rsvc_id3_skip_tags(src_fd, fail)) {
+    src_fd = dup(src_fd);  // TODO(sfiera): close, don't leak.
+    FILE* src_file = fdopen(src_fd, "r");
+    if (!rsvc_id3_skip_tags(src_file, fail)) {
         return false;
     }
     off_t offset = lseek(src_fd, 0, SEEK_CUR);
@@ -208,7 +210,7 @@ bool rsvc_mad_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
         .src_fd = fileno(file),
         .fail = fail,
     };
-    if (!(rsvc_id3_skip_tags(fileno(file), fail) &&
+    if (!(rsvc_id3_skip_tags(file, fail) &&
           mad_get_audio_info(&userdata))) {
         return false;
     }

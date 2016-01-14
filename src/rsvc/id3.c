@@ -342,7 +342,7 @@ struct rsvc_id3_tags {
     struct rsvc_tags       super;
 
     char*                  path;
-    int                    fd;
+    FILE*                  file;
 
     // ID3 header data:
     int                    version[2];  // e.g. {4, 1} for ID3v2.4.1
@@ -526,7 +526,7 @@ static bool rsvc_id3_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
 
 static void rsvc_id3_tags_clear(rsvc_id3_tags_t tags) {
     rsvc_id3_tags_t self = DOWN_CAST(struct rsvc_id3_tags, tags);
-    close(self->fd);
+    fclose(self->file);
     free(self->path);
     RSVC_LIST_CLEAR(&self->frames, ^(id3_frame_node_t node){
         (void)node;  // Nothing to free other than struct itself.
@@ -571,12 +571,9 @@ bool rsvc_id3_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_don
         fail(error);
     };
     bool rdwr = flags & RSVC_TAG_RDWR;
-    FILE* file;
-    if (!rsvc_open(id3.path, rdwr ? O_RDWR : O_RDONLY, 0644, &file, fail)) {
+    if (!rsvc_open(id3.path, rdwr ? O_RDWR : O_RDONLY, 0644, &id3.file, fail)) {
         return false;
     }
-    id3.fd = dup(fileno(file));
-    fclose(file);
 
     if (!(read_id3_header(&id3, fail) &&
           read_id3_frames(&id3, fail))) {
@@ -614,7 +611,7 @@ static bool read_sync_unsafe_size(const uint8_t* data, size_t* out, rsvc_done_t 
 static bool read_id3_header(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     rsvc_logf(2, "reading ID3 header");
     uint8_t data[10];
-    if (!rsvc_read(tags->path, tags->fd, data, 10, NULL, NULL, fail)) {
+    if (!rsvc_read(tags->path, fileno(tags->file), data, 10, NULL, NULL, fail)) {
         return false;
     }
 
@@ -656,7 +653,7 @@ static bool read_id3_frames(rsvc_id3_tags_t tags, rsvc_done_t fail) {
         free(orig_data);
         fail(error);
     };
-    if (!rsvc_read(tags->path, tags->fd, data, tags->size, NULL, NULL, fail)) {
+    if (!rsvc_read(tags->path, fileno(tags->file), data, tags->size, NULL, NULL, fail)) {
         return false;
     }
 
@@ -765,7 +762,7 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     if (tags->version[0]) {
         offset = 10 + tags->size;
     }
-    if (lseek(tags->fd, offset, SEEK_SET) < 0) {
+    if (lseek(fileno(tags->file), offset, SEEK_SET) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
     }
@@ -790,7 +787,7 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     while (true) {
         size_t size;
         bool eof = false;
-        if (!rsvc_read(tags->path, tags->fd, buffer, 4096, &size, &eof, fail)) {
+        if (!rsvc_read(tags->path, fileno(tags->file), buffer, 4096, &size, &eof, fail)) {
             return false;
         } else if (eof) {
             break;
@@ -808,9 +805,8 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
         fclose(file);
         return false;
     }
-    close(tags->fd);
-    tags->fd = dup(fileno(file));
-    fclose(file);
+    fclose(tags->file);
+    tags->file = file;
 
     free(body);
     return true;
@@ -1359,21 +1355,21 @@ static void id3_passthru_write(id3_frame_node_t node, uint8_t* data) {
     memcpy(data, node->data, node->size);
 }
 
-bool rsvc_id3_skip_tags(int fd, rsvc_done_t fail) {
+bool rsvc_id3_skip_tags(FILE* file, rsvc_done_t fail) {
     struct rsvc_id3_tags tags = {
         .super = {
             .vptr   = &id3_vptr,
             .flags  = 0,
         },
         .path  = "",
-        .fd    = fd,
+        .file  = file,
     };
     if (!read_id3_header(&tags, ^(rsvc_error_t error){ (void)error; /* ignore */ })) {
         return true;
     }
 
     if (tags.version[0]) {
-        if (lseek(tags.fd, tags.size, SEEK_CUR) < 0) {
+        if (lseek(fileno(tags.file), tags.size, SEEK_CUR) < 0) {
             rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
             return false;
         }
