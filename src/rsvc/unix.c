@@ -333,14 +333,14 @@ char* rsvc_ext(const char* path, char* ext) {
     return NULL;
 }
 
-bool rsvc_pipe(int* read_pipe, int* write_pipe, rsvc_done_t fail) {
+bool rsvc_pipe(FILE** read_pipe, FILE** write_pipe, rsvc_done_t fail) {
     int pipe_fd[2];
     if (pipe(pipe_fd) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "pipe");
         return false;
     }
-    *read_pipe = pipe_fd[0];
-    *write_pipe = pipe_fd[1];
+    *read_pipe = fdopen(pipe_fd[0], "r");
+    *write_pipe = fdopen(pipe_fd[1], "w");
     return true;
 }
 

@@ -219,17 +219,18 @@ static void convert(struct file_pair f, rsvc_done_t done) {
         done(error);
     };
 
-    int read_pipe, write_pipe;
+    FILE* read_pipe;
+    FILE* write_pipe;
     if (!rsvc_pipe(&read_pipe, &write_pipe, done)) {
         return;
     }
 
     rsvc_group_t group = rsvc_group_create(done);
-    convert_read(f, fdopen(write_pipe, "w"), rsvc_group_add(group), ^(bool ok, rsvc_audio_info_t info){
+    convert_read(f, write_pipe, rsvc_group_add(group), ^(bool ok, rsvc_audio_info_t info){
         if (ok) {
-            convert_write(f, info, fdopen(read_pipe, "r"), tmp_path, rsvc_group_add(group));
+            convert_write(f, info, read_pipe, tmp_path, rsvc_group_add(group));
         } else {
-            close(read_pipe);
+            fclose(read_pipe);
         }
     });
     rsvc_group_ready(group);

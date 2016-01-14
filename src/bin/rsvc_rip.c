@@ -211,7 +211,8 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
         rsvc_done_t encode_done = rsvc_group_add(rip_group);
         rsvc_group_ready(rip_group);
 
-        int read_pipe, write_pipe;
+        FILE* read_pipe;
+        FILE* write_pipe;
         if (!rsvc_pipe(&read_pipe, &write_pipe, rip_done)) {
             fclose(file);
             free(path);
@@ -220,8 +221,8 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
 
         // Rip the current track.  If that fails, bail.  If it succeeds,
         // start ripping the next track.
-        rsvc_cd_track_rip(track, write_pipe, &rsvc_sigint, ^(rsvc_error_t error){
-            close(write_pipe);
+        rsvc_cd_track_rip(track, fileno(write_pipe), &rsvc_sigint, ^(rsvc_error_t error){
+            fclose(write_pipe);
             decode_done(error);
         });
 
@@ -231,7 +232,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
 
         encode_done = ^(rsvc_error_t error){
             fclose(file);
-            close(read_pipe);
+            fclose(read_pipe);
             rsvc_tags_destroy(tags);
             if (error) {
                 rsvc_progress_done(progress, "fail");
@@ -254,7 +255,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
                 },
             };
 
-            if (opts.encode.format->encode(fdopen(read_pipe, "r"), file, &encode_options, encode_done)) {
+            if (opts.encode.format->encode(read_pipe, file, &encode_options, encode_done)) {
                 return;
             }
             set_tags(file, path, tags, encode_done);

@@ -50,7 +50,7 @@ char* rsvc_dirname(const char* path, char* dirname);
 char* rsvc_basename(const char* path, char* basename);
 char* rsvc_ext(const char* path, char* ext);
 
-bool rsvc_pipe(int* read_pipe, int* write_pipe, rsvc_done_t fail);
+bool rsvc_pipe(FILE** read_file, FILE** write_file, rsvc_done_t fail);
 
 bool rsvc_read(const char* name, int fd, void* data, size_t size,
                size_t* size_out, bool* eof, rsvc_done_t fail);
