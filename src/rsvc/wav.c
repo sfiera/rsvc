@@ -73,9 +73,9 @@ static void u16le_out(uint8_t* data, uint16_t v) {
     data[1] = v >> 8;
 }
 
-static bool read_riff_chunk_header(int fd, riff_chunk_t rc, rsvc_done_t fail) {
+static bool read_riff_chunk_header(FILE* file, riff_chunk_t rc, rsvc_done_t fail) {
     uint8_t header[RIFF_HEADER_SIZE];
-    if (!rsvc_read(NULL, fd, header, RIFF_HEADER_SIZE, NULL, NULL, fail)) {
+    if (!rsvc_read(NULL, fileno(file), header, RIFF_HEADER_SIZE, NULL, NULL, fail)) {
         return false;
     }
     rc->code   = u32le(header + 0);
@@ -83,13 +83,13 @@ static bool read_riff_chunk_header(int fd, riff_chunk_t rc, rsvc_done_t fail) {
     return true;
 }
 
-static bool check_is_wav(int fd, riff_chunk_t header, rsvc_done_t fail) {
+static bool check_is_wav(FILE* file, riff_chunk_t header, rsvc_done_t fail) {
     if (header->code != WAV_RIFF) {
         rsvc_errorf(fail, __FILE__, __LINE__, "not a wav file");
         return false;
     }
     uint8_t file_type[WAV_WAVE_SIZE];
-    if (!rsvc_read(NULL, fd, file_type, WAV_WAVE_SIZE, NULL, NULL, fail)) {
+    if (!rsvc_read(NULL, fileno(file), file_type, WAV_WAVE_SIZE, NULL, NULL, fail)) {
         return false;
     } else if (u32le(file_type) != WAV_WAVE) {
         rsvc_errorf(fail, __FILE__, __LINE__, "not a wav file");
@@ -116,13 +116,13 @@ static bool wav_fmt_validate(wav_fmt_t wf, rsvc_done_t fail) {
     }
 }
 
-static bool read_wav_fmt(int fd, riff_chunk_t rc, wav_fmt_t wf, rsvc_done_t fail) {
+static bool read_wav_fmt(FILE* file, riff_chunk_t rc, wav_fmt_t wf, rsvc_done_t fail) {
     if (rc->size < WAV_FMT_SIZE) {
         rsvc_errorf(fail, __FILE__, __LINE__, "malformed wav fmt chunk");
         return false;
     }
     uint8_t data[WAV_FMT_SIZE];
-    if (!rsvc_read(NULL, fd, data, WAV_FMT_SIZE, NULL, NULL, fail)) {
+    if (!rsvc_read(NULL, fileno(file), data, WAV_FMT_SIZE, NULL, NULL, fail)) {
         return false;
     }
 
@@ -135,7 +135,7 @@ static bool read_wav_fmt(int fd, riff_chunk_t rc, wav_fmt_t wf, rsvc_done_t fail
 
     if (!wav_fmt_validate(wf, fail)) {
         return false;
-    } else if (lseek(fd, rc->size - WAV_FMT_SIZE, SEEK_CUR) < 0) {
+    } else if (lseek(fileno(file), rc->size - WAV_FMT_SIZE, SEEK_CUR) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
     }
@@ -145,8 +145,8 @@ static bool read_wav_fmt(int fd, riff_chunk_t rc, wav_fmt_t wf, rsvc_done_t fail
 // Leaves `fd` positioned at the start of the data chunk.
 bool wav_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
     struct riff_chunk header;
-    if (!(read_riff_chunk_header(fileno(file), &header, fail) &&
-          check_is_wav(fileno(file), &header, fail))) {
+    if (!(read_riff_chunk_header(file, &header, fail) &&
+          check_is_wav(file, &header, fail))) {
         return false;
     }
     off_t end = RIFF_HEADER_SIZE + header.size;
@@ -156,7 +156,7 @@ bool wav_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
     bool have_fmt = false;
     while (true) {
         struct riff_chunk rc;
-        if (!read_riff_chunk_header(fileno(file), &rc, fail)) {
+        if (!read_riff_chunk_header(file, &rc, fail)) {
             return false;
         }
         at += RIFF_HEADER_SIZE + rc.size;
@@ -171,7 +171,7 @@ bool wav_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
             } else {
                 have_fmt = true;
             }
-            if (!read_wav_fmt(fileno(file), &rc, &wf, fail)) {
+            if (!read_wav_fmt(file, &rc, &wf, fail)) {
                 return false;
             }
             info->sample_rate      = wf.sample_rate;
