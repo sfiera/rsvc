@@ -438,9 +438,6 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
 
     FILE* file;
     if (rsvc_open(ogv.path, O_RDONLY, 0644, &file, fail)) {
-        int fd = dup(fileno(file));
-        fclose(file);
-
         ogg_sync_state    oy = {};
         ogg_stream_state  os = {};
         vorbis_info       vi = {};
@@ -451,13 +448,13 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
         vorbis_info_init(&vi);
         vorbis_comment_init(&ogv.vc);
 
-        ok =  read_header(fd, &ogv, &vi, &oy, &os, &og, &op, fail) &&
-              read_all_packets(fd, &ogv, &oy, &og, fail);
+        ok =  read_header(fileno(file), &ogv, &vi, &oy, &os, &og, &op, fail) &&
+              read_all_packets(fileno(file), &ogv, &oy, &og, fail);
 
         ogg_sync_clear(&oy);
         ogg_stream_clear(&os);
         vorbis_info_clear(&vi);
-        close(fd);
+        fclose(file);
     }
     if (ok) {
         struct rsvc_vorbis_tags* copy = memdup(&ogv, sizeof(ogv));

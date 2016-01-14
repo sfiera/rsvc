@@ -39,7 +39,7 @@ struct opus_tags {
     struct rsvc_tags  super;
 
     char*             path;
-    int               fd;
+    FILE*             file;
     off_t             data_offset;
 
     uint32_t          serial;
@@ -188,7 +188,7 @@ static bool rsvc_opus_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
         return false;
     }
 
-    if (lseek(self->fd, self->data_offset, SEEK_SET) < 0) {
+    if (lseek(fileno(self->file), self->data_offset, SEEK_SET) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
     }
@@ -198,7 +198,7 @@ static bool rsvc_opus_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     bool eof = false;
     while (!eof) {
         size_t size;
-        if (!(rsvc_read(self->path, self->fd, buffer, 4096, &size, &eof, fail) &&
+        if (!(rsvc_read(self->path, fileno(self->file), buffer, 4096, &size, &eof, fail) &&
               (eof || rsvc_write(tmp_path, fileno(file), buffer, size, NULL, NULL, fail)))) {
             return false;
         }
@@ -212,7 +212,7 @@ static bool rsvc_opus_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
 
 void rsvc_opus_tags_clear(opus_tags_t self) {
     free(self->path);
-    close(self->fd);
+    fclose(self->file);
 }
 
 static void rsvc_opus_tags_destroy(rsvc_tags_t tags) {
@@ -297,14 +297,11 @@ bool rsvc_opus_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_do
         fail(error);
     };
 
-    FILE* file;
-    if (!rsvc_open(opus.path, O_RDONLY, 0644, &file, fail)) {
+    if (!rsvc_open(opus.path, O_RDONLY, 0644, &opus.file, fail)) {
         return false;
     }
-    opus.fd = dup(fileno(file));
-    fclose(file);
     fail = ^(rsvc_error_t error){
-        close(opus.fd);
+        fclose(opus.file);
         fail(error);
     };
 
@@ -327,7 +324,7 @@ bool rsvc_opus_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_do
     // Read all of the pages from the ogg file in a loop.
     while (packetno < 2) {
         bool eof;
-        if (!rsvc_ogg_page_read(opus.fd, &oy, &og, &eof, fail)) {
+        if (!rsvc_ogg_page_read(fileno(opus.file), &oy, &og, &eof, fail)) {
             return false;
         } else if (eof) {
             if (packetno < 2) {
