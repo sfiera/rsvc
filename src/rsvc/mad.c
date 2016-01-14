@@ -175,21 +175,19 @@ bool mad_decode(struct mad_userdata* userdata) {
     return result == 0;
 }
 
-bool rsvc_mad_decode(int src_fd, int dst_fd,
+bool rsvc_mad_decode(FILE* src_file, FILE* dst_file,
                      rsvc_decode_info_f info, rsvc_done_t fail) {
-    src_fd = dup(src_fd);  // TODO(sfiera): close, don't leak.
-    FILE* src_file = fdopen(src_fd, "r");
     if (!rsvc_id3_skip_tags(src_file, fail)) {
         return false;
     }
-    off_t offset = lseek(src_fd, 0, SEEK_CUR);
+    off_t offset = lseek(fileno(src_file), 0, SEEK_CUR);
     if (offset < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
     }
     struct mad_userdata userdata = {
-        .src_fd = src_fd,
-        .dst_fd = dst_fd,
+        .src_fd = fileno(src_file),
+        .dst_fd = fileno(dst_file),
         .fail = fail,
     };
     if (!mad_get_audio_info(&userdata)) {
@@ -197,7 +195,7 @@ bool rsvc_mad_decode(int src_fd, int dst_fd,
     }
     info(&userdata.info);
 
-    if (lseek(src_fd, offset, SEEK_SET) < 0) {
+    if (lseek(fileno(src_file), offset, SEEK_SET) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
     }

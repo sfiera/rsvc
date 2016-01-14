@@ -40,7 +40,7 @@ bool                    rsvc_id3_open_tags(const char* path, int flags,
 bool                    rsvc_id3_skip_tags(FILE* file, rsvc_done_t fail);
 bool                    rsvc_lame_encode(  int src_fd, int dst_fd,
                                            rsvc_encode_options_t options, rsvc_done_t fail);
-bool                    rsvc_mad_decode(int src_fd, int dst_fd,
+bool                    rsvc_mad_decode(FILE* src_file, FILE* dst_file,
                                         rsvc_decode_info_f info, rsvc_done_t fail);
 bool                    rsvc_mad_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail);
 

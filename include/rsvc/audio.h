@@ -60,8 +60,8 @@ typedef bool (*rsvc_encode_f)(
 typedef void (^rsvc_decode_info_f)(rsvc_audio_info_t meta);
 
 typedef bool (*rsvc_decode_f)(
-        int src_fd,
-        int dst_fd,
+        FILE* src_file,
+        FILE* dst_file,
         rsvc_decode_info_f info,
         rsvc_done_t fail);
 

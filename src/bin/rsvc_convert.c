@@ -58,7 +58,7 @@ static struct convert_options {
 static void convert(struct file_pair f, rsvc_done_t done);
 static void convert_recursive(struct file_pair f, dispatch_semaphore_t sema, rsvc_group_t group);
 static bool validate_convert_options(rsvc_done_t fail);
-static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
+static void convert_read(struct file_pair f, FILE* write_file, rsvc_done_t done,
                          void (^start)(bool ok, rsvc_audio_info_t info));
 static void convert_write(struct file_pair f, rsvc_audio_info_t info,
                           int read_fd, const char* tmp_path, rsvc_done_t done);
@@ -225,7 +225,7 @@ static void convert(struct file_pair f, rsvc_done_t done) {
     }
 
     rsvc_group_t group = rsvc_group_create(done);
-    convert_read(f, write_pipe, rsvc_group_add(group), ^(bool ok, rsvc_audio_info_t info){
+    convert_read(f, fdopen(write_pipe, "w"), rsvc_group_add(group), ^(bool ok, rsvc_audio_info_t info){
         if (ok) {
             convert_write(f, info, read_pipe, tmp_path, rsvc_group_add(group));
         } else {
@@ -389,11 +389,11 @@ static bool validate_convert_options(rsvc_done_t fail) {
     return true;
 }
 
-static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
+static void convert_read(struct file_pair f, FILE* write_file, rsvc_done_t done,
                          void (^start)(bool ok, rsvc_audio_info_t info)) {
     __block bool got_info = false;
     done = ^(rsvc_error_t error){
-        close(write_fd);
+        fclose(write_file);
         if (!got_info) {
             start(false, NULL);
         }
@@ -417,7 +417,7 @@ static void convert_read(struct file_pair f, int write_fd, rsvc_done_t done,
         return;
     }
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-        if (!format->decode(fileno(f.input_file), write_fd, ^(rsvc_audio_info_t info){
+        if (!format->decode(f.input_file, write_file, ^(rsvc_audio_info_t info){
             got_info = true;
             start(true, info);
         }, done)) {

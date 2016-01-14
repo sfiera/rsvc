@@ -223,7 +223,7 @@ bool rsvc_flac_encode(int src_fd, int dst_fd, rsvc_encode_options_t options, rsv
     return true;
 }
 
-bool rsvc_flac_decode(int src_fd, int dst_fd,
+bool rsvc_flac_decode(FILE* src_file, FILE* dst_file,
                       rsvc_decode_info_f info, rsvc_done_t fail) {
     FLAC__StreamDecoder *decoder = NULL;
 
@@ -237,8 +237,8 @@ bool rsvc_flac_decode(int src_fd, int dst_fd,
     };
 
     struct flac_decode_userdata userdata = {
-        .read_fd   = src_fd,
-        .write_fd  = dst_fd,
+        .read_fd   = fileno(src_file),
+        .write_fd  = fileno(dst_file),
         .info      = info,
         .fail      = fail,
     };
