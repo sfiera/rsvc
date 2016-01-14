@@ -197,7 +197,7 @@ static bool rsvc_opus_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     bool eof = false;
     while (!eof) {
         size_t size;
-        if (!(rsvc_read(self->path, self->file, buffer, 4096, &size, &eof, fail) &&
+        if (!(rsvc_read(self->path, self->file, buffer, 4096, 1, &size, &eof, fail) &&
               (eof || rsvc_write(tmp_path, file, buffer, size, fail)))) {
             return false;
         }

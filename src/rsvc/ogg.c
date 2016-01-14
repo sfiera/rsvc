@@ -61,7 +61,7 @@ bool rsvc_ogg_page_read(FILE* file, ogg_sync_state* oy, ogg_page* og, bool* eof,
         char* data = ogg_sync_buffer(oy, 4096);
         size_t size;
         bool inner_eof;
-        if (!rsvc_read(NULL, file, data, 4096, &size, &inner_eof, fail)) {
+        if (!rsvc_read(NULL, file, data, 4096, 1, &size, &inner_eof, fail)) {
             return false;
         } else if (inner_eof) {
             if (eof) {

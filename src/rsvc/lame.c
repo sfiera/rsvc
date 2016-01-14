@@ -72,8 +72,8 @@ bool rsvc_lame_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opti
     bool eof = false;
     while (!eof) {
         size_t nsamples;
-        if (!rsvc_cread("pipe", src_file, buffer, kSamples, 2 * sizeof(int16_t),
-                        &nsamples, &eof, fail)) {
+        if (!rsvc_read(  "pipe", src_file, buffer, kSamples, 2 * sizeof(int16_t),
+                         &nsamples, &eof, fail)) {
             return false;
         } else if (nsamples) {
             samples_per_channel_read += nsamples;

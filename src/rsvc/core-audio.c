@@ -208,7 +208,7 @@ static bool core_audio_encode(
     while (true) {
         bool eof;
         size_t nsamples;
-        if (!rsvc_cread(NULL, src_file, buffer, kSamples / info.block_align, info.block_align,
+        if (!rsvc_read(NULL, src_file, buffer, kSamples / info.block_align, info.block_align,
                 &nsamples, &eof, fail)) {
             return false;
         } else if (eof) {

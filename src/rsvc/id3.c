@@ -611,7 +611,7 @@ static bool read_sync_unsafe_size(const uint8_t* data, size_t* out, rsvc_done_t 
 static bool read_id3_header(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     rsvc_logf(2, "reading ID3 header");
     uint8_t data[10];
-    if (!rsvc_read(tags->path, tags->file, data, 10, NULL, NULL, fail)) {
+    if (!rsvc_read(tags->path, tags->file, data, 10, 1, NULL, NULL, fail)) {
         return false;
     }
 
@@ -653,7 +653,7 @@ static bool read_id3_frames(rsvc_id3_tags_t tags, rsvc_done_t fail) {
         free(orig_data);
         fail(error);
     };
-    if (!rsvc_read(tags->path, tags->file, data, tags->size, NULL, NULL, fail)) {
+    if (!rsvc_read(tags->path, tags->file, data, tags->size, 1, NULL, NULL, fail)) {
         return false;
     }
 
@@ -786,7 +786,7 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     while (true) {
         size_t size;
         bool eof = false;
-        if (!rsvc_read(tags->path, tags->file, buffer, 4096, &size, &eof, fail)) {
+        if (!rsvc_read(tags->path, tags->file, buffer, 4096, 1, &size, &eof, fail)) {
             return false;
         } else if (eof) {
             break;

@@ -100,8 +100,8 @@ bool rsvc_vorbis_encode(  FILE* src_file, FILE* dst_file, rsvc_encode_options_t 
     while (!eos) {
         bool eof = false;
         size_t nsamples;
-        if (!rsvc_cread("pipe", src_file, in, 2048 / info.channels, info.channels * sizeof(int16_t),
-                        &nsamples, &eof, fail)) {
+        if (!rsvc_read(  "pipe", src_file, in, 2048 / info.channels, info.channels * sizeof(int16_t),
+                         &nsamples, &eof, fail)) {
             return false;
         } else if (nsamples) {
             samples_per_channel_read += nsamples;
@@ -494,7 +494,7 @@ bool read_last_page(  FILE* file, ogg_sync_state* oy, ogg_page* og,
 
         chunk_sizes[i] = chunk_end - chunk_start;
         chunk_data[i] = malloc(chunk_sizes[i]);
-        if (!rsvc_read(NULL, file, chunk_data[i], chunk_sizes[i], NULL, NULL, fail)) {
+        if (!rsvc_read(NULL, file, chunk_data[i], chunk_sizes[i], 1, NULL, NULL, fail)) {
             break;
         }
 
