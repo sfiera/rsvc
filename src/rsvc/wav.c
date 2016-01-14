@@ -141,7 +141,7 @@ static bool read_wav_fmt(FILE* file, riff_chunk_t rc, wav_fmt_t wf, rsvc_done_t 
     return true;
 }
 
-// Leaves `fd` positioned at the start of the data chunk.
+// Leaves `file` positioned at the start of the data chunk.
 bool wav_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
     struct riff_chunk header;
     if (!(read_riff_chunk_header(file, &header, fail) &&

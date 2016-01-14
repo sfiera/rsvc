@@ -752,9 +752,9 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
     write_id3_header(header, body_size);
     write_id3_tags(tags, body);
 
-    // Position tags->fd at the end of the ID3 content.  If we write the
-    // file twice, we will need to return here.  If we write the file
-    // twice at the same time, this function will break.
+    // Position tags->file at the end of the ID3 content.  If we write
+    // the file twice, we will need to return here.  If we write the
+    // file twice at the same time, this function will break.
     //
     // TODO(sfiera): serialize calls to this function through a serial
     // dispatch queue.
@@ -796,7 +796,7 @@ bool id3_write_tags(rsvc_id3_tags_t tags, rsvc_done_t fail) {
         }
     }
 
-    // Move the new file over the original.  Close the original fd and
+    // Move the new file over the original.  Close the original file and
     // move the one that pointed to the temporary file into its place.
     // We'll use that if we try to write the file again.
     rsvc_logf(2, "renaming %s to %s", tmp_path, tags->path);
