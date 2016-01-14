@@ -469,9 +469,9 @@ bool rsvc_vorbis_open_tags(const char* path, int flags, rsvc_tags_t* tags, rsvc_
 #define READ_BACK_CHUNK_SIZE   4096
 #define READ_BACK_CHUNK_COUNT  (MAX_READ_BACK / READ_BACK_CHUNK_SIZE)
 
-bool read_last_page(  int fd, ogg_sync_state* oy, ogg_page* og,
+bool read_last_page(  FILE* file, ogg_sync_state* oy, ogg_page* og,
                       rsvc_done_t fail) {
-    const off_t end = lseek(fd, 0, SEEK_END);
+    const off_t end = lseek(fileno(file), 0, SEEK_END);
     if (end < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
@@ -490,14 +490,14 @@ bool read_last_page(  int fd, ogg_sync_state* oy, ogg_page* og,
 
         // Seek back and read another new chunk.
         off_t chunk_start = (end > READ_BACK_CHUNK_SIZE) ? end - READ_BACK_CHUNK_SIZE : 0;
-        if (lseek(fd, chunk_start, SEEK_SET) < 0) {
+        if (lseek(fileno(file), chunk_start, SEEK_SET) < 0) {
             rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
             break;
         }
 
         chunk_sizes[i] = chunk_end - chunk_start;
         chunk_data[i] = malloc(chunk_sizes[i]);
-        if (!rsvc_read(NULL, fd, chunk_data[i], chunk_sizes[i], NULL, NULL, fail)) {
+        if (!rsvc_read(NULL, fileno(file), chunk_data[i], chunk_sizes[i], NULL, NULL, fail)) {
             break;
         }
 
@@ -549,7 +549,7 @@ bool rsvc_vorbis_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail
     vorbis_comment_init(&ogv.vc);
 
     if (read_header(file, &ogv, &vi, &oy, &os, &og, &op, fail) &&
-        read_last_page(fileno(file), &oy, &og, fail)) {
+        read_last_page(file, &oy, &og, fail)) {
         struct rsvc_audio_info i = {
             .sample_rate = vi.rate,
             .channels = vi.channels,
