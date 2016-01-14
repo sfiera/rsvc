@@ -344,12 +344,12 @@ bool rsvc_pipe(FILE** read_pipe, FILE** write_pipe, rsvc_done_t fail) {
     return true;
 }
 
-bool rsvc_read(const char* name, int fd, void* data, size_t size,
+bool rsvc_read(const char* name, FILE* file, void* data, size_t size,
                size_t* size_out, bool* eof, rsvc_done_t fail) {
     void* begin = data;
     void* end = begin + size;
     while (begin != end) {
-        ssize_t result = read(fd, begin, end - begin);
+        ssize_t result = read(fileno(file), begin, end - begin);
         if (result > 0) {
             begin += result;
             if (size_out) {
@@ -372,7 +372,7 @@ bool rsvc_read(const char* name, int fd, void* data, size_t size,
     return true;
 }
 
-bool rsvc_cread(const char* name, int fd, void* data, size_t count, size_t size,
+bool rsvc_cread(const char* name, FILE* file, void* data, size_t count, size_t size,
                 size_t* count_out, size_t* size_inout, bool* eof, rsvc_done_t fail) {
     void* begin = data;
     void* end = begin + (count * size);
@@ -383,7 +383,7 @@ bool rsvc_cread(const char* name, int fd, void* data, size_t count, size_t size,
         begin += mod;
     }
 
-    if (!rsvc_read(name, fd, begin, end - begin, size_inout, eof, fail)) {
+    if (!rsvc_read(name, file, begin, end - begin, size_inout, eof, fail)) {
         return false;
     } else if (*eof) {
         size_t mod = *size_inout % size;

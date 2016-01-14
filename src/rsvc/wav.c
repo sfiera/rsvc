@@ -75,7 +75,7 @@ static void u16le_out(uint8_t* data, uint16_t v) {
 
 static bool read_riff_chunk_header(FILE* file, riff_chunk_t rc, rsvc_done_t fail) {
     uint8_t header[RIFF_HEADER_SIZE];
-    if (!rsvc_read(NULL, fileno(file), header, RIFF_HEADER_SIZE, NULL, NULL, fail)) {
+    if (!rsvc_read(NULL, file, header, RIFF_HEADER_SIZE, NULL, NULL, fail)) {
         return false;
     }
     rc->code   = u32le(header + 0);
@@ -89,7 +89,7 @@ static bool check_is_wav(FILE* file, riff_chunk_t header, rsvc_done_t fail) {
         return false;
     }
     uint8_t file_type[WAV_WAVE_SIZE];
-    if (!rsvc_read(NULL, fileno(file), file_type, WAV_WAVE_SIZE, NULL, NULL, fail)) {
+    if (!rsvc_read(NULL, file, file_type, WAV_WAVE_SIZE, NULL, NULL, fail)) {
         return false;
     } else if (u32le(file_type) != WAV_WAVE) {
         rsvc_errorf(fail, __FILE__, __LINE__, "not a wav file");
@@ -122,7 +122,7 @@ static bool read_wav_fmt(FILE* file, riff_chunk_t rc, wav_fmt_t wf, rsvc_done_t 
         return false;
     }
     uint8_t data[WAV_FMT_SIZE];
-    if (!rsvc_read(NULL, fileno(file), data, WAV_FMT_SIZE, NULL, NULL, fail)) {
+    if (!rsvc_read(NULL, file, data, WAV_FMT_SIZE, NULL, NULL, fail)) {
         return false;
     }
 
@@ -209,7 +209,7 @@ bool wav_audio_decode(FILE* src_file, FILE* dst_file, rsvc_decode_info_f info, r
         uint8_t data[4096];
         size_t size = (remainder > 4096) ? 4096 : remainder;
         // TODO(sfiera): endianness.
-        if (!(rsvc_read(NULL, fileno(src_file), data, size, NULL, NULL, fail) &&
+        if (!(rsvc_read(NULL, src_file, data, size, NULL, NULL, fail) &&
               rsvc_write(NULL, fileno(dst_file), data, size, NULL, NULL, fail))) {
             fclose(src_file);
             return false;
@@ -254,7 +254,7 @@ bool wav_audio_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opts
         uint8_t data[4096];
         size_t size = (remainder > 4096) ? 4096 : remainder;
         // TODO(sfiera): endianness.
-        if (!(rsvc_read(NULL, fileno(src_file), data, size, NULL, NULL, fail) &&
+        if (!(rsvc_read(NULL, src_file, data, size, NULL, NULL, fail) &&
               rsvc_write(NULL, fileno(dst_file), data, size, NULL, NULL, fail))) {
             return false;
         }

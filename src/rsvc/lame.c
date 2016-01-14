@@ -73,7 +73,7 @@ bool rsvc_lame_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opti
     bool eof = false;
     while (!eof) {
         size_t nsamples;
-        if (!rsvc_cread("pipe", fileno(src_file), buffer, kSamples, 2 * sizeof(int16_t),
+        if (!rsvc_cread("pipe", src_file, buffer, kSamples, 2 * sizeof(int16_t),
                         &nsamples, &size_inout, &eof, fail)) {
             return false;
         } else if (nsamples) {

@@ -57,7 +57,7 @@ static enum mad_flow mad_input(void* v, struct mad_stream* stream) {
     }
 
     bool eof = false;
-    if (!rsvc_read("pipe", fileno(userdata->src_file), data, size, &size, &eof, userdata->fail)) {
+    if (!rsvc_read("pipe", userdata->src_file, data, size, &size, &eof, userdata->fail)) {
         return MAD_FLOW_BREAK;
     } else if (eof) {
         return MAD_FLOW_STOP;
