@@ -41,21 +41,21 @@ bool rsvc_open(const char* path, int oflag, mode_t mode, FILE** file, rsvc_done_
         rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
         return false;
     }
+    const char* fmode = "r";
     if (mode & O_RDWR) {
         if (mode & O_APPEND) {
-            *file = fdopen(fd, "a+");
+            fmode = "a+";
         } else {
-            *file = fdopen(fd, "r+");
+            fmode = "r+";
         }
     } else if (mode & O_WRONLY) {
         if (mode & O_APPEND) {
-            *file = fdopen(fd, "a");
+            fmode = "a";
         } else {
-            *file = fdopen(fd, "w");
+            fmode = "w";
         }
-    } else {
-        *file = fdopen(fd, "r");
     }
+    *file = fdopen(fd, fmode);
     return true;
 }
 

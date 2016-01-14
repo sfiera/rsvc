@@ -25,14 +25,29 @@
 #include <util.h>
 #include "common.h"
 
-bool rsvc_opendev(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail) {
+bool rsvc_opendev(const char* path, int oflag, mode_t mode, FILE** file, rsvc_done_t fail) {
     rsvc_logf(3, "open %s", path);
     bool ok = false;
     char* dup_path = strdup(path);
-    *fd = opendev(dup_path, oflag, mode, NULL);
-    if (*fd < 0) {
+    int fd = opendev(dup_path, oflag, mode, NULL);
+    if (fd < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
     } else {
+        const char* fmode = "r";
+        if (mode & O_RDWR) {
+            if (mode & O_APPEND) {
+                fmode = "a+";
+            } else {
+                fmode = "r+";
+            }
+        } else if (mode & O_WRONLY) {
+            if (mode & O_APPEND) {
+                fmode = "a";
+            } else {
+                fmode = "w";
+            }
+        }
+        *file = fdopen(fd, fmode);
         ok = true;
     }
     free(dup_path);

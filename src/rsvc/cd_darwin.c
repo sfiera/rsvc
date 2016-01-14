@@ -37,7 +37,7 @@
 struct rsvc_cd {
     dispatch_queue_t queue;
 
-    int fd;
+    FILE* file;
     char* path;
     CDMCN mcn;
 
@@ -80,11 +80,11 @@ bool rsvc_cd_create(char* path, rsvc_cd_t* cd, rsvc_done_t fail) {
     *cd = memdup(&template, sizeof(template));
 
     bool ok = false;
-    if (rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0000, &(*cd)->fd, fail)) {
+    if (rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0000, &(*cd)->file, fail)) {
         // Read the CD's MCN, if it has one.
         dk_cd_read_mcn_t cd_read_mcn;
         memset(&cd_read_mcn, 0, sizeof(dk_cd_read_mcn_t));
-        if (ioctl((*cd)->fd, DKIOCCDREADMCN, &cd_read_mcn) >= 0) {
+        if (ioctl(fileno((*cd)->file), DKIOCCDREADMCN, &cd_read_mcn) >= 0) {
             strcpy((*cd)->mcn, cd_read_mcn.mcn);
         }
 
@@ -97,7 +97,7 @@ bool rsvc_cd_create(char* path, rsvc_cd_t* cd, rsvc_done_t fail) {
         cd_read_toc.format          = kCDTOCFormatTOC;
         cd_read_toc.buffer          = buffer;
         cd_read_toc.bufferLength    = sizeof(toc_buffer_t);
-        if (ioctl((*cd)->fd, DKIOCCDREADTOC, &cd_read_toc) < 0) {
+        if (ioctl(fileno((*cd)->file), DKIOCCDREADTOC, &cd_read_toc) < 0) {
             rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", (*cd)->path);
         } else {
             CDTOC* toc = (CDTOC*)buffer;
@@ -195,7 +195,7 @@ bool rsvc_cd_create(char* path, rsvc_cd_t* cd, rsvc_done_t fail) {
             }
         }
         if (!ok) {
-            close((*cd)->fd);
+            fclose((*cd)->file);
         }
     }
     if (!ok) {
@@ -213,7 +213,7 @@ void rsvc_cd_destroy(rsvc_cd_t cd) {
     free(cd->tracks);
     free(cd->sessions);
     free(cd->path);
-    close(cd->fd);
+    fclose(cd->file);
     dispatch_release(cd->queue);
     free(cd);
 }
@@ -279,7 +279,7 @@ void rsvc_cd_track_isrc(rsvc_cd_track_t track, void (^done)(const char* isrc)) {
         dk_cd_read_isrc_t cd_read_isrc;
         memset(&cd_read_isrc, 0, sizeof(dk_cd_read_isrc_t));
         cd_read_isrc.track = track->number;
-        if (ioctl(track->cd->fd, DKIOCCDREADISRC, &cd_read_isrc) >= 0) {
+        if (ioctl(fileno(track->cd->file), DKIOCCDREADISRC, &cd_read_isrc) >= 0) {
             done(cd_read_isrc.isrc);
         } else {
             done(NULL);
@@ -310,7 +310,7 @@ static void read_range(
         cd_read.bufferLength = (end - begin);
     }
 
-    if (ioctl(track->cd->fd, DKIOCCDREAD, &cd_read) < 0) {
+    if (ioctl(fileno(track->cd->file), DKIOCCDREAD, &cd_read) < 0) {
         rsvc_strerrorf(done, __FILE__, __LINE__, "%s", track->cd->path);
         return;
     }
@@ -352,7 +352,7 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, FILE* file, rsvc_cancel_t cancel, 
 
     dispatch_async(track->cd->queue, ^{
         uint16_t speed = kCDSpeedMax;
-        ioctl(track->cd->fd, DKIOCCDSETSPEED, &speed);
+        ioctl(fileno(track->cd->file), DKIOCCDSETSPEED, &speed);
 
         size_t begin = track->sector_begin * kCDSectorSizeCDDA;
         size_t end = track->sector_end * kCDSectorSizeCDDA;
