@@ -25,12 +25,11 @@
 #include <rsvc/format.h>
 #include <string.h>
 #include <unistd.h>
+#include "unix.h"
 
-static bool gif_info(
-        const char* path, const uint8_t* data, size_t size,
-        rsvc_image_info_t info, rsvc_done_t fail) {
-    if (size < 11) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
+static bool gif_info(const char* path, FILE* file, rsvc_image_info_t info, rsvc_done_t fail) {
+    char data[11];
+    if (!rsvc_read(path, file, data, 1, 11, NULL, NULL, fail)) {
         return false;
     }
     info->width = (data[7] << 8) + data[6];

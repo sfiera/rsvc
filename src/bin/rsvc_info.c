@@ -93,7 +93,7 @@ static bool print_image_info(const char* path, FILE* file, rsvc_format_t format,
     size_t size;
     if (rsvc_mmap(path, file, &data, &size, fail)) {
         struct rsvc_image_info info;
-        if (format->image_info(path, data, size, &info, fail)) {
+        if (format->image_info(path, file, &info, fail)) {
             ok = true;
             outf("%s: ", path);
             for (int i = strlen(path); i < width; ++i) {

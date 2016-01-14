@@ -25,6 +25,7 @@
 #include <rsvc/format.h>
 #include <string.h>
 #include <unistd.h>
+#include "unix.h"
 
 #define JPEG_SOI 0xD8
 #define JPEG_EOI 0xD9
@@ -35,26 +36,20 @@ static size_t read_short(const uint8_t data[2]) {
     return (data[0] << 8) + (data[1] << 0);
 }
 
-static bool jpeg_consume_marker(
-        const char* path, const uint8_t** data, size_t* size,
-        uint8_t marker[2], rsvc_done_t fail) {
-    if (*size < 2) {
+static bool jpeg_consume_marker(  const char* path, FILE* file, uint8_t marker[2],
+                                  rsvc_done_t fail) {
+    if (!rsvc_read(path, file, marker, 1, 2, NULL, NULL, fail)) {
         rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
         return false;
     }
-    memcpy(marker, *data, 2);
-    *data += 2;
-    *size -= 2;
     return true;
 }
 
-static bool jpeg_info(
-        const char* path, const uint8_t* data, size_t size,
-        rsvc_image_info_t info, rsvc_done_t fail) {
+static bool jpeg_info(const char* path, FILE* file, rsvc_image_info_t info, rsvc_done_t fail) {
     bool got_soi = false;
     uint8_t marker[2];
     while (true) {
-        if (!jpeg_consume_marker(path, &data, &size, marker, fail)) {
+        if (!jpeg_consume_marker(path, file, marker, fail)) {
             return false;
         }
         if (marker[0] != 0xff) {
@@ -76,8 +71,9 @@ static bool jpeg_info(
 
         switch (marker[1]) {
           case 0xff:
-            data += 1;
-            size -= 1;
+            if (!rsvc_seek(file, 1, SEEK_CUR, fail)) {
+                return false;
+            }
             continue;
 
           case 0x01:
@@ -89,8 +85,9 @@ static bool jpeg_info(
           case 0xd5:
           case 0xd6:
           case 0xd7:
-            data += 2;
-            size -= 2;
+            if (!rsvc_seek(file, 2, SEEK_CUR, fail)) {
+                return false;
+            }
             continue;
 
           case JPEG_SOI:
@@ -102,20 +99,19 @@ static bool jpeg_info(
             return false;
         }
 
-        if (size < 2) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
+        uint8_t ss_data[2];
+        if (!rsvc_read(path, file, ss_data, 1, 2, NULL, NULL, fail)) {
             return false;
         }
-        size_t segment_size = read_short(data);
-        data += 2;
-        size -= 2;
+        uint16_t segment_size = read_short(ss_data);
 
         if ((marker[1] == JPEG_SOF0) || (marker[1] == JPEG_SOF2)) {
             if (segment_size < 5) {
-                rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid png (bad SOFn size)", path);
+                rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid jpeg (bad SOFn size)", path);
                 return false;
             }
-            if (size < segment_size) {
+            uint8_t data[5];
+            if (!rsvc_read(path, file, data, 1, 5, NULL, NULL, fail)) {
                 rsvc_errorf(fail, __FILE__, __LINE__, "%s: unexpected eof", path);
                 return false;
             }
@@ -126,14 +122,15 @@ static bool jpeg_info(
             return true;
         }
 
-        data += segment_size - 2;
-        size -= segment_size - 2;
+        if (!rsvc_seek(file, segment_size - 2, SEEK_CUR, fail)) {
+            return false;
+        }
     }
 
     if (got_soi) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid png (missing SOFn)", path);
+        rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid jpeg (missing SOFn)", path);
     } else {
-        rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid png (missing SOI)", path);
+        rsvc_errorf(fail, __FILE__, __LINE__, "%s: invalid jpeg (missing SOI)", path);
     }
     return false;
 }

@@ -22,6 +22,7 @@
 
 #include <copyfile.h>
 #include <string.h>
+#include <sys/errno.h>
 #include <util.h>
 #include "common.h"
 
@@ -52,6 +53,70 @@ bool rsvc_opendev(const char* path, int oflag, mode_t mode, FILE** file, rsvc_do
     }
     free(dup_path);
     return ok;
+}
+
+typedef struct memopen_data* memopen_data_t;
+struct memopen_data {
+    const char*  data;
+    size_t       size;
+    size_t       fpos;
+};
+
+int mem_read(void* cookie, char* data, int size) {
+    memopen_data_t u = cookie;
+    if (u->fpos >= u->size) {
+        return 0;
+    }
+    size_t remainder = u->size - u->fpos;
+    if (remainder < size) {
+        size = remainder;
+    }
+    memcpy(data, u->data + u->fpos, size);
+    u->fpos += size;
+    return size;
+};
+
+fpos_t mem_seek(void* cookie, fpos_t off, int whence) {
+    memopen_data_t u = cookie;
+    switch (whence) {
+        case SEEK_SET:
+          u->fpos = off;
+          break;
+        case SEEK_END:
+          if (off > u->size) {
+              u->fpos = 0;
+          } else {
+              u->fpos = u->size - off;
+          }
+          break;
+        case SEEK_CUR:
+          u->fpos += off;
+          break;
+        default:
+            errno = EINVAL;
+            return -1;
+    }
+    return u->fpos;
+}
+
+int mem_close(void* cookie) {
+    memopen_data_t u = cookie;
+    free(u);
+    return 0;
+}
+
+bool rsvc_memopen(const void* data, size_t size, FILE** file, rsvc_done_t fail) {
+    struct memopen_data cookie = {
+        .data  = data,
+        .size  = size,
+        .fpos  = 0,
+    };
+    *file = funopen(memdup(&cookie, sizeof(cookie)), mem_read, NULL, mem_seek, mem_close);
+    if (!*file) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+    return true;
 }
 
 bool rsvc_cp(const char* src, const char* dst, rsvc_done_t fail) {

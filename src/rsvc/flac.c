@@ -447,9 +447,15 @@ static bool rsvc_flac_tags_image_add(
         rsvc_tags_t tags, rsvc_format_t format, const uint8_t* data, size_t size,
         rsvc_done_t fail) {
     struct rsvc_image_info info;
-    if (!format->image_info("image", data, size, &info, fail)) {
+    FILE* file;
+    if (!rsvc_memopen(data, size, &file, fail)) {
         return false;
     }
+    if (!format->image_info("image", file, &info, fail)) {
+        fclose(file);
+        return false;
+    }
+    fclose(file);
 
     FLAC__StreamMetadata *metadata = FLAC__metadata_object_new(FLAC__METADATA_TYPE_PICTURE);
     metadata->data.picture.type = FLAC__STREAM_METADATA_PICTURE_TYPE_FRONT_COVER;

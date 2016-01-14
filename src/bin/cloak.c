@@ -103,11 +103,15 @@ static void print_images(rsvc_tags_t tags) {
     for (rsvc_tags_image_iter_t it = rsvc_tags_image_begin(tags); rsvc_next(it); ) {
         struct rsvc_image_info info;
         rsvc_done_t ignore = ^(rsvc_error_t error){ (void)error; };
-        if (it->format->image_info("embedded image", it->data, it->size, &info, ignore)) {
-            outf("%zu×%zu %s image\n", info.width, info.height, it->format->name);
-        } else {
-            outf("%zu-byte %s image\n", it->size, it->format->name);
+        FILE* image_file;
+        if (rsvc_memopen(it->data, it->size, &image_file, ignore)) {
+            if (it->format->image_info("embedded image", image_file, &info, ignore)) {
+                outf("%zu×%zu %s image\n", info.width, info.height, it->format->name);
+            }
+            fclose(image_file);
+            continue;
         }
+        outf("%zu-byte %s image\n", it->size, it->format->name);
     }
 }
 
@@ -174,7 +178,7 @@ bool add_image(  rsvc_tags_t tags, rsvc_format_t format, const char* image_path,
     bool ok = false;
     if (rsvc_mmap(image_path, file, &data, &size, fail)) {
         struct rsvc_image_info image_info;
-        if (format->image_info(image_path, data, size, &image_info, fail)) {
+        if (format->image_info(image_path, file, &image_info, fail)) {
             rsvc_logf(
                     2, "adding %s image from %s (%zux%zu, depth %zu, %zu-color)",
                     format->name, image_path, image_info.width, image_info.height,
