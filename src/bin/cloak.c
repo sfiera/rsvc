@@ -151,7 +151,7 @@ static bool write_image(  rsvc_tags_t tags, int index,
         char temp_path[MAXPATHLEN];
         FILE* file;
         if (rsvc_temp(true_path, temp_path, &file, fail)) {
-            if (rsvc_write(true_path, fileno(file), it->data, it->size, NULL, NULL, fail) &&
+            if (rsvc_write(true_path, file, it->data, it->size, NULL, NULL, fail) &&
                 rsvc_rename(temp_path, true_path, fail)) {
                 ok = true;
             }

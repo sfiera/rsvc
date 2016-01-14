@@ -90,7 +90,7 @@ bool rsvc_lame_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opti
                 rsvc_errorf(fail, __FILE__, __LINE__, "encode error");
                 return false;
             }
-            if (!rsvc_write("pipe", fileno(dst_file), mp3buf, mp3buf_written, NULL, NULL, fail)) {
+            if (!rsvc_write("pipe", dst_file, mp3buf, mp3buf_written, NULL, NULL, fail)) {
                 return false;
             }
             progress(samples_per_channel_read * 2.0 / info.channels / info.samples_per_channel);

@@ -127,8 +127,8 @@ bool rsvc_vorbis_encode(  FILE* src_file, FILE* dst_file, rsvc_encode_options_t 
                     if (result == 0) {
                         break;
                     }
-                    if (!(rsvc_write(NULL, fileno(dst_file), og.header, og.header_len, NULL, NULL, fail) &&
-                          rsvc_write(NULL, fileno(dst_file), og.body, og.body_len, NULL, NULL, fail))) {
+                    if (!(rsvc_write(NULL, dst_file, og.header, og.header_len, NULL, NULL, fail) &&
+                          rsvc_write(NULL, dst_file, og.body, og.body_len, NULL, NULL, fail))) {
                         return false;  // TODO(sfiera): cleanup?
                     }
                     if (ogg_page_eos(&og)) {
@@ -293,15 +293,15 @@ static bool rsvc_vorbis_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
         if (result == 0) {
             break;
         }
-        if (!(rsvc_write(NULL, fileno(file), og.header, og.header_len, NULL, NULL, done) &&
-              rsvc_write(NULL, fileno(file), og.body, og.body_len, NULL, NULL, done))) {
+        if (!(rsvc_write(NULL, file, og.header, og.header_len, NULL, NULL, done) &&
+              rsvc_write(NULL, file, og.body, og.body_len, NULL, NULL, done))) {
             return false;  // TODO(sfiera): cleanup?
         }
     }
 
     for (rsvc_ogg_page_node_t curr = self->pages.head; curr; curr = curr->next) {
-        if (!(rsvc_write(NULL, fileno(file), curr->page.header, curr->page.header_len, NULL, NULL, done) &&
-              rsvc_write(NULL, fileno(file), curr->page.body, curr->page.body_len, NULL, NULL, done))) {
+        if (!(rsvc_write(NULL, file, curr->page.header, curr->page.header_len, NULL, NULL, done) &&
+              rsvc_write(NULL, file, curr->page.body, curr->page.body_len, NULL, NULL, done))) {
             return false;
         }
     }

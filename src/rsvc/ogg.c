@@ -109,8 +109,8 @@ bool rsvc_ogg_packet_out(ogg_stream_state* os, ogg_packet* op, bool* have_op, rs
 
 bool rsvc_ogg_flush(FILE* file, ogg_stream_state *os, ogg_page* og, rsvc_done_t fail) {
     if (ogg_stream_flush(os, og)) {
-        return rsvc_write(NULL, fileno(file), og->header, og->header_len, NULL, NULL, fail)
-            && rsvc_write(NULL, fileno(file), og->body, og->body_len, NULL, NULL, fail);
+        return rsvc_write(NULL, file, og->header, og->header_len, NULL, NULL, fail)
+            && rsvc_write(NULL, file, og->body, og->body_len, NULL, NULL, fail);
     }
     return true;
 }
@@ -119,8 +119,8 @@ bool rsvc_ogg_align_packet(FILE* file, ogg_stream_state *os,
                            ogg_page* og, ogg_packet* op, rsvc_done_t fail) {
     ogg_stream_packetin(os, op);
     while (ogg_stream_pageout(os, og)) {
-        if (!(rsvc_write(NULL, fileno(file), og->header, og->header_len, NULL, NULL, fail) &&
-              rsvc_write(NULL, fileno(file), og->body, og->body_len, NULL, NULL, fail))) {
+        if (!(rsvc_write(NULL, file, og->header, og->header_len, NULL, NULL, fail) &&
+              rsvc_write(NULL, file, og->body, og->body_len, NULL, NULL, fail))) {
             return false;
         }
     }

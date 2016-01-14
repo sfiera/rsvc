@@ -396,12 +396,12 @@ bool rsvc_cread(const char* name, FILE* file, void* data, size_t count, size_t s
     return true;
 }
 
-bool rsvc_write(const char* name, int fd, const void* data, size_t size,
+bool rsvc_write(const char* name, FILE* file, const void* data, size_t size,
                 size_t* size_out, bool* eof, rsvc_done_t fail) {
     const void* begin = data;
     const void* end = begin + size;
     while (begin != end) {
-        ssize_t result = write(fd, begin, end - begin);
+        ssize_t result = write(fileno(file), begin, end - begin);
         if (result > 0) {
             begin += result;
             if (size_out) {
