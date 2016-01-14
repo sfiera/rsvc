@@ -288,7 +288,7 @@ void rsvc_cd_track_isrc(rsvc_cd_track_t track, void (^done)(const char* isrc)) {
 }
 
 static void read_range(
-        rsvc_cd_track_t track, int fd, bool* stopped,
+        rsvc_cd_track_t track, FILE* file, bool* stopped,
         size_t begin, size_t end, rsvc_done_t done) {
     if (*stopped) {
         rsvc_errorf(done, __FILE__, __LINE__, "cancelled");
@@ -317,7 +317,7 @@ static void read_range(
 
     // TODO(sfiera): swap on big-endian, I guess.
     bool eof = false;
-    if (!rsvc_write("pipe", fd, buffer, cd_read.bufferLength, NULL, &eof, done)) {
+    if (!rsvc_write("pipe", fileno(file), buffer, cd_read.bufferLength, NULL, &eof, done)) {
         return;
     } else if (eof) {
         // TODO(sfiera): EOF is not an error, but we must break early.
@@ -328,7 +328,7 @@ static void read_range(
     begin += cd_read.bufferLength;
     if (begin < end) {
         dispatch_async(track->cd->queue, ^{
-            read_range(track, fd, stopped, begin, end, done);
+            read_range(track, file, stopped, begin, end, done);
         });
     } else {
         done(NULL);
@@ -361,6 +361,6 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, FILE* file, rsvc_cancel_t cancel, 
 
         size_t begin = track->sector_begin * kCDSectorSizeCDDA;
         size_t end = track->sector_end * kCDSectorSizeCDDA;
-        read_range(track, fileno(file), &stopped, begin, end, done);
+        read_range(track, file, &stopped, begin, end, done);
     });
 }
