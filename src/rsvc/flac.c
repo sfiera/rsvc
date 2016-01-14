@@ -112,7 +112,7 @@ static void                    flac_decode_error(const FLAC__StreamDecoder* deco
 bool rsvc_flac_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t fail) {
     if (!rsvc_audio_info_validate(&opts->info, fail)) {
         return false;
-    } else if (opts->info.block_align != 16) {
+    } else if (opts->info.bits_per_sample != 16) {
         rsvc_errorf(fail, __FILE__, __LINE__, "need 16-bit input");
         return false;
     }
