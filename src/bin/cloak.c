@@ -238,8 +238,8 @@ static bool apply_ops(rsvc_tags_t tags, const char* path, rsvc_format_t format, 
     }
 
     if (!((ops->auto_mode ? rsvc_apply_musicbrainz_tags(tags, fail) : true) &&
-          (ops->dry_run ? true : rsvc_tags_save(tags, fail) &&
-          (ops->move_mode ? cloak_move_file(path, format, tags, ops, fail) : true)))) {
+          (ops->dry_run ? true : rsvc_tags_save(tags, fail)) &&
+          (ops->move_mode ? cloak_move_file(path, format, tags, ops, fail) : true))) {
         return false;
     }
 
