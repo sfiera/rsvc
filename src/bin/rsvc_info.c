@@ -24,6 +24,7 @@
 
 #include <sys/mman.h>
 #include <string.h>
+#include <unistd.h>
 #include <rsvc/audio.h>
 #include <rsvc/format.h>
 
@@ -58,9 +59,9 @@ static bool print_audio_info(const char* path, int fd, rsvc_format_t format, int
     int64_t m = s / 60;     s %= 60;
     int64_t h = m / 60;     m %= 60;
     if (h) {
-        outf("%lld:%02lld:%02lld.%03lld", h, m, s, ms);
+        outf("%zu:%02zu:%02zu.%03zu", h, m, s, ms);
     } else {
-        outf("%lld:%02lld.%03lld", m, s, ms);
+        outf("%zu:%02zu.%03zu", m, s, ms);
     }
     if (info.channels == 1) {
         outf(" mono");
@@ -74,13 +75,13 @@ static bool print_audio_info(const char* path, int fd, rsvc_format_t format, int
     int64_t khz = info.sample_rate / 1000;
     int64_t hz = info.sample_rate % 1000;
     if (hz % 10) {
-        outf(" %lld.%03lld kHz", khz, hz);
+        outf(" %zu.%03zu kHz", khz, hz);
     } else if (hz % 100) {
-        outf(" %lld.%02lld kHz", khz, hz / 10);
+        outf(" %zu.%02zu kHz", khz, hz / 10);
     } else if (hz % 1000) {
-        outf(" %lld.%01lld kHz", khz, hz / 100);
+        outf(" %zu.%01zu kHz", khz, hz / 100);
     } else {
-        outf(" %lld kHz", khz);
+        outf(" %zu kHz", khz);
     }
     outf(")\n");
     return true;
