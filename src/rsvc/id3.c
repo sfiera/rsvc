@@ -664,14 +664,6 @@ static bool read_id3_frames(rsvc_id3_tags_t tags, rsvc_done_t fail) {
         }
         rsvc_logf(4, "%zu bytes remain", size);
     }
-    while (size > 0) {
-        if (*data != '\0') {
-            rsvc_errorf(fail, __FILE__, __LINE__, "junk data after last ID3 tag");
-            return false;
-        }
-        ++data;
-        --size;
-    }
 
     free(orig_data);
     return true;
