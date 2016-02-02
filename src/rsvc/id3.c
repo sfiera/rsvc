@@ -408,7 +408,7 @@ static rsvc_tags_iter_t id3_begin(rsvc_tags_t tags) {
             .vptr = &id3_iter_vptr,
         },
         .curr  = self->frames.head,
-        .i     = -1,
+        .i     = 0,
     };
     id3_tags_iter_t copy = memdup(&iter, sizeof(iter));
     return &copy->super;
