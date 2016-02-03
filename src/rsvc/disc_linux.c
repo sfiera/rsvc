@@ -93,7 +93,7 @@ static enum rsvc_disc_type profile_disc_type(int profile) {
     }
 }
 
-static enum rsvc_disc_type fd_to_disc_type(int fd) {
+static enum rsvc_disc_type file_to_disc_type(FILE* file) {
     unsigned char buf[8] = {};
     unsigned char command[10] = {
         [0] = 0x46,
@@ -113,7 +113,7 @@ static enum rsvc_disc_type fd_to_disc_type(int fd) {
         .dxfer_direction = SG_DXFER_FROM_DEV,
     };
 
-    if (ioctl(fd, SG_IO, &sg_io)) {
+    if (ioctl(fileno(file), SG_IO, &sg_io)) {
         return RSVC_DISC_TYPE_NONE;
     }
     int profile = (buf[6] << 8) | buf[7];
@@ -121,13 +121,13 @@ static enum rsvc_disc_type fd_to_disc_type(int fd) {
 }
 
 static enum rsvc_disc_type path_to_disc_type(const char* path) {
-    int fd;
+    FILE* file;
     rsvc_done_t fail = ^(rsvc_error_t error){ (void)error; };
-    if (!rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, fail)) {
+    if (!rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &file, fail)) {
         return RSVC_DISC_TYPE_NONE;
     }
-    enum rsvc_disc_type type = fd_to_disc_type(fd);
-    close(fd);
+    enum rsvc_disc_type type = file_to_disc_type(file);
+    fclose(file);
     return type;
 }
 
@@ -219,16 +219,16 @@ void rsvc_disc_watch(struct rsvc_disc_watch_callbacks callbacks) {
 
 bool rsvc_disc_eject(const char* path, rsvc_done_t fail) {
     bool ok = false;
-    int fd;
-    if (rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, fail)) {
-        if (ioctl(fd, CDROM_LOCKDOOR, 0) < 0) {
+    FILE* file;
+    if (rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &file, fail)) {
+        if (ioctl(fileno(file), CDROM_LOCKDOOR, 0) < 0) {
             rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
-        } else if (ioctl(fd, CDROMEJECT) < 0) {
+        } else if (ioctl(fileno(file), CDROMEJECT) < 0) {
             rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", path);
         } else {
             ok = true;
         }
-        close(fd);
+        fclose(file);
     }
     return ok;
 }

@@ -31,9 +31,9 @@
 #include <unistd.h>
 #include "common.h"
 
-bool rsvc_opendev(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t fail) {
+bool rsvc_opendev(const char* path, int oflag, mode_t mode, FILE** file, rsvc_done_t fail) {
     if (strchr(path, '/')) {
-        return rsvc_open(path, oflag, mode, fd, fail);
+        return rsvc_open(path, oflag, mode, file, fail);
     }
     char devpath[PATH_MAX] = "/dev/";
     if (strlen(devpath) + strlen(path) >= PATH_MAX) {
@@ -42,7 +42,15 @@ bool rsvc_opendev(const char* path, int oflag, mode_t mode, int* fd, rsvc_done_t
         return false;
     }
     strcat(devpath, path);
-    return rsvc_open(devpath, oflag, mode, fd, fail);
+    return rsvc_open(devpath, oflag, mode, file, fail);
+}
+
+bool rsvc_memopen(const void* data, size_t size, FILE** file, rsvc_done_t fail) {
+    if (!(*file = fmemopen((void*)data, size, "r"))) {
+        rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
+        return false;
+    }
+    return true;
 }
 
 static bool rsvc_futimes(int fd, int64_t atime_sec, int64_t mtime_sec) {
@@ -54,29 +62,30 @@ static bool rsvc_futimes(int fd, int64_t atime_sec, int64_t mtime_sec) {
 
 bool rsvc_cp(const char* src, const char* dst, rsvc_done_t fail) {
     rsvc_logf(3, "cp %s %s", src, dst);
-    int src_fd = -1, dst_fd = -1;
+    FILE* src_file = NULL;
+    FILE* dst_file = NULL;
     struct stat st;
     bool success = true;
 
-    if (!rsvc_open(src, O_RDONLY, 0644, &src_fd, fail)) {
+    if (!rsvc_open(src, O_RDONLY, 0644, &src_file, fail)) {
         success = false;
-    } else if (fstat(src_fd, &st) < 0) {
+    } else if (fstat(fileno(src_file), &st) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "stat %s", src);
         success = false;
-    } else if (!rsvc_open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0600, &dst_fd, fail)) {
+    } else if (!rsvc_open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0600, &dst_file, fail)) {
         success = false;
-    } else if (fchmod(dst_fd, st.st_mode) < 0) {
+    } else if (fchmod(fileno(dst_file), st.st_mode) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "copy %s to %s", src, dst);
         success = false;
-    } else if (!rsvc_futimes(dst_fd, st.st_atime, st.st_mtime)) {
+    } else if (!rsvc_futimes(fileno(dst_file), st.st_atime, st.st_mtime)) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "copy %s to %s", src, dst);
         success = false;
-    } else if (sendfile(dst_fd, src_fd, NULL, st.st_size) < 0) {
+    } else if (sendfile(fileno(dst_file), fileno(src_file), NULL, st.st_size) < 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "copy %s to %s", src, dst);
         success = false;
     }
 
-    close(src_fd);
-    close(dst_fd);
+    fclose(src_file);
+    fclose(dst_file);
     return success;
 }

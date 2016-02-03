@@ -39,7 +39,7 @@
 struct rsvc_cd {
     dispatch_queue_t   queue;
 
-    int                fd;
+    FILE*              file;
     char*              path;
     struct cdrom_mcn   mcn;
 
@@ -74,7 +74,7 @@ bool build_tracks(  rsvc_cd_t cd, rsvc_cd_track_t* track, size_t begin, size_t e
             .cdte_track = i,
             .cdte_format = CDROM_LBA,
         };
-        if (ioctl(cd->fd, CDROMREADTOCENTRY, &tocentry) != 0) {
+        if (ioctl(fileno(cd->file), CDROMREADTOCENTRY, &tocentry) != 0) {
             rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
             return false;
         }
@@ -114,7 +114,7 @@ static bool read_leadout(rsvc_cd_t cd, rsvc_cd_track_t track, rsvc_done_t fail) 
         .cdte_track = CDROM_LEADOUT,
         .cdte_format = CDROM_LBA,
     };
-    if (ioctl(cd->fd, CDROMREADTOCENTRY, &tocentry) != 0) {
+    if (ioctl(fileno(cd->file), CDROMREADTOCENTRY, &tocentry) != 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         return false;
     }
@@ -147,17 +147,17 @@ bool rsvc_cd_create(char* path, rsvc_cd_t* cd, rsvc_done_t fail) {
     };
 
     bool ok = false;
-    int fd;
-    if (rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &fd, fail)) {
+    FILE* file;
+    if (rsvc_opendev(path, O_RDONLY | O_NONBLOCK, 0, &file, fail)) {
         struct cdrom_tochdr tochdr = {};
-        if (ioctl(fd, CDROMREADTOCHDR, &tochdr) != 0) {
+        if (ioctl(fileno(file), CDROMREADTOCHDR, &tochdr) != 0) {
             rsvc_strerrorf(fail, __FILE__, __LINE__, NULL);
         } else {
             size_t begin = tochdr.cdth_trk0;
             size_t end = tochdr.cdth_trk1 + 1;
 
             struct rsvc_cd build_cd = {
-                .fd         = fd,
+                .file       = file,
                 .queue      = dispatch_queue_create("net.sfiera.ripservice.cd", NULL),
                 .path       = strdup(path),
                 .nsessions  = 1,
@@ -170,7 +170,7 @@ bool rsvc_cd_create(char* path, rsvc_cd_t* cd, rsvc_done_t fail) {
 
             // Read the CD's MCN, if it has one.
             struct cdrom_mcn mcn = {};
-            if (ioctl(fd, CDROM_GET_MCN, &mcn) == 0) {
+            if (ioctl(fileno(file), CDROM_GET_MCN, &mcn) == 0) {
                 (*cd)->mcn = mcn;
             }
 
@@ -194,7 +194,7 @@ bool rsvc_cd_create(char* path, rsvc_cd_t* cd, rsvc_done_t fail) {
             }
         }
         if (!ok) {
-            close(fd);
+            fclose(file);
         }
     }
     if (!ok) {
@@ -216,7 +216,7 @@ void rsvc_cd_destroy(rsvc_cd_t cd) {
         free(cd->tracks);
     }
     free(cd->path);
-    close(cd->fd);
+    fclose(cd->file);
     dispatch_release(cd->queue);
     free(cd);
 }
@@ -282,7 +282,7 @@ void rsvc_cd_track_isrc(rsvc_cd_track_t track, void (^done)(const char* isrc)) {
     done(NULL);
 }
 
-static bool read_frame(rsvc_cd_t cd, int out, size_t frame, rsvc_done_t fail) {
+static bool read_frame(rsvc_cd_t cd, FILE* out, size_t frame, rsvc_done_t fail) {
     unsigned char buffer[CD_FRAMESIZE_RAW] = {};
     struct cdrom_read_audio read_audio = {
         .addr_format = CDROM_LBA,
@@ -294,10 +294,10 @@ static bool read_frame(rsvc_cd_t cd, int out, size_t frame, rsvc_done_t fail) {
     };
 
     bool eof = false;
-    if (ioctl(cd->fd, CDROMREADAUDIO, &read_audio) != 0) {
+    if (ioctl(fileno(cd->file), CDROMREADAUDIO, &read_audio) != 0) {
         rsvc_strerrorf(fail, __FILE__, __LINE__, "%s", cd->path);
         return false;
-    } else if (!rsvc_write("pipe", out, buffer, CD_FRAMESIZE_RAW, NULL, &eof, fail)) {
+    } else if (!rsvc_write("pipe", out, buffer, CD_FRAMESIZE_RAW, fail)) {
         return false;
     } else if (eof) {
         // TODO(sfiera): 0 is not an error, but we must break early.
@@ -308,7 +308,7 @@ static bool read_frame(rsvc_cd_t cd, int out, size_t frame, rsvc_done_t fail) {
     }
 }
 
-static void read_range(rsvc_cd_t cd, int out, size_t begin, size_t end, bool* cancelled,
+static void read_range(rsvc_cd_t cd, FILE* out, size_t begin, size_t end, bool* cancelled,
                        rsvc_done_t done) {
     if (begin == end) {
         done(NULL);
@@ -323,7 +323,7 @@ static void read_range(rsvc_cd_t cd, int out, size_t begin, size_t end, bool* ca
     }
 }
 
-void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_cancel_t cancel, rsvc_done_t done) {
+void rsvc_cd_track_rip(rsvc_cd_track_t track, FILE* file, rsvc_cancel_t cancel, rsvc_done_t done) {
     rsvc_cd_t cd = track->cd;
     __block bool stopped = false;
     if (cancel) {
@@ -339,6 +339,6 @@ void rsvc_cd_track_rip(rsvc_cd_track_t track, int fd, rsvc_cancel_t cancel, rsvc
     }
 
     dispatch_async(cd->queue, ^{
-        read_range(cd, fd, track->sector_begin, track->sector_end, &stopped, done);
+        read_range(cd, file, track->sector_begin, track->sector_end, &stopped, done);
     });
 }
