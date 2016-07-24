@@ -66,13 +66,13 @@
         [ { "target_name": "libvorbis"
           , "type": "static_library"
           , "direct_dependent_settings":
-            { "include_dirs": ["<@(VORBIS_INCLUDE_DIRS)"]
-            , "defines": ["<@(VORBIS_DEFINES)"]
-            , "cflags": ["<@(VORBIS_CFLAGS)"]
+            { "include_dirs": ["<@(VORBIS_INCLUDE_DIRS)", "<@(VORBISENC_INCLUDE_DIRS)"]
+            , "defines": ["<@(VORBIS_DEFINES)", "<@(VORBISENC_DEFINES)"]
+            , "cflags": ["<@(VORBIS_CFLAGS)", "<@(VORBISENC_CFLAGS)"]
             }
           , "link_settings":
-            { "library_dirs": ["<@(VORBIS_LIBRARY_DIRS)"]
-            , "libraries": ["<@(VORBIS_LIBRARIES)"]
+            { "library_dirs": ["<@(VORBIS_LIBRARY_DIRS)", "<@(VORBISENC_LIBRARY_DIRS)"]
+            , "libraries": ["<@(VORBIS_LIBRARIES)", "<@(VORBISENC_LIBRARIES)"]
             }
           }
         ]

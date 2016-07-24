@@ -76,6 +76,12 @@ DEPS = {
         "headers": ["opusfile.h"],
     },
     "vorbis": {
+        "pkgconfig": "vorbis",
+        "dpkg": "libvorbis-dev",
+        "brew": "libvorbis",
+        "headers": ["vorbis/codec.h"],
+    },
+    "vorbisenc": {
         "pkgconfig": "vorbisenc",
         "dpkg": "libvorbis-dev",
         "brew": "libvorbis",
