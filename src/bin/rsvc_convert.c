@@ -192,7 +192,6 @@ static void convert(struct file_pair f, rsvc_done_t done) {
             return;
         }
         if (options.update && (st_input.st_mtime < st_output.st_mtime)) {
-            outf(" skip   %s\n", f.output);
             done(NULL);
             return;
         }
