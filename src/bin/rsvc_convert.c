@@ -55,6 +55,13 @@ static struct convert_options {
     struct encode_options  encode;
 } options;
 
+static struct convert_stats {
+    int  nskipped;
+    int  nnewer;
+    int  nsurround;
+    int  nnonimage;
+} stats;
+
 static void convert(struct file_pair f, rsvc_done_t done);
 static void convert_recursive(struct file_pair f, dispatch_semaphore_t sema, rsvc_group_t group);
 static bool validate_convert_options(rsvc_done_t fail);
@@ -102,7 +109,14 @@ struct rsvc_command rsvc_convert = {
             return;
         }
 
-        rsvc_group_t group = rsvc_group_create(done);
+        rsvc_group_t group = rsvc_group_create(^(rsvc_error_t error){
+            if (stats.nskipped) {
+                outf("%d files skipped (%d newer/%d surround/%d non-image)\n",
+                     stats.nskipped, stats.nnewer, stats.nsurround, stats.nnonimage);
+            }
+            done(error);
+        });
+
         dispatch_semaphore_t sema = dispatch_semaphore_create(rsvc_jobs);
         for (string_list_node_t input = options.input.head, output = options.output.head;
              input && output; input = input->next, output = output->next) {
@@ -192,6 +206,8 @@ static void convert(struct file_pair f, rsvc_done_t done) {
             return;
         }
         if (options.update && (st_input.st_mtime < st_output.st_mtime)) {
+            ++stats.nskipped;
+            ++stats.nnewer;
             done(NULL);
             return;
         }
@@ -226,7 +242,11 @@ static void convert(struct file_pair f, rsvc_done_t done) {
 
     rsvc_group_t group = rsvc_group_create(done);
     convert_read(f, write_pipe, rsvc_group_add(group), ^(bool ok, rsvc_audio_info_t info){
-        if (!ok || (info->channels > 2)) {
+        if (!ok) {
+            fclose(read_pipe);
+        } else if (info->channels > 2) {
+            ++stats.nskipped;
+            ++stats.nsurround;
             fclose(read_pipe);
         } else {
             convert_write(f, info, read_pipe, tmp_path, rsvc_group_add(group));
@@ -407,6 +427,8 @@ static void convert_read(struct file_pair f, FILE* write_file, rsvc_done_t done,
         // converted directories, which is fine. If explicit files were
         // passed, it's an error if we can't convert them.
         if (options.recursive) {
+            ++stats.nskipped;
+            ++stats.nnonimage;
             done(NULL);
         } else {
             done(error);
