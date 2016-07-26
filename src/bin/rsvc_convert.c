@@ -403,8 +403,11 @@ static void convert_read(struct file_pair f, FILE* write_file, rsvc_done_t done,
 
     rsvc_format_t format;
     rsvc_done_t cant_decode = ^(rsvc_error_t error){
+        // If converting recursively, it's assumed that any failures to
+        // detect an audio file type are due to non-audio files in the
+        // converted directories, which is fine. If explicit files were
+        // passed, it's an error if we can't convert them.
         if (options.recursive) {
-            outf(" skip   %s\n", f.output);
             done(NULL);
         } else {
             done(error);
