@@ -645,7 +645,11 @@ static write_decode_status_t flac_decode_write(const FLAC__StreamDecoder* decode
         }
     }
     if (fwrite(s16, 1, size, u->write_file) < size) {
-        rsvc_strerrorf(u->fail, __FILE__, __LINE__, NULL);
+        if (errno == EPIPE) {
+            u->fail(NULL);
+        } else {
+            rsvc_strerrorf(u->fail, __FILE__, __LINE__, NULL);
+        }
         u->called_done = true;
         free(s16);
         return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;

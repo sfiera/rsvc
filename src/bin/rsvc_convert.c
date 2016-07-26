@@ -226,10 +226,10 @@ static void convert(struct file_pair f, rsvc_done_t done) {
 
     rsvc_group_t group = rsvc_group_create(done);
     convert_read(f, write_pipe, rsvc_group_add(group), ^(bool ok, rsvc_audio_info_t info){
-        if (ok) {
-            convert_write(f, info, read_pipe, tmp_path, rsvc_group_add(group));
-        } else {
+        if (!ok || (info->channels > 2)) {
             fclose(read_pipe);
+        } else {
+            convert_write(f, info, read_pipe, tmp_path, rsvc_group_add(group));
         }
     });
     rsvc_group_ready(group);
