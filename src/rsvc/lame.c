@@ -32,13 +32,13 @@ bool rsvc_lame_encode_options_validate(rsvc_encode_options_t opts, rsvc_done_t f
         rsvc_errorf(  fail, __FILE__, __LINE__,
                       "can't encode %zu-bit mp3", opts->info.bits_per_sample);
         return false;
+    } else if (opts->info.channels != 2) {
+        rsvc_errorf(  fail, __FILE__, __LINE__,
+                      "can't encode %zu-channel mp3", opts->info.channels);
+        return false;
     } else if (opts->info.block_align != 4) {
         rsvc_errorf(  fail, __FILE__, __LINE__,
                       "can't encode mp3 from %zu-byte blocks", opts->info.block_align);
-        return false;
-    } else if (opts->info.channels > 2) {
-        rsvc_errorf(  fail, __FILE__, __LINE__,
-                      "can't encode %zu-channel mp3", opts->info.channels);
         return false;
     }
 
