@@ -257,7 +257,7 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
                 },
             };
 
-            if (opts.encode.format->encode(read_pipe, file, &encode_options, encode_done)) {
+            if (!opts.encode.format->encode(read_pipe, file, &encode_options, encode_done)) {
                 return;
             }
             set_tags(file, path, tags, encode_done);
