@@ -249,6 +249,8 @@ static void rip_track(size_t n, size_t ntracks, rsvc_group_t group,
                     .sample_rate          = 44100,
                     .channels             = 2,
                     .samples_per_channel  = nsamples,
+                    .bits_per_sample      = 16,
+                    .block_align          = 4,
                 },
                 .progress = ^(double fraction){
                     rsvc_progress_update(progress, fraction);
