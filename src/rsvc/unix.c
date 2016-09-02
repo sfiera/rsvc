@@ -377,7 +377,7 @@ bool rsvc_read(  const char* name, FILE* file, void* data, size_t count, size_t 
                 *eof = true;
             }
         } else if (ferror(file)) {
-            rsvc_errorf(fail, __FILE__, __LINE__, "%s: read error", name);
+            rsvc_strerrorf(fail, __FILE__, __LINE__, "%s: read error", name);
             return false;
         }
     }
@@ -391,7 +391,7 @@ bool rsvc_write(const char* name, FILE* file, const void* data, size_t size,
                 rsvc_done_t fail) {
     size_t n = fwrite(data, 1, size, file);
     if (n < size) {
-        rsvc_errorf(fail, __FILE__, __LINE__, "%s: write error", name);
+        rsvc_strerrorf(fail, __FILE__, __LINE__, "%s: write error", name);
         return false;
     }
     return true;
