@@ -42,14 +42,14 @@ bool rsvc_open(const char* path, int oflag, mode_t mode, FILE** file, rsvc_done_
         return false;
     }
     const char* fmode = "r";
-    if (mode & O_RDWR) {
-        if (mode & O_APPEND) {
+    if (oflag & O_RDWR) {
+        if (oflag & O_APPEND) {
             fmode = "a+";
         } else {
             fmode = "r+";
         }
-    } else if (mode & O_WRONLY) {
-        if (mode & O_APPEND) {
+    } else if (oflag & O_WRONLY) {
+        if (oflag & O_APPEND) {
             fmode = "a";
         } else {
             fmode = "w";
