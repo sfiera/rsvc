@@ -176,6 +176,9 @@ bool add_image(  rsvc_tags_t tags, rsvc_format_t format, const char* image_path,
     uint8_t* data;
     size_t size;
     bool ok = false;
+    if (!rsvc_seek(file, 0, SEEK_SET, fail)) {
+        return false;
+    }
     if (rsvc_mmap(image_path, file, &data, &size, fail)) {
         struct rsvc_image_info image_info;
         if (format->image_info(image_path, file, &image_info, fail)) {
