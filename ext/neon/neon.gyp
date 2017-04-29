@@ -42,13 +42,14 @@
             }
           , "include_dirs":
             [ "libneon-0.29.6/src"
-            , "/usr/local/opt/openssl098/include"
+            , "/usr/local/opt/openssl/include"
             ]
           , "direct_dependent_settings":
             { "include_dirs": ["include"]
             }
           , "link_settings":
             { "libraries": ["-lgssapi_krb5", "-lssl", "-lcrypto"]
+            , "library_dirs": ["/usr/local/opt/openssl/lib"]
             }
           , "conditions":
             [ [ "OS == 'mac'"
