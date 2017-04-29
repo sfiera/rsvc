@@ -27,9 +27,11 @@
 #ifdef __APPLE__
 bool rsvc_aac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t options, rsvc_done_t fail);
 bool rsvc_alac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t options, rsvc_done_t fail);
+bool rsvc_m4a_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail);
 #else
 #define rsvc_aac_encode NULL
 #define rsvc_alac_encode NULL
+#define rsvc_m4a_audio_info NULL
 #endif
 
 bool                    rsvc_mp4_open_tags(const char* path, int flags,

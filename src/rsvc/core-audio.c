@@ -237,6 +237,44 @@ static bool core_audio_encode(
     return true;
 }
 
+static bool core_audio_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
+    AudioFileID file_id = NULL;
+    OSStatus err = AudioFileOpenWithCallbacks(
+        file, core_audio_read, NULL, core_audio_get_size, NULL, kAudioFileM4AType, &file_id);
+    if (err != noErr) {
+        rsvc_errorf(fail, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
+        return false;
+    }
+
+    AudioStreamBasicDescription asbd = {};
+    uint32_t asbd_size = sizeof(asbd);
+    err = AudioFileGetProperty(file_id, kAudioFilePropertyDataFormat, &asbd_size, &asbd);
+    if (err != noErr) {
+        AudioFileClose(file_id);
+        rsvc_errorf(fail, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
+        return false;
+    }
+
+    uint64_t packet_count;
+    uint32_t packet_count_size = sizeof(packet_count);
+    err = AudioFileGetProperty(file_id, kAudioFilePropertyAudioDataPacketCount, &packet_count_size, &packet_count);
+    if (err != noErr) {
+        AudioFileClose(file_id);
+        rsvc_errorf(fail, __FILE__, __LINE__, "some error: %s", fourcc(err).string);
+        return false;
+    }
+
+    struct rsvc_audio_info i = {
+        .sample_rate          = asbd.mSampleRate,
+        .channels             = asbd.mChannelsPerFrame,
+        .samples_per_channel  = packet_count * asbd.mFramesPerPacket,
+        .bits_per_sample      = asbd.mBitsPerChannel,
+        .block_align          = asbd.mBytesPerFrame,
+    };
+    *info = i;
+    return true;
+}
+
 bool rsvc_aac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t options, rsvc_done_t fail) {
     return core_audio_encode(  src_file, dst_file, options,
                                kAudioFileM4AType, kAudioFormatMPEG4AAC, fail);
@@ -245,4 +283,8 @@ bool rsvc_aac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t optio
 bool rsvc_alac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t options, rsvc_done_t fail) {
     return core_audio_encode(  src_file, dst_file, options,
                                kAudioFileM4AType, kAudioFormatAppleLossless, fail);
+}
+
+bool rsvc_m4a_audio_info(FILE* file, rsvc_audio_info_t info, rsvc_done_t fail) {
+    return core_audio_audio_info(file, info, fail);
 }

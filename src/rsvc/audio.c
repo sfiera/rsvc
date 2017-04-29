@@ -96,6 +96,7 @@ const struct rsvc_format rsvc_m4a = {
     .extension = "m4a",
     .lossless = false,
     .encode = rsvc_aac_encode,
+    .audio_info = rsvc_m4a_audio_info,
     .open_tags = rsvc_mp4_open_tags,
 };
 
