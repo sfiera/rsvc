@@ -233,7 +233,9 @@ static struct id3_frame_spec {
     {NULL,                "TDRL",  NULL,               &id3_passthru},
     {NULL,                "TDTG",  NULL,               &id3_passthru},
     {"ENCODER",           "TSSE",  &id3_2_3_text,      &id3_text},
+    {"ALBUMARTISTSORT",   "TSO2",  NULL,               &id3_text},
     {"ALBUMSORT",         "TSOA",  NULL,               &id3_text},
+    {"COMPOSERSORT",      "TSOC",  NULL,               &id3_text},
     {"ARTISTSORT",        "TSOP",  NULL,               &id3_text},
     {"TITLESORT",         "TSOT",  NULL,               &id3_text},
 
