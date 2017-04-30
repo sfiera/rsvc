@@ -22,6 +22,7 @@
 
 #include "rsvc.h"
 
+#include <inttypes.h>
 #include <sys/mman.h>
 #include <string.h>
 #include <unistd.h>
@@ -59,9 +60,9 @@ static bool print_audio_info(const char* path, FILE* file, rsvc_format_t format,
     int64_t m = s / 60;     s %= 60;
     int64_t h = m / 60;     m %= 60;
     if (h) {
-        outf("%lld:%02lld:%02lld.%03lld", h, m, s, ms);
+        outf("%" PRId64 ":%02" PRId64 ":%02" PRId64 ".%03" PRId64, h, m, s, ms);
     } else {
-        outf("%lld:%02lld.%03lld", m, s, ms);
+        outf("%" PRId64 ":%02" PRId64 ".%03" PRId64, m, s, ms);
     }
     if (info.channels == 1) {
         outf(" mono");
@@ -75,13 +76,13 @@ static bool print_audio_info(const char* path, FILE* file, rsvc_format_t format,
     int64_t khz = info.sample_rate / 1000;
     int64_t hz = info.sample_rate % 1000;
     if (hz % 10) {
-        outf(" %lld.%03lld kHz", khz, hz);
+        outf(" %" PRId64 ".%03" PRId64 " kHz", khz, hz);
     } else if (hz % 100) {
-        outf(" %lld.%02lld kHz", khz, hz / 10);
+        outf(" %" PRId64 ".%02" PRId64 " kHz", khz, hz / 10);
     } else if (hz % 1000) {
-        outf(" %lld.%01lld kHz", khz, hz / 100);
+        outf(" %" PRId64 ".%01" PRId64 " kHz", khz, hz / 100);
     } else {
-        outf(" %lld kHz", khz);
+        outf(" %" PRId64 " kHz", khz);
     }
     outf(")\n");
     return true;
