@@ -1,0 +1,5 @@
+# Copyright (C) 2019 Chris Pickel <sfiera@twotaled.com>
+# This file is part of Rip Service.
+# Rip Service is free software, distributed under the GPLv2+. See COPYING
+
+buildconfig = "//build/BUILDCONFIG.gn"

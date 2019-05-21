@@ -1,0 +1,48 @@
+declare_args() {
+  if (target_os == "linux") {
+    opusfile = "system"
+  } else {
+    opusfile = "bundled"
+  }
+}
+assert(opusfile == "system" || opusfile == "bundled")
+
+if (opusfile == "bundled") {
+  static_library("opusfile") {
+    sources = [
+      "opusfile-0.7/src/info.c",
+      "opusfile-0.7/src/internal.c",
+      "opusfile-0.7/src/internal.h",
+      "opusfile-0.7/src/opusfile.c",
+      "opusfile-0.7/src/stream.c",
+    ]
+    deps = [
+      "//ext/ogg",
+      "//ext/opus",
+    ]
+    configs += [ ":opusfile_private" ]
+    public_configs = [ ":opusfile_public" ]
+  }
+
+  config("opusfile_private") {
+    defines = [ "HAVE_CONFIG_H" ]
+    include_dirs = [ "opusfile-0.7/include" ]
+    if (target_os == "mac") {
+      include_dirs += [ "darwin" ]
+    }
+  }
+
+  config("opusfile_public") {
+    include_dirs = [ "opusfile-0.7/include" ]
+  }
+} else {
+  import("//build/lib/pkg_config.gni")
+
+  pkg_config("opusfile_public") {
+    lib = "opusfile"
+  }
+
+  source_set("opusfile") {
+    public_configs = [ ":opusfile_public" ]
+  }
+}

@@ -1,0 +1,64 @@
+declare_args() {
+  if (target_os == "linux") {
+    mad = "system"
+  } else {
+    mad = "bundled"
+  }
+}
+assert(mad == "system" || mad == "bundled")
+
+if (mad == "bundled") {
+  static_library("mad") {
+    sources = [
+      "libmad-0.15.1b/bit.c",
+      "libmad-0.15.1b/decoder.c",
+      "libmad-0.15.1b/fixed.c",
+      "libmad-0.15.1b/frame.c",
+      "libmad-0.15.1b/huffman.c",
+      "libmad-0.15.1b/layer12.c",
+      "libmad-0.15.1b/layer3.c",
+      "libmad-0.15.1b/stream.c",
+      "libmad-0.15.1b/synth.c",
+      "libmad-0.15.1b/timer.c",
+      "libmad-0.15.1b/version.c",
+    ]
+    configs += [ ":mad_private" ]
+    public_configs = [ ":mad_public" ]
+  }
+
+  config("mad_private") {
+    defines = [
+      "ASO_ZEROCHECK",
+      "FPM_64BIT",
+      "HAVE_CONFIG_H",
+    ]
+    include_dirs = [ "libmad-0.15.1b" ]
+    cflags = [
+      "-fasm",
+      "-Wno-tautological-constant-out-of-range-compare",
+    ]
+    if (target_os == "mac") {
+      include_dirs += [
+        "darwin",
+        "darwin/include",
+      ]
+    }
+  }
+
+  config("mad_public") {
+    include_dirs = [ "libmad-0.15.1b" ]
+    if (target_os == "mac") {
+      include_dirs += [ "darwin/include" ]
+    }
+  }
+} else {
+  import("//build/lib/pkg_config.gni")
+
+  pkg_config("mad_public") {
+    lib = "mad"
+  }
+
+  source_set("mad") {
+    public_configs = [ ":mad_public" ]
+  }
+}

@@ -1,0 +1,81 @@
+declare_args() {
+  if (target_os == "linux") {
+    vorbis = "system"
+  } else {
+    vorbis = "bundled"
+  }
+}
+assert(vorbis == "system" || vorbis == "bundled")
+
+if (vorbis == "bundled") {
+  static_library("vorbis") {
+    sources = [
+      "libvorbis-1.3.2/lib/analysis.c",
+      "libvorbis-1.3.2/lib/bitrate.c",
+      "libvorbis-1.3.2/lib/block.c",
+      "libvorbis-1.3.2/lib/codebook.c",
+      "libvorbis-1.3.2/lib/envelope.c",
+      "libvorbis-1.3.2/lib/floor0.c",
+      "libvorbis-1.3.2/lib/floor1.c",
+      "libvorbis-1.3.2/lib/info.c",
+      "libvorbis-1.3.2/lib/lookup.c",
+      "libvorbis-1.3.2/lib/lpc.c",
+      "libvorbis-1.3.2/lib/lsp.c",
+      "libvorbis-1.3.2/lib/mapping0.c",
+      "libvorbis-1.3.2/lib/mdct.c",
+      "libvorbis-1.3.2/lib/psy.c",
+      "libvorbis-1.3.2/lib/registry.c",
+      "libvorbis-1.3.2/lib/res0.c",
+      "libvorbis-1.3.2/lib/sharedbook.c",
+      "libvorbis-1.3.2/lib/smallft.c",
+      "libvorbis-1.3.2/lib/synthesis.c",
+      "libvorbis-1.3.2/lib/vorbisenc.c",
+      "libvorbis-1.3.2/lib/vorbisfile.c",
+      "libvorbis-1.3.2/lib/window.c",
+    ]
+    deps = [
+      "//ext/ogg",
+    ]
+    configs += [ ":vorbis_private" ]
+    public_configs = [ ":vorbis_public" ]
+  }
+
+  config("vorbis_private") {
+    cflags = [
+      "-Wno-comment",
+      "-Wno-shift-op-parentheses",
+      "-Wno-tautological-pointer-compare",
+    ]
+    include_dirs = [
+      "libvorbis-1.3.2/include",
+      "libvorbis-1.3.2/lib",
+    ]
+    if (target_os == "mac") {
+      include_dirs += [ "darwin" ]
+    }
+  }
+
+  config("vorbis_public") {
+    include_dirs = [ "libvorbis-1.3.2/include" ]
+    if (target_os == "mac") {
+      include_dirs += [ "darwin" ]
+    }
+  }
+} else {
+  import("//build/lib/pkg_config.gni")
+
+  pkg_config("vorbis_public") {
+    lib = "vorbis"
+  }
+
+  pkg_config("vorbisenc_public") {
+    lib = "vorbisenc"
+  }
+
+  source_set("vorbis") {
+    public_configs = [
+      ":vorbis_public",
+      ":vorbisenc_public",
+    ]
+  }
+}

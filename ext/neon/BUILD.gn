@@ -1,0 +1,79 @@
+declare_args() {
+  if (target_os == "linux") {
+    neon = "system"
+  } else {
+    neon = "bundled"
+  }
+}
+assert(neon == "system" || neon == "bundled")
+
+if (neon == "bundled") {
+  static_library("neon") {
+    sources = [
+      "neon-0.29.6/src/ne_207.c",
+      "neon-0.29.6/src/ne_alloc.c",
+      "neon-0.29.6/src/ne_auth.c",
+      "neon-0.29.6/src/ne_basic.c",
+      "neon-0.29.6/src/ne_compress.c",
+      "neon-0.29.6/src/ne_dates.c",
+      "neon-0.29.6/src/ne_i18n.c",
+      "neon-0.29.6/src/ne_locks.c",
+      "neon-0.29.6/src/ne_md5.c",
+      "neon-0.29.6/src/ne_ntlm.c",
+      "neon-0.29.6/src/ne_openssl.c",
+      "neon-0.29.6/src/ne_pkcs11.c",
+      "neon-0.29.6/src/ne_props.c",
+      "neon-0.29.6/src/ne_redirect.c",
+      "neon-0.29.6/src/ne_request.c",
+      "neon-0.29.6/src/ne_session.c",
+      "neon-0.29.6/src/ne_socket.c",
+      "neon-0.29.6/src/ne_socks.c",
+      "neon-0.29.6/src/ne_string.c",
+      "neon-0.29.6/src/ne_uri.c",
+      "neon-0.29.6/src/ne_utils.c",
+      "neon-0.29.6/src/ne_xml.c",
+      "neon-0.29.6/src/ne_xmlreq.c",
+    ]
+    libs = [
+      "gssapi_krb5",
+      "ssl",
+      "crypto",
+    ]
+    lib_dirs = [ "/usr/local/opt/openssl/lib" ]
+    configs += [ ":neon_private" ]
+    public_configs = [ ":neon_public" ]
+  }
+
+  config("neon_private") {
+    cflags = [
+      "-Wno-tautological-constant-out-of-range-compare",
+      "-Wno-deprecated-declarations",
+      "-Wno-implicit-function-declaration",
+    ]
+
+    include_dirs = [
+      "libneon-0.29.6/src",
+      "/usr/local/opt/openssl/include",
+    ]
+    if (target_os == "mac") {
+      include_dirs += [ "darwin" ]
+    }
+  }
+
+  config("neon_public") {
+    include_dirs = [ "include" ]
+    if (target_os == "mac") {
+      include_dirs += [ "darwin" ]
+    }
+  }
+} else {
+  import("//build/lib/pkg_config.gni")
+
+  pkg_config("neon_public") {
+    lib = "neon"
+  }
+
+  source_set("neon") {
+    public_configs = [ ":neon_public" ]
+  }
+}

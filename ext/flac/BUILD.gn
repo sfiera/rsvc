@@ -1,0 +1,68 @@
+declare_args() {
+  if (target_os == "linux") {
+    flac = "system"
+  } else {
+    flac = "bundled"
+  }
+}
+assert(flac == "system" || flac == "bundled")
+
+if (flac == "bundled") {
+  static_library("flac") {
+    sources = [
+      "flac-1.2.1/src/libFLAC/bitmath.c",
+      "flac-1.2.1/src/libFLAC/bitreader.c",
+      "flac-1.2.1/src/libFLAC/bitwriter.c",
+      "flac-1.2.1/src/libFLAC/cpu.c",
+      "flac-1.2.1/src/libFLAC/crc.c",
+      "flac-1.2.1/src/libFLAC/fixed.c",
+      "flac-1.2.1/src/libFLAC/float.c",
+      "flac-1.2.1/src/libFLAC/format.c",
+      "flac-1.2.1/src/libFLAC/lpc.c",
+      "flac-1.2.1/src/libFLAC/md5.c",
+      "flac-1.2.1/src/libFLAC/memory.c",
+      "flac-1.2.1/src/libFLAC/metadata_iterators.c",
+      "flac-1.2.1/src/libFLAC/metadata_object.c",
+      "flac-1.2.1/src/libFLAC/ogg_decoder_aspect.c",
+      "flac-1.2.1/src/libFLAC/ogg_encoder_aspect.c",
+      "flac-1.2.1/src/libFLAC/ogg_helper.c",
+      "flac-1.2.1/src/libFLAC/ogg_mapping.c",
+      "flac-1.2.1/src/libFLAC/stream_decoder.c",
+      "flac-1.2.1/src/libFLAC/stream_encoder.c",
+      "flac-1.2.1/src/libFLAC/stream_encoder_framing.c",
+      "flac-1.2.1/src/libFLAC/window.c",
+    ]
+    deps = [
+      "//ext/ogg",
+    ]
+    configs += [ ":flac_private" ]
+    public_configs = [ ":flac_public" ]
+  }
+
+  config("flac_private") {
+    defines = [ "VERSION=\"1.2.1\"" ]
+    include_dirs = [
+      "flac-1.2.1/include",
+      "flac-1.2.1/src/libFLAC/include",
+    ]
+    cflags = [
+      "-Wno-sizeof-pointer-memaccess",
+      "-Wno-tautological-constant-out-of-range-compare",
+      "-Wno-enum-conversion",
+    ]
+  }
+
+  config("flac_public") {
+    include_dirs = [ "flac-1.2.1/include" ]
+  }
+} else {
+  import("//build/lib/pkg_config.gni")
+
+  pkg_config("flac_public") {
+    lib = "flac"
+  }
+
+  source_set("flac") {
+    public_configs = [ ":flac_public" ]
+  }
+}

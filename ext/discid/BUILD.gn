@@ -1,0 +1,56 @@
+declare_args() {
+  if (target_os == "linux") {
+    discid = "system"
+  } else {
+    discid = "bundled"
+  }
+}
+assert(discid == "system" || discid == "bundled")
+
+if (discid == "bundled") {
+  static_library("discid") {
+    sources = [
+      "libdiscid-0.6.1/src/base64.c",
+      "libdiscid-0.6.1/src/disc.c",
+      "libdiscid-0.6.1/src/sha1.c",
+    ]
+    configs += [ ":discid_private" ]
+    public_configs = [ ":discid_public" ]
+
+    if (target_os == "mac") {
+      sources += [
+        "libdiscid-0.6.1/src/disc_darwin.c",
+        "libdiscid-0.6.1/src/toc.c",
+        "libdiscid-0.6.1/src/unix.c",
+      ]
+    }
+  }
+
+  config("discid_private") {
+    include_dirs = [ "libdiscid-0.6.1/include" ]
+    if (target_os == "mac") {
+      include_dirs += [ "darwin" ]
+    }
+  }
+
+  config("discid_public") {
+    include_dirs = [ "libdiscid-0.6.1/include" ]
+    libs = []
+    if (target_os == "mac") {
+      libs += [
+        "CoreFoundation.framework",
+        "IOKit.framework",
+      ]
+    }
+  }
+} else {
+  import("//build/lib/pkg_config.gni")
+
+  pkg_config("discid_public") {
+    lib = "libdiscid"
+  }
+
+  source_set("discid") {
+    public_configs = [ ":discid_public" ]
+  }
+}
