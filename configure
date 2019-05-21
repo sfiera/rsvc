@@ -9,7 +9,13 @@ import os
 import platform
 import subprocess
 import sys
-from scripts import cfg
+import shlex
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "build", "lib", "scripts"))
+try:
+    import cfg
+except ImportError:
+    pass
 
 BUNDLED = object()
 SYSTEM = object()
@@ -81,19 +87,30 @@ DEPS = {
         "brew": "libvorbis",
         "headers": ["vorbis/codec.h"],
     },
-    "vorbisenc": {
-        "pkgconfig": "vorbisenc",
-        "dpkg": "libvorbis-dev",
-        "brew": "libvorbis",
-        "headers": ["vorbis/vorbisenc.h"],
-    },
 }
 
 def main():
     os.chdir(os.path.dirname(sys.argv[0]))
     progname = sys.argv[0]
     parser = argparse.ArgumentParser()
-    parser.add_argument("-m", "--mode", type=unicode, choices="dbg dev opt".split(), default="opt")
+    parser.add_argument(
+        "-m",
+        "--mode",
+        metavar="MODE",
+        type=str,
+        choices="dbg dev opt".split(),
+        default="opt",
+        help="set build configuration:\n"
+        "  - opt: compile for fast binaries (default)\n"
+        "  - dev: compile for fast builds\n"
+        "  - dbg: add debugging symbols")
+    parser.add_argument(
+        "-o", "--target-os", metavar="OS", type=str, help="target os (default: host os)")
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        default="/usr/local",
+        help="installation prefix (default: /usr/local)")
     for name in DEPS:
         parser.add_argument(
                 "--with-system-" + name, dest=name, metavar="PREFIX", nargs="?", const=SYSTEM)
@@ -102,22 +119,30 @@ def main():
     args, remainder = parser.parse_known_args()
 
     defs = {}
-    check_platform()
+    check_platform(args)
     check_arch()
     check_deps(args, defs)
 
-    cfg.makedirs("out")
-    cfg.linkf(args.mode, "out/cur")
-    gyp(args, defs, remainder)
+    with cfg.step("configure mode") as msg:
+        msg(args.mode, color="green")
+    gn_args = {}
+    gn_args["mode"] = args.mode
+    gn_args["target_os"] = args.target_os
+    # gn_args["prefix"] = args.prefix
+    if args.target_os == "mac":
+        gn_args["macosx_version_min"] = "10.7"
+    cfg.gn(**gn_args)
     print("make(1) it so!")
 
 
-def check_platform():
+def check_platform(args):
     with cfg.step("checking platform") as msg:
-        if cfg.platform() in ["mac", "linux"]:
-            msg(cfg.platform(), color="green")
+        if args.target_os is None:
+            args.target_os = cfg.host_os()
+        if args.target_os in ["mac", "linux"]:
+            msg(args.target_os, color="green")
         else:
-            msg(cfg.platform(), color="red")
+            msg(args.target_os, color="red")
             print("\nSorry! rsvc requires Mac OS X or Linux")
             sys.exit(1)
 
@@ -138,7 +163,7 @@ def check_deps(args, defs):
     checker = {
         "mac": check_mac,
         "linux": check_linux,
-    }[cfg.platform()]
+    }[args.target_os]
     checker(args, defs)
 
 
@@ -166,7 +191,7 @@ def check_libs(args, defs, have_pkgconfig, package_manager, default):
                     msg("missing", color="red")
                     missing_libs[name] = value[package_manager]
                     continue
-                settings = cfg.pkg_settings(value["pkgconfig"])
+                settings = pkg_settings(value["pkgconfig"])
                 if settings is None:
                     msg("missing", color="red")
                     missing_libs[name] = value[package_manager]
@@ -178,7 +203,7 @@ def check_libs(args, defs, have_pkgconfig, package_manager, default):
                     library_dirs = [os.path.join(flag, "lib")]
                 libraries = value["libraries"]
 
-            if not cfg.has_lib(name, include_dirs, defines, cflags, value["headers"], library_dirs, libraries):
+            if not has_lib(name, include_dirs, defines, cflags, value["headers"], library_dirs, libraries):
                 msg("failed", color="red")
                 missing_libs[name] = value[package_manager]
                 continue
@@ -204,23 +229,14 @@ def check_mac(args, defs):
         msg("%d.%d" % ver, color="green")
 
     missing = collections.OrderedDict()
-    if not cfg.check_clang():
+    if not check_clang():
         missing["xcode"] = (
                 "* Xcode can be installed via the App Store:\n"
                 "    https://itunes.apple.com/en/app/xcode/id497799835\n"
                 "  After installing, open it and accept the license agreement\n")
-    if not cfg.check_gyp():
-        missing["gyp"] = (
-                "* gyp can be installed with Homebrew:\n"
-                "    $ brew install --HEAD scripts/gyp.rb\n")
-
-    if not cfg.check_ninja():
-        missing["ninja"] = (
-                "* ninja can be installed with Homebrew:\n"
-                "    $ brew install ninja\n")
 
     have_pkgconfig = True
-    if not cfg.check_pkg_config():
+    if not check_pkg_config():
         have_pkgconfig = False
         missing["pkg-config"] = (
                 "* pkg-config can be installed with Homebrew:\n"
@@ -256,15 +272,11 @@ def check_linux(args, defs):
             msg(" ".join(distro) + " (untested)", color="yellow")
 
     missing = collections.OrderedDict()
-    if not cfg.check_clang():
+    if not check_clang():
         missing["clang"] = "clang"
         missing["libc++"] = "libc++-dev"
-    if not cfg.check_gyp():
-        missing["gyp"] = "gyp"
-    if not cfg.check_ninja():
-        missing["ninja"] = "ninja-build"
 
-    have_pkgconfig = cfg.check_pkg_config()
+    have_pkgconfig = check_pkg_config()
     if not have_pkgconfig:
         missing_pkgs["pkg-config"] = "pkg-config"
     missing.update(check_libs(args, defs, have_pkgconfig, "dpkg", SYSTEM))
@@ -279,23 +291,66 @@ def check_linux(args, defs):
         sys.exit(1)
 
 
-def gyp(args, defs, remainder):
-    with cfg.step("configure mode") as msg:
-        msg(args.mode, color="green")
-    with cfg.step("generating build.ninja") as msg:
-        cmd = [
-            "gyp",
-            "--include=defaults.gypi",
-            "--format=ninja",
-            "--depth=.",
-        ]
-        cmd.extend("-D%s=%s" % kv for kv in sorted(defs.iteritems()))
-        cmd.extend(remainder)
+def check_clang(executable=""):
+    """Compile a basic C++11 binary."""
+    executable = executable or "clang++"
+    return cfg.check_bin(
+        ("%s -x c++ -std=c++11 - -o /dev/null" % executable).split(),
+        what="clang",
+        input="int main() { return 1; }")
 
-        retcode = subprocess.call(cmd)
-        if retcode != 0:
-            msg("failed", color="red")
-            sys.exit(retcode)
+
+def check_pkg_config():
+    """Run pkg-config --version."""
+    return cfg.check_bin("pkg-config --version".split())
+
+
+def pkg_settings(lib):
+    try:
+        p = subprocess.Popen(
+                ["pkg-config", "--cflags", lib], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        cflags = p.communicate()[0]
+        if p.returncode != 0:
+            return None
+        cflags = shlex.split(cflags)
+        p = subprocess.Popen(
+                ["pkg-config", "--libs", lib], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ldflags = p.communicate()[0]
+        if p.returncode != 0:
+            return None
+        ldflags = shlex.split(ldflags)
+    except OSError:
+        return None
+    includes = [flag[2:] for flag in cflags if flag[:2] == "-I"]
+    defines = [flag[2:] for flag in cflags if flag[:2] == "-D"]
+    cflags = [flag for flag in cflags if flag[:2] not in ["-I", "-D"]]
+    library_dirs = [flag[2:] for flag in ldflags if flag[:2] == "-L"]
+    libraries = [flag[2:] for flag in ldflags if flag[:2] == "-l"]
+    ldflags = [flag for flag in ldflags if flag[:2] not in ["-L", "-l"]]
+    return includes, defines, cflags, library_dirs, libraries
+
+
+def has_lib(name, includes, defines, cflags, headers, library_dirs, libraries):
+    """Compile a basic C++11, libc++ binary."""
+    src = []
+    src.extend("#include <%s>" % i for i in headers)
+    src.append("int main() { return 1; }")
+
+    flags = []
+    flags.extend("-I%s" % x for x in includes)
+    flags.extend("-D%s" % x for x in defines)
+    flags.extend(cflags)
+    flags.extend("-L%s" % x for x in library_dirs)
+    flags.extend("-l%s" % x for x in libraries)
+
+    cmdline = ["clang"] + flags + ["-x", "c", "-", "-o", "/dev/null"]
+
+    p = subprocess.Popen(
+            cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    p.communicate("\n".join(src))
+    if p.returncode == 0:
+        return True
+    return False
 
 
 if __name__ == "__main__":

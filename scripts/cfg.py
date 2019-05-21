@@ -59,29 +59,6 @@ def check_bin(cmdline, input=None):
         return False
 
 
-def has_lib(name, includes, defines, cflags, headers, library_dirs, libraries):
-    """Compile a basic C++11, libc++ binary."""
-    src = []
-    src.extend("#include <%s>" % i for i in headers)
-    src.append("int main() { return 1; }")
-
-    flags = []
-    flags.extend("-I%s" % x for x in includes)
-    flags.extend("-D%s" % x for x in defines)
-    flags.extend(cflags)
-    flags.extend("-L%s" % x for x in library_dirs)
-    flags.extend("-l%s" % x for x in libraries)
-
-    cmdline = ["clang"] + flags + ["-x", "c", "-", "-o", "/dev/null"]
-
-    p = subprocess.Popen(
-            cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    p.communicate("\n".join(src))
-    if p.returncode == 0:
-        return True
-    return False
-
-
 def check_pkg(lib):
     with step("checking for %s" % lib) as msg:
         try:
@@ -93,31 +70,6 @@ def check_pkg(lib):
             pass
         msg("missing", color="red")
         return False
-
-
-def pkg_settings(lib):
-    try:
-        p = subprocess.Popen(
-                ["pkg-config", "--cflags", lib], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        cflags = p.communicate()[0]
-        if p.returncode != 0:
-            return None
-        cflags = shlex.split(cflags)
-        p = subprocess.Popen(
-                ["pkg-config", "--libs", lib], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        ldflags = p.communicate()[0]
-        if p.returncode != 0:
-            return None
-        ldflags = shlex.split(ldflags)
-    except OSError:
-        return None
-    includes = [flag[2:] for flag in cflags if flag[:2] == "-I"]
-    defines = [flag[2:] for flag in cflags if flag[:2] == "-D"]
-    cflags = [flag for flag in cflags if flag[:2] not in ["-I", "-D"]]
-    library_dirs = [flag[2:] for flag in ldflags if flag[:2] == "-L"]
-    libraries = [flag[2:] for flag in ldflags if flag[:2] == "-l"]
-    ldflags = [flag for flag in ldflags if flag[:2] not in ["-L", "-l"]]
-    return includes, defines, cflags, library_dirs, libraries
 
 
 def check_clang():

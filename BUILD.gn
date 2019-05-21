@@ -1,0 +1,146 @@
+executable("rsvc") {
+  sources = [
+    "src/bin/rsvc.c",
+    "src/bin/rsvc.h",
+    "src/bin/rsvc_convert.c",
+    "src/bin/rsvc_eject.c",
+    "src/bin/rsvc_info.c",
+    "src/bin/rsvc_ls.c",
+    "src/bin/rsvc_print.c",
+    "src/bin/rsvc_rip.c",
+    "src/bin/rsvc_watch.c",
+    "src/bin/strlist.h",
+  ]
+  deps = [
+    ":librsvc",
+  ]
+  configs += [ ":rsvc_private" ]
+}
+
+executable("cloak") {
+  sources = [
+    "src/bin/cloak.c",
+    "src/bin/cloak.h",
+    "src/bin/cloak_move.c",
+    "src/bin/cloak_options.c",
+    "src/bin/strlist.h",
+  ]
+  deps = [
+    ":librsvc",
+  ]
+  configs += [ ":rsvc_private" ]
+}
+
+executable("rsvctest") {
+  sources = [
+    "src/rsvc/unix.test.c",
+  ]
+  deps = [
+    ":librsvc",
+  ]
+  configs += [ ":rsvc_private" ]
+}
+
+static_library("librsvc") {
+  sources = [
+    "include/rsvc/audio.h",
+    "include/rsvc/cancel.h",
+    "include/rsvc/cd.h",
+    "include/rsvc/common.h",
+    "include/rsvc/disc.h",
+    "include/rsvc/format.h",
+    "include/rsvc/forward.h",
+    "include/rsvc/image.h",
+    "include/rsvc/musicbrainz.h",
+    "include/rsvc/tag.h",
+    "src/rsvc/audio.c",
+    "src/rsvc/audio.h",
+    "src/rsvc/cancel.c",
+    "src/rsvc/common.c",
+    "src/rsvc/common.h",
+    "src/rsvc/disc.c",
+    "src/rsvc/disc.h",
+    "src/rsvc/encoding.c",
+    "src/rsvc/encoding.h",
+    "src/rsvc/flac.c",
+    "src/rsvc/format.c",
+    "src/rsvc/gif.c",
+    "src/rsvc/group.c",
+    "src/rsvc/group.h",
+    "src/rsvc/id3.c",
+    "src/rsvc/image.c",
+    "src/rsvc/jpeg.c",
+    "src/rsvc/lame.c",
+    "src/rsvc/list.h",
+    "src/rsvc/mad.c",
+    "src/rsvc/mb4.h",
+    "src/rsvc/mb5.h",
+    "src/rsvc/mp4.c",
+    "src/rsvc/musicbrainz.c",
+    "src/rsvc/ogg.c",
+    "src/rsvc/ogg.h",
+    "src/rsvc/options.c",
+    "src/rsvc/options.h",
+    "src/rsvc/opus.c",
+    "src/rsvc/png.c",
+    "src/rsvc/progress.c",
+    "src/rsvc/progress.h",
+    "src/rsvc/tag.c",
+    "src/rsvc/unix.c",
+    "src/rsvc/unix.h",
+    "src/rsvc/vorbis.c",
+    "src/rsvc/wav.c",
+  ]
+  public_deps = [
+    "//ext/discid",
+    "//ext/flac",
+    "//ext/lame",
+    "//ext/mad",
+    "//ext/mb5",
+    "//ext/mp4v2",
+    "//ext/ogg",
+    "//ext/opus",
+    "//ext/opusfile",
+    "//ext/vorbis",
+  ]
+  configs += [ ":rsvc_private" ]
+  libs = []
+
+  if (target_os == "mac") {
+    sources += [
+      "src/rsvc/cd_darwin.c",
+      "src/rsvc/core-audio.c",
+      "src/rsvc/disc_darwin.c",
+      "src/rsvc/unix_darwin.c",
+    ]
+    libs += [
+      "AudioToolbox.framework",
+      "CoreFoundation.framework",
+      "DiskArbitration.framework",
+      "IOKit.framework",
+    ]
+  } else if (target_os == "linux") {
+    sources += [
+      "src/rsvc/cd_linux.c",
+      "src/rsvc/disc_linux.c",
+      "src/rsvc/unix_linux.c",
+    ]
+    libs += [
+      "BlocksRuntime",
+      "dispatch",
+      "udev",
+    ]
+  }
+}
+
+config("rsvc_private") {
+  cflags = [
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-sign-compare",  # TODO(sfiera): remove
+    "-Wno-missing-field-initializers",  # TODO(sfiera): remove
+    "-fblocks",
+  ]
+  include_dirs = [ "include" ]
+}

@@ -1,0 +1,77 @@
+declare_args() {
+  if (target_os == "linux") {
+    lame = "system"
+  } else {
+    lame = "bundled"
+  }
+}
+assert(lame == "system" || lame == "bundled")
+
+if (lame == "bundled") {
+  static_library("lame") {
+    sources = [
+      "lame-3.99.5/libmp3lame/VbrTag.c",
+      "lame-3.99.5/libmp3lame/bitstream.c",
+      "lame-3.99.5/libmp3lame/encoder.c",
+      "lame-3.99.5/libmp3lame/fft.c",
+      "lame-3.99.5/libmp3lame/gain_analysis.c",
+      "lame-3.99.5/libmp3lame/id3tag.c",
+      "lame-3.99.5/libmp3lame/lame.c",
+      "lame-3.99.5/libmp3lame/mpglib_interface.c",
+      "lame-3.99.5/libmp3lame/newmdct.c",
+      "lame-3.99.5/libmp3lame/presets.c",
+      "lame-3.99.5/libmp3lame/psymodel.c",
+      "lame-3.99.5/libmp3lame/quantize.c",
+      "lame-3.99.5/libmp3lame/quantize_pvt.c",
+      "lame-3.99.5/libmp3lame/reservoir.c",
+      "lame-3.99.5/libmp3lame/set_get.c",
+      "lame-3.99.5/libmp3lame/tables.c",
+      "lame-3.99.5/libmp3lame/takehiro.c",
+      "lame-3.99.5/libmp3lame/util.c",
+      "lame-3.99.5/libmp3lame/vbrquantize.c",
+      "lame-3.99.5/libmp3lame/vector/xmm_quantize_sub.c",
+      "lame-3.99.5/libmp3lame/version.c",
+      "lame-3.99.5/mpglib/common.c",
+      "lame-3.99.5/mpglib/dct64_i386.c",
+      "lame-3.99.5/mpglib/decode_i386.c",
+      "lame-3.99.5/mpglib/interface.c",
+      "lame-3.99.5/mpglib/layer1.c",
+      "lame-3.99.5/mpglib/layer2.c",
+      "lame-3.99.5/mpglib/layer3.c",
+      "lame-3.99.5/mpglib/tabinit.c",
+    ]
+    configs += [ ":lame_private" ]
+    public_configs = [ ":lame_public" ]
+  }
+
+  config("lame_private") {
+    defines = [ "HAVE_CONFIG_H" ]
+    cflags = [
+      "-Wno-tautological-pointer-compare",
+      "-Wno-absolute-value",
+      "-Wno-shift-negative-value",
+    ]
+    include_dirs = [
+      "lame-3.99.5/include",
+      "lame-3.99.5/libmp3lame",
+      "lame-3.99.5/mpglib",
+    ]
+    if (target_os == "mac") {
+      include_dirs += [ "darwin" ]
+    }
+  }
+
+  config("lame_public") {
+    include_dirs = [ "include" ]
+  }
+} else {
+  import("//build/lib/pkg_config.gni")
+
+  config("lame_public") {
+    libs = [ "mp3lame" ]
+  }
+
+  source_set("lame") {
+    public_configs = [ ":lame_public" ]
+  }
+}
