@@ -43,6 +43,9 @@
 /* Define if you have expat */
 #define HAVE_EXPAT 1
 
+/* Define to 1 if you have the `explicit_bzero' function. */
+/* #undef HAVE_EXPLICIT_BZERO */
+
 /* Define to 1 if you have the `fcntl' function. */
 #define HAVE_FCNTL 1
 
@@ -64,6 +67,12 @@
 /* Define to 1 if you have the `getsockopt' function. */
 #define HAVE_GETSOCKOPT 1
 
+/* Define to 1 if you have the `gettimeofday' function. */
+#define HAVE_GETTIMEOFDAY 1
+
+/* Define to 1 if you have the `gmtime_r' function. */
+#define HAVE_GMTIME_R 1
+
 /* Define if GnuTLS support is enabled */
 /* #undef HAVE_GNUTLS */
 
@@ -77,11 +86,18 @@
    function. */
 /* #undef HAVE_GNUTLS_CERTIFICATE_SET_RETRIEVE_FUNCTION2 */
 
+/* Define to 1 if you have the `gnutls_certificate_set_x509_system_trust'
+   function. */
+/* #undef HAVE_GNUTLS_CERTIFICATE_SET_X509_SYSTEM_TRUST */
+
 /* Define to 1 if you have the `gnutls_privkey_import_ext' function. */
 /* #undef HAVE_GNUTLS_PRIVKEY_IMPORT_EXT */
 
 /* Define to 1 if you have the `gnutls_session_get_data2' function. */
 /* #undef HAVE_GNUTLS_SESSION_GET_DATA2 */
+
+/* Define to 1 if you have the `gnutls_x509_crt_equals' function. */
+/* #undef HAVE_GNUTLS_X509_CRT_EQUALS */
 
 /* Define to 1 if you have the `gnutls_x509_crt_sign2' function. */
 /* #undef HAVE_GNUTLS_X509_CRT_SIGN2 */
@@ -126,7 +142,7 @@
 #define HAVE_ISATTY 1
 
 /* Define to 1 if you have the <libintl.h> header file. */
-/* #undef HAVE_LIBINTL_H */
+#define HAVE_LIBINTL_H 1
 
 /* Define if libproxy is supported */
 /* #undef HAVE_LIBPROXY */
@@ -149,8 +165,8 @@
 /* Define to 1 if you have the `lseek64' function. */
 /* #undef HAVE_LSEEK64 */
 
-/* Define to 1 if you have the <memory.h> header file. */
-#define HAVE_MEMORY_H 1
+/* Define to 1 if you have the <minix/config.h> header file. */
+/* #undef HAVE_MINIX_CONFIG_H */
 
 /* Define to 1 if you have the <netdb.h> header file. */
 #define HAVE_NETDB_H 1
@@ -166,6 +182,9 @@
 
 /* Define if OpenSSL support is enabled */
 #define HAVE_OPENSSL 1
+
+/* Enable OpenSSL 1.1 support */
+#define HAVE_OPENSSL11 1
 
 /* Define to 1 if you have the <openssl/opensslv.h> header file. */
 #define HAVE_OPENSSL_OPENSSLV_H 1
@@ -187,6 +206,9 @@
 
 /* Define to 1 if you have the `pthread_mutex_lock' function. */
 /* #undef HAVE_PTHREAD_MUTEX_LOCK */
+
+/* Define to 1 if you have the `sendmsg' function. */
+#define HAVE_SENDMSG 1
 
 /* Define to 1 if you have the `setlocale' function. */
 #define HAVE_SETLOCALE 1
@@ -221,6 +243,9 @@
 /* Define to 1 if you have the <stdint.h> header file. */
 #define HAVE_STDINT_H 1
 
+/* Define to 1 if you have the <stdio.h> header file. */
+#define HAVE_STDIO_H 1
+
 /* Define to 1 if you have the <stdlib.h> header file. */
 #define HAVE_STDLIB_H 1
 
@@ -230,7 +255,7 @@
 /* Define to 1 if you have the `strcasecmp' function. */
 #define HAVE_STRCASECMP 1
 
-/* Define to 1 if you have the `strerror_r' function. */
+/* Define if you have `strerror_r'. */
 #define HAVE_STRERROR_R 1
 
 /* Define to 1 if you have the <strings.h> header file. */
@@ -293,6 +318,12 @@
 /* Define to 1 if you have the `vsnprintf' function. */
 #define HAVE_VSNPRINTF 1
 
+/* Define to 1 if you have the <wchar.h> header file. */
+#define HAVE_WCHAR_H 1
+
+/* Define to 1 if you have the <wspiapi.h> header file. */
+/* #undef HAVE_WSPIAPI_H */
+
 /* Define to be location of localedir */
 /* #undef LOCALEDIR */
 
@@ -303,10 +334,13 @@
 #define NEON_IS_LIBRARY 1
 
 /* Define to be the neon version string */
-#define NEON_VERSION "0.30.2"
+#define NEON_VERSION "0.33.0"
 
 /* Define to enable debugging */
 #define NE_DEBUGGING 1
+
+/* to use libproxy automatically */
+/* #undef NE_ENABLE_AUTO_LIBPROXY */
 
 /* Define to be printf format string for ne_off_t */
 #define NE_FMT_NE_OFF_T NE_FMT_OFF_T
@@ -332,6 +366,9 @@
 /* Defined if DAV is supported */
 #define NE_HAVE_DAV 1
 
+/* Defined if GSSAPI is supported */
+#define NE_HAVE_GSSAPI 1
+
 /* Defined if I18N is supported */
 /* #undef NE_HAVE_I18N */
 
@@ -348,7 +385,7 @@
 #define NE_HAVE_SSL 1
 
 /* Defined if TS_SSL is supported */
-/* #undef NE_HAVE_TS_SSL */
+#define NE_HAVE_TS_SSL 1
 
 /* Defined if ZLIB is supported */
 #define NE_HAVE_ZLIB 1
@@ -363,28 +400,28 @@
 #define NE_VERSION_MAJOR (0)
 
 /* Define to be neon library minor version */
-#define NE_VERSION_MINOR (30)
+#define NE_VERSION_MINOR (33)
 
 /* Define to be neon library patch version */
-#define NE_VERSION_PATCH (2)
+#define NE_VERSION_PATCH (0)
 
 /* Define to the address where bug reports for this package should be sent. */
-#define PACKAGE_BUGREPORT "neon@lists.manyfish.co.uk"
+#define PACKAGE_BUGREPORT ""
 
 /* Define to the full name of this package. */
 #define PACKAGE_NAME "neon"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "neon 0.30.2"
+#define PACKAGE_STRING "neon 0.33.0"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "neon"
 
 /* Define to the home page for this package. */
-#define PACKAGE_URL ""
+#define PACKAGE_URL "https://notroj.github.io/neon/"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "0.30.2"
+#define PACKAGE_VERSION "0.33.0"
 
 /* The size of `int', as computed by sizeof. */
 #define SIZEOF_INT 4
@@ -413,14 +450,13 @@
 /* The size of `XML_Size', as computed by sizeof. */
 #define SIZEOF_XML_SIZE 8
 
-/* Define to 1 if you have the ANSI C header files. */
+/* Define to 1 if all of the C90 standard headers exist (not just the ones
+   required in a freestanding environment). This macro is provided for
+   backward compatibility; new code need not use it. */
 #define STDC_HEADERS 1
 
 /* Define to 1 if strerror_r returns char *. */
 /* #undef STRERROR_R_CHAR_P */
-
-/* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
-#define TIME_WITH_SYS_TIME 1
 
 /* Define if getaddrinfo supports AI_ADDRCONFIG */
 #define USE_GAI_ADDRCONFIG 1
@@ -432,21 +468,87 @@
 #ifndef _ALL_SOURCE
 # define _ALL_SOURCE 1
 #endif
+/* Enable general extensions on macOS.  */
+#ifndef _DARWIN_C_SOURCE
+# define _DARWIN_C_SOURCE 1
+#endif
+/* Enable general extensions on Solaris.  */
+#ifndef __EXTENSIONS__
+# define __EXTENSIONS__ 1
+#endif
 /* Enable GNU extensions on systems that have them.  */
 #ifndef _GNU_SOURCE
 # define _GNU_SOURCE 1
 #endif
-/* Enable threading extensions on Solaris.  */
+/* Enable X/Open compliant socket functions that do not require linking
+   with -lxnet on HP-UX 11.11.  */
+#ifndef _HPUX_ALT_XOPEN_SOCKET_API
+# define _HPUX_ALT_XOPEN_SOCKET_API 1
+#endif
+/* Identify the host operating system as Minix.
+   This macro does not affect the system headers' behavior.
+   A future release of Autoconf may stop defining this macro.  */
+#ifndef _MINIX
+/* # undef _MINIX */
+#endif
+/* Enable general extensions on NetBSD.
+   Enable NetBSD compatibility extensions on Minix.  */
+#ifndef _NETBSD_SOURCE
+# define _NETBSD_SOURCE 1
+#endif
+/* Enable OpenBSD compatibility extensions on NetBSD.
+   Oddly enough, this does nothing on OpenBSD.  */
+#ifndef _OPENBSD_SOURCE
+# define _OPENBSD_SOURCE 1
+#endif
+/* Define to 1 if needed for POSIX-compatible behavior.  */
+#ifndef _POSIX_SOURCE
+/* # undef _POSIX_SOURCE */
+#endif
+/* Define to 2 if needed for POSIX-compatible behavior.  */
+#ifndef _POSIX_1_SOURCE
+/* # undef _POSIX_1_SOURCE */
+#endif
+/* Enable POSIX-compatible threading on Solaris.  */
 #ifndef _POSIX_PTHREAD_SEMANTICS
 # define _POSIX_PTHREAD_SEMANTICS 1
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-5:2014.  */
+#ifndef __STDC_WANT_IEC_60559_ATTRIBS_EXT__
+# define __STDC_WANT_IEC_60559_ATTRIBS_EXT__ 1
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-1:2014.  */
+#ifndef __STDC_WANT_IEC_60559_BFP_EXT__
+# define __STDC_WANT_IEC_60559_BFP_EXT__ 1
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-2:2015.  */
+#ifndef __STDC_WANT_IEC_60559_DFP_EXT__
+# define __STDC_WANT_IEC_60559_DFP_EXT__ 1
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-4:2015.  */
+#ifndef __STDC_WANT_IEC_60559_FUNCS_EXT__
+# define __STDC_WANT_IEC_60559_FUNCS_EXT__ 1
+#endif
+/* Enable extensions specified by ISO/IEC TS 18661-3:2015.  */
+#ifndef __STDC_WANT_IEC_60559_TYPES_EXT__
+# define __STDC_WANT_IEC_60559_TYPES_EXT__ 1
+#endif
+/* Enable extensions specified by ISO/IEC TR 24731-2:2010.  */
+#ifndef __STDC_WANT_LIB_EXT2__
+# define __STDC_WANT_LIB_EXT2__ 1
+#endif
+/* Enable extensions specified by ISO/IEC 24747:2009.  */
+#ifndef __STDC_WANT_MATH_SPEC_FUNCS__
+# define __STDC_WANT_MATH_SPEC_FUNCS__ 1
 #endif
 /* Enable extensions on HP NonStop.  */
 #ifndef _TANDEM_SOURCE
 # define _TANDEM_SOURCE 1
 #endif
-/* Enable general extensions on Solaris.  */
-#ifndef __EXTENSIONS__
-# define __EXTENSIONS__ 1
+/* Enable X/Open extensions.  Define to 500 only if necessary
+   to make mbstate_t available.  */
+#ifndef _XOPEN_SOURCE
+/* # undef _XOPEN_SOURCE */
 #endif
 
 
@@ -465,16 +567,6 @@
 /* Always defined to enable GNU extensions */
 #define _GNU_SOURCE 1
 
-/* Define to 1 if on MINIX. */
-/* #undef _MINIX */
-
-/* Define to 2 if the system does not provide POSIX.1 features except with
-   this defined. */
-/* #undef _POSIX_1_SOURCE */
-
-/* Define to 1 if you need to in order for `stat' and other things to work. */
-/* #undef _POSIX_SOURCE */
-
 /* Define to empty if `const' does not conform to ANSI C. */
 /* #undef const */
 
@@ -490,7 +582,7 @@
 /* Define to `long int' if <sys/types.h> does not define. */
 /* #undef off_t */
 
-/* Define to `int' if <sys/types.h> does not define. */
+/* Define as a signed integer type capable of holding a process identifier. */
 /* #undef pid_t */
 
 /* Define to `unsigned int' if <sys/types.h> does not define. */

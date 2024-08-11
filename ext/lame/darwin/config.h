@@ -1,8 +1,10 @@
 /* config.h.  Generated from config.h.in by configure.  */
 /* config.h.in.  Generated from configure.in by autoheader.  */
 
+
 #ifndef LAME_CONFIG_H
 #define LAME_CONFIG_H
+
 
 /* debug define */
 /* #undef ABORTFP */
@@ -65,7 +67,7 @@
 #endif
 
 /* system has 80 bit floats */
-#define HAVE_IEEE854_FLOAT80 1
+/* #undef HAVE_IEEE854_FLOAT80 */
 
 /* add ieee854_float80_t type */
 /* #undef HAVE_IEEE854_FLOAT80_T */
@@ -110,11 +112,11 @@
 
 /* Define to 1 if the type `long double' works and has more range or precision
    than `double'. */
-#define HAVE_LONG_DOUBLE 1
+/* #undef HAVE_LONG_DOUBLE */
 
 /* Define to 1 if the type `long double' works and has more range or precision
    than `double'. */
-#define HAVE_LONG_DOUBLE_WIDER 1
+/* #undef HAVE_LONG_DOUBLE_WIDER */
 
 /* Define to 1 if you have the <memory.h> header file. */
 #define HAVE_MEMORY_H 1
@@ -193,8 +195,8 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
 
-/* Define to 1 if you have the <xmmintrin.h> header file. */
-#define HAVE_XMMINTRIN_H 1
+/* Define if SSE intrinsics work. */
+/* #undef HAVE_XMMINTRIN_H */
 
 /* Define as const if the declaration of iconv() needs const. */
 #define ICONV_CONST 
@@ -205,15 +207,11 @@
 /* set to 1 if you have libsndfile */
 /* #undef LIBSNDFILE */
 
-/* Define to the sub-directory in which libtool stores uninstalled libraries.
-   */
+/* Define to the sub-directory where libtool stores uninstalled libraries. */
 #define LT_OBJDIR ".libs/"
 
 /* use MMX version of choose_table */
 /* #undef MMX_choose_table */
-
-/* no debug build */
-#define NDEBUG 1
 
 /* build without hooks for analyzer */
 /* #undef NOANALYSIS */
@@ -228,7 +226,7 @@
 #define PACKAGE_NAME "lame"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "lame 3.99.5"
+#define PACKAGE_STRING "lame 3.100"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "lame"
@@ -237,10 +235,7 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "3.99.5"
-
-/* Define to 1 if the C compiler supports function prototypes. */
-#define PROTOTYPES 1
+#define PACKAGE_VERSION "3.100"
 
 /* The size of `double', as computed by sizeof. */
 #define SIZEOF_DOUBLE 8
@@ -287,13 +282,13 @@
 #define STDC_HEADERS 1
 
 /* IEEE754 compatible machine */
-#define TAKEHIRO_IEEE754_HACK 1
+/* #undef TAKEHIRO_IEEE754_HACK */
 
 /* Define to 1 if you can safely include both <sys/time.h> and <time.h>. */
 #define TIME_WITH_SYS_TIME 1
 
 /* faster log implementation with less but enough precission */
-#define USE_FAST_LOG 1
+/* #undef USE_FAST_LOG */
 
 /* Enable extensions on AIX 3, Interix.  */
 #ifndef _ALL_SOURCE
@@ -318,7 +313,7 @@
 
 
 /* Version number of package */
-#define VERSION "3.99.5"
+#define VERSION "3.100"
 
 /* Define if using the dmalloc debugging malloc package */
 /* #undef WITH_DMALLOC */
@@ -333,6 +328,11 @@
 # ifndef WORDS_BIGENDIAN
 /* #  undef WORDS_BIGENDIAN */
 # endif
+#endif
+
+/* Enable large inode numbers on Mac OS X 10.5.  */
+#ifndef _DARWIN_USE_64_BIT_INODE
+# define _DARWIN_USE_64_BIT_INODE 1
 #endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */
@@ -356,9 +356,6 @@
 
 /* work around a glibc bug */
 /* #undef __NO_MATH_INLINES */
-
-/* Define like PROTOTYPES; this can be used by system headers. */
-#define __PROTOTYPES 1
 
 /* Define to empty if `const' does not conform to ANSI C. */
 /* #undef const */

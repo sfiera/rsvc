@@ -1,4 +1,4 @@
-NINJA=build/lib/bin/ninja -C out/cur
+NINJA=ninja -C out/cur
 
 all:
 	@$(NINJA)

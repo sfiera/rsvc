@@ -107,6 +107,7 @@ const struct rsvc_format rsvc_m4v = {
     .magic = {
         "????ftypM4V ",
         "????ftypmp42",
+        "????ftypisom",
     },
     .magic_size = 12,
     .extension = "m4v",

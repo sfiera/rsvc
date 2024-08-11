@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from __future__ import division, print_function, unicode_literals
 
@@ -23,7 +23,7 @@ SYSTEM = object()
 DEPS = {
     "discid": {
         "pkgconfig": "libdiscid",
-        "dpkg": "libdiscid0-dev",
+        "dpkg": "libdiscid-dev",
         "brew": "libdiscid",
         "headers": ["discid/discid.h"],
     },
@@ -131,7 +131,7 @@ def main():
     # gn_args["prefix"] = args.prefix
     if args.target_os == "mac":
         gn_args["macosx_version_min"] = "10.7"
-    cfg.gn(**gn_args)
+    cfg.gn(ninja="ninja", gn="gn", **gn_args)
     print("make(1) it so!")
 
 
@@ -153,7 +153,7 @@ def check_arch():
         if not arch:
             msg("unknown", color="red")
             sys.exit(1)
-        elif arch in ["x86_64", "i386"]:
+        elif arch in ["x86_64", "i386", "arm64"]:
             msg(arch, color="green")
         else:
             msg(arch + " (untested)", color="yellow")
@@ -169,7 +169,7 @@ def check_deps(args, defs):
 
 def check_libs(args, defs, have_pkgconfig, package_manager, default):
     missing_libs = {}
-    for name, value in sorted(DEPS.iteritems()):
+    for name, value in sorted(DEPS.items()):
         flag = getattr(args, name)
         if flag is None:
             flag = default
@@ -229,21 +229,21 @@ def check_mac(args, defs):
         msg("%d.%d" % ver, color="green")
 
     missing = collections.OrderedDict()
-    if not check_clang():
+    if not cfg.check_clang():
         missing["xcode"] = (
                 "* Xcode can be installed via the App Store:\n"
                 "    https://itunes.apple.com/en/app/xcode/id497799835\n"
                 "  After installing, open it and accept the license agreement\n")
 
     have_pkgconfig = True
-    if not check_pkg_config():
+    if not cfg.check_pkg_config():
         have_pkgconfig = False
         missing["pkg-config"] = (
                 "* pkg-config can be installed with Homebrew:\n"
                 "    $ brew install pkg-config\n")
 
     missing_libs = check_libs(args, defs, have_pkgconfig, "brew", default=BUNDLED)
-    missing_deps = missing.keys() + missing_libs.keys()
+    missing_deps = list(missing) + list(missing_libs)
     if missing_libs:
         missing["libs"] = (
                 "* Missing libraries can be installed with Homebrew:\n"
@@ -265,18 +265,19 @@ def check_mac(args, defs):
 
 def check_linux(args, defs):
     with cfg.step("checking Linux distro") as msg:
-        distro = platform.linux_distribution()
-        if distro[0] == "Ubuntu":
+        pretty, distro, codename = cfg.dist_proto()
+        if distro == "Ubuntu":
             msg(" ".join(distro), color="green")
         else:
             msg(" ".join(distro) + " (untested)", color="yellow")
 
     missing = collections.OrderedDict()
-    if not check_clang():
+    if not cfg.check_clang():
         missing["clang"] = "clang"
         missing["libc++"] = "libc++-dev"
 
-    have_pkgconfig = check_pkg_config()
+    have_pkgconfig = cfg.check_pkg_config()
+    missing_pkgs = {}
     if not have_pkgconfig:
         missing_pkgs["pkg-config"] = "pkg-config"
     missing.update(check_libs(args, defs, have_pkgconfig, "dpkg", SYSTEM))
@@ -291,30 +292,16 @@ def check_linux(args, defs):
         sys.exit(1)
 
 
-def check_clang(executable=""):
-    """Compile a basic C++11 binary."""
-    executable = executable or "clang++"
-    return cfg.check_bin(
-        ("%s -x c++ -std=c++11 - -o /dev/null" % executable).split(),
-        what="clang",
-        input="int main() { return 1; }")
-
-
-def check_pkg_config():
-    """Run pkg-config --version."""
-    return cfg.check_bin("pkg-config --version".split())
-
-
 def pkg_settings(lib):
     try:
         p = subprocess.Popen(
-                ["pkg-config", "--cflags", lib], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                ["pkg-config", "--cflags", lib], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
         cflags = p.communicate()[0]
         if p.returncode != 0:
             return None
         cflags = shlex.split(cflags)
         p = subprocess.Popen(
-                ["pkg-config", "--libs", lib], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                ["pkg-config", "--libs", lib], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
         ldflags = p.communicate()[0]
         if p.returncode != 0:
             return None
@@ -346,7 +333,7 @@ def has_lib(name, includes, defines, cflags, headers, library_dirs, libraries):
     cmdline = ["clang"] + flags + ["-x", "c", "-", "-o", "/dev/null"]
 
     p = subprocess.Popen(
-            cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
     p.communicate("\n".join(src))
     if p.returncode == 0:
         return True
