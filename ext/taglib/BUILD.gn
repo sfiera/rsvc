@@ -1,0 +1,265 @@
+declare_args() {
+  if (target_os == "linux") {
+    taglib = "system"
+  } else {
+    taglib = "bundled"
+  }
+}
+assert(taglib == "system" || taglib == "bundled")
+
+mpeg_srcs = [
+  "taglib-2.0.1/taglib/mpeg/mpegfile.cpp",
+  "taglib-2.0.1/taglib/mpeg/mpegproperties.cpp",
+  "taglib-2.0.1/taglib/mpeg/mpegheader.cpp",
+  "taglib-2.0.1/taglib/mpeg/xingheader.cpp",
+]
+
+id3v1_srcs = [
+  "taglib-2.0.1/taglib/mpeg/id3v1/id3v1tag.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v1/id3v1genres.cpp",
+]
+
+id3v2_srcs = [
+  "taglib-2.0.1/taglib/mpeg/id3v2/id3v2framefactory.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/id3v2synchdata.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/id3v2tag.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/id3v2header.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/id3v2frame.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/id3v2footer.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/id3v2extendedheader.cpp",
+]
+
+frames_srcs = [
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/attachedpictureframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/commentsframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/eventtimingcodesframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/generalencapsulatedobjectframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/ownershipframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/popularimeterframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/privateframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/relativevolumeframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/synchronizedlyricsframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/textidentificationframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/uniquefileidentifierframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/unknownframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/unsynchronizedlyricsframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/urllinkframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/chapterframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/tableofcontentsframe.cpp",
+  "taglib-2.0.1/taglib/mpeg/id3v2/frames/podcastframe.cpp",
+]
+
+ogg_srcs = [
+  "taglib-2.0.1/taglib/ogg/oggfile.cpp",
+  "taglib-2.0.1/taglib/ogg/oggpage.cpp",
+  "taglib-2.0.1/taglib/ogg/oggpageheader.cpp",
+  "taglib-2.0.1/taglib/ogg/xiphcomment.cpp",
+]
+
+vorbis_srcs = [
+  "taglib-2.0.1/taglib/ogg/vorbis/vorbisfile.cpp",
+  "taglib-2.0.1/taglib/ogg/vorbis/vorbisproperties.cpp",
+]
+
+flacs_srcs = [
+  "taglib-2.0.1/taglib/flac/flacfile.cpp",
+  "taglib-2.0.1/taglib/flac/flacpicture.cpp",
+  "taglib-2.0.1/taglib/flac/flacproperties.cpp",
+  "taglib-2.0.1/taglib/flac/flacmetadatablock.cpp",
+  "taglib-2.0.1/taglib/flac/flacunknownmetadatablock.cpp",
+]
+
+oggflacs_srcs = [ "taglib-2.0.1/taglib/ogg/flac/oggflacfile.cpp" ]
+
+mpc_srcs = [
+  "taglib-2.0.1/taglib/mpc/mpcfile.cpp",
+  "taglib-2.0.1/taglib/mpc/mpcproperties.cpp",
+]
+
+mp4_srcs = [
+  "taglib-2.0.1/taglib/mp4/mp4file.cpp",
+  "taglib-2.0.1/taglib/mp4/mp4atom.cpp",
+  "taglib-2.0.1/taglib/mp4/mp4tag.cpp",
+  "taglib-2.0.1/taglib/mp4/mp4item.cpp",
+  "taglib-2.0.1/taglib/mp4/mp4properties.cpp",
+  "taglib-2.0.1/taglib/mp4/mp4coverart.cpp",
+  "taglib-2.0.1/taglib/mp4/mp4itemfactory.cpp",
+]
+
+ape_srcs = [
+  "taglib-2.0.1/taglib/ape/apetag.cpp",
+  "taglib-2.0.1/taglib/ape/apefooter.cpp",
+  "taglib-2.0.1/taglib/ape/apeitem.cpp",
+  "taglib-2.0.1/taglib/ape/apefile.cpp",
+  "taglib-2.0.1/taglib/ape/apeproperties.cpp",
+]
+
+wavpack_srcs = [
+  "taglib-2.0.1/taglib/wavpack/wavpackfile.cpp",
+  "taglib-2.0.1/taglib/wavpack/wavpackproperties.cpp",
+]
+
+speex_srcs = [
+  "taglib-2.0.1/taglib/ogg/speex/speexfile.cpp",
+  "taglib-2.0.1/taglib/ogg/speex/speexproperties.cpp",
+]
+
+opus_srcs = [
+  "taglib-2.0.1/taglib/ogg/opus/opusfile.cpp",
+  "taglib-2.0.1/taglib/ogg/opus/opusproperties.cpp",
+]
+
+trueaudio_srcs = [
+  "taglib-2.0.1/taglib/trueaudio/trueaudiofile.cpp",
+  "taglib-2.0.1/taglib/trueaudio/trueaudioproperties.cpp",
+]
+
+asf_srcs = [
+  "taglib-2.0.1/taglib/asf/asftag.cpp",
+  "taglib-2.0.1/taglib/asf/asffile.cpp",
+  "taglib-2.0.1/taglib/asf/asfproperties.cpp",
+  "taglib-2.0.1/taglib/asf/asfattribute.cpp",
+  "taglib-2.0.1/taglib/asf/asfpicture.cpp",
+]
+
+riff_srcs = [ "taglib-2.0.1/taglib/riff/rifffile.cpp" ]
+
+aiff_srcs = [
+  "taglib-2.0.1/taglib/riff/aiff/aifffile.cpp",
+  "taglib-2.0.1/taglib/riff/aiff/aiffproperties.cpp",
+]
+
+wav_srcs = [
+  "taglib-2.0.1/taglib/riff/wav/wavfile.cpp",
+  "taglib-2.0.1/taglib/riff/wav/wavproperties.cpp",
+  "taglib-2.0.1/taglib/riff/wav/infotag.cpp",
+]
+
+mod_srcs = [
+  "taglib-2.0.1/taglib/mod/modfilebase.cpp",
+  "taglib-2.0.1/taglib/mod/modfile.cpp",
+  "taglib-2.0.1/taglib/mod/modtag.cpp",
+  "taglib-2.0.1/taglib/mod/modproperties.cpp",
+]
+
+s3m_srcs = [
+  "taglib-2.0.1/taglib/s3m/s3mfile.cpp",
+  "taglib-2.0.1/taglib/s3m/s3mproperties.cpp",
+]
+
+it_srcs = [
+  "taglib-2.0.1/taglib/it/itfile.cpp",
+  "taglib-2.0.1/taglib/it/itproperties.cpp",
+]
+
+xm_srcs = [
+  "taglib-2.0.1/taglib/xm/xmfile.cpp",
+  "taglib-2.0.1/taglib/xm/xmproperties.cpp",
+]
+
+dsf_srcs = [
+  "taglib-2.0.1/taglib/dsf/dsffile.cpp",
+  "taglib-2.0.1/taglib/dsf/dsfproperties.cpp",
+]
+
+dsdiff_srcs = [
+  "taglib-2.0.1/taglib/dsdiff/dsdifffile.cpp",
+  "taglib-2.0.1/taglib/dsdiff/dsdiffproperties.cpp",
+  "taglib-2.0.1/taglib/dsdiff/dsdiffdiintag.cpp",
+]
+
+toolkit_srcs = [
+  "taglib-2.0.1/taglib/toolkit/tstring.cpp",
+  "taglib-2.0.1/taglib/toolkit/tstringlist.cpp",
+  "taglib-2.0.1/taglib/toolkit/tbytevector.cpp",
+  "taglib-2.0.1/taglib/toolkit/tbytevectorlist.cpp",
+  "taglib-2.0.1/taglib/toolkit/tvariant.cpp",
+  "taglib-2.0.1/taglib/toolkit/tbytevectorstream.cpp",
+  "taglib-2.0.1/taglib/toolkit/tiostream.cpp",
+  "taglib-2.0.1/taglib/toolkit/tfile.cpp",
+  "taglib-2.0.1/taglib/toolkit/tfilestream.cpp",
+  "taglib-2.0.1/taglib/toolkit/tdebug.cpp",
+  "taglib-2.0.1/taglib/toolkit/tpicturetype.cpp",
+  "taglib-2.0.1/taglib/toolkit/tpropertymap.cpp",
+  "taglib-2.0.1/taglib/toolkit/tdebuglistener.cpp",
+  "taglib-2.0.1/taglib/toolkit/tzlib.cpp",
+  "taglib-2.0.1/taglib/toolkit/tversionnumber.cpp",
+]
+
+if (taglib == "bundled") {
+  static_library("taglib") {
+    sources =
+        mpeg_srcs + id3v1_srcs + id3v2_srcs + frames_srcs + ogg_srcs +
+        vorbis_srcs + oggflacs_srcs + mpc_srcs + ape_srcs + toolkit_srcs +
+        flacs_srcs + wavpack_srcs + speex_srcs + trueaudio_srcs + riff_srcs +
+        aiff_srcs + wav_srcs + asf_srcs + mp4_srcs + mod_srcs + s3m_srcs +
+        it_srcs + xm_srcs + opus_srcs + dsf_srcs + dsdiff_srcs +
+        [
+          "taglib-2.0.1/taglib/tag.cpp",
+          "taglib-2.0.1/taglib/tagunion.cpp",
+          "taglib-2.0.1/taglib/fileref.cpp",
+          "taglib-2.0.1/taglib/audioproperties.cpp",
+          "taglib-2.0.1/taglib/tagutils.cpp",
+        ]
+
+    deps = [ "//ext/utf8cpp" ]
+    configs += [ ":taglib_private" ]
+    public_configs = [ ":taglib_public" ]
+  }
+
+  static_library("taglib_c") {
+    sources = [ "taglib-2.0.1/bindings/c/tag_c.cpp" ]
+    deps = [ ":taglib" ]
+    configs += [ ":taglib_private" ]
+    public_configs = [ ":taglib_c_public" ]
+  }
+
+  config("taglib_private") {
+    include_dirs = [
+      "taglib-2.0.1/taglib/toolkit",
+      "taglib-2.0.1/taglib/asf",
+      "taglib-2.0.1/taglib/mpeg",
+      "taglib-2.0.1/taglib/ogg",
+      "taglib-2.0.1/taglib/ogg/flac",
+      "taglib-2.0.1/taglib/flac",
+      "taglib-2.0.1/taglib/mpc",
+      "taglib-2.0.1/taglib/mp4",
+      "taglib-2.0.1/taglib/ogg/vorbis",
+      "taglib-2.0.1/taglib/ogg/speex",
+      "taglib-2.0.1/taglib/ogg/opus",
+      "taglib-2.0.1/taglib/mpeg/id3v2",
+      "taglib-2.0.1/taglib/mpeg/id3v2/frames",
+      "taglib-2.0.1/taglib/mpeg/id3v1",
+      "taglib-2.0.1/taglib/ape",
+      "taglib-2.0.1/taglib/wavpack",
+      "taglib-2.0.1/taglib/trueaudio",
+      "taglib-2.0.1/taglib/riff",
+      "taglib-2.0.1/taglib/riff/aiff",
+      "taglib-2.0.1/taglib/riff/wav",
+      "taglib-2.0.1/taglib/mod",
+      "taglib-2.0.1/taglib/s3m",
+      "taglib-2.0.1/taglib/it",
+      "taglib-2.0.1/taglib/xm",
+      "taglib-2.0.1/taglib/dsf",
+      "taglib-2.0.1/taglib/dsdiff",
+    ]
+  }
+
+  config("taglib_public") {
+    include_dirs = [ "taglib-2.0.1/taglib" ]
+  }
+
+  config("taglib_c_public") {
+    include_dirs = [ "taglib-2.0.1/bindings/c" ]
+  }
+} else {
+  import("//build/lib/pkg_config.gni")
+
+  config("taglib_public") {
+    libs = [ "tag" ]
+  }
+
+  source_set("taglib") {
+    public_configs = [ ":taglib_public" ]
+  }
+}

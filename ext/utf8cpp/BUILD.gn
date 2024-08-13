@@ -1,0 +1,24 @@
+declare_args() {
+  if (target_os == "linux") {
+    utf8cpp = "system"
+  } else {
+    utf8cpp = "bundled"
+  }
+}
+assert(utf8cpp == "system" || utf8cpp == "bundled")
+
+if (utf8cpp == "bundled") {
+  config("utf8cpp_config") {
+    include_dirs = [ "utfcpp-4.0.5/source" ]
+  }
+} else {
+  import("//build/lib/pkg_config.gni")
+
+  config("utf8cpp_config") {
+    libs = [ "tag" ]
+  }
+}
+
+source_set("utf8cpp") {
+  public_configs = [ ":utf8cpp_config" ]
+}
