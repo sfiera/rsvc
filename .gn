@@ -3,3 +3,4 @@
 # Rip Service is free software, distributed under the GPLv2+. See COPYING
 
 buildconfig = "//build/BUILDCONFIG.gn"
+script_executable = "python3"
