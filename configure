@@ -21,6 +21,11 @@ BUNDLED = object()
 SYSTEM = object()
 
 DEPS = {
+    "dispatch": {
+        "dpkg": "libdispatch-dev",
+        "headers": ["dispatch/dispatch.h"],
+        "libraries": ["dispatch"],
+    },
     "discid": {
         "pkgconfig": "libdiscid",
         "dpkg": "libdiscid-dev",
