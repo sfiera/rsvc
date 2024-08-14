@@ -11,9 +11,7 @@ executable("rsvc") {
     "src/bin/rsvc_watch.c",
     "src/bin/strlist.h",
   ]
-  deps = [
-    ":librsvc",
-  ]
+  deps = [ ":librsvc" ]
   configs += [ ":rsvc_private" ]
 }
 
@@ -25,19 +23,13 @@ executable("cloak") {
     "src/bin/cloak_options.c",
     "src/bin/strlist.h",
   ]
-  deps = [
-    ":librsvc",
-  ]
+  deps = [ ":librsvc" ]
   configs += [ ":rsvc_private" ]
 }
 
 executable("rsvctest") {
-  sources = [
-    "src/rsvc/unix.test.c",
-  ]
-  deps = [
-    ":librsvc",
-  ]
+  sources = [ "src/rsvc/unix.test.c" ]
+  deps = [ ":librsvc" ]
   configs += [ ":rsvc_private" ]
 }
 
@@ -97,10 +89,10 @@ static_library("librsvc") {
     "//ext/lame",
     "//ext/mad",
     "//ext/mb5",
-    "//ext/mp4v2",
     "//ext/ogg",
     "//ext/opus",
     "//ext/opusfile",
+    "//ext/taglib:taglib_c",
     "//ext/vorbis",
   ]
   configs += [ ":rsvc_private" ]
