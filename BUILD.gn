@@ -89,11 +89,10 @@ static_library("librsvc") {
     "//ext/lame",
     "//ext/mad",
     "//ext/mb5",
-    "//ext/mp4v2",
     "//ext/ogg",
     "//ext/opus",
     "//ext/opusfile",
-    "//ext/taglib",
+    "//ext/taglib:taglib_c",
     "//ext/vorbis",
   ]
   configs += [ ":rsvc_private" ]
