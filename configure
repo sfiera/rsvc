@@ -21,11 +21,6 @@ BUNDLED = object()
 SYSTEM = object()
 
 DEPS = {
-    "dispatch": {
-        "dpkg": "libdispatch-dev",
-        "headers": ["dispatch/dispatch.h"],
-        "libraries": ["dispatch"],
-    },
     "discid": {
         "pkgconfig": "libdiscid",
         "dpkg": "libdiscid-dev",
@@ -86,6 +81,12 @@ DEPS = {
         "headers": ["taglib/tag_c.h"],
         "libraries": ["tag_c"],
     },
+    "utf8cpp": {
+        "dpkg": "utf8cpp-dev",
+        "brew": "utf8cpp",
+        "headers": ["utf8.h"],
+        "libraries": [],
+    },
     "vorbis": {
         "pkgconfig": "vorbis",
         "dpkg": "libvorbis-dev",
@@ -123,16 +124,18 @@ def main():
                 "--with-bundled-" + name, dest=name, action="store_const", const=BUNDLED)
     args, remainder = parser.parse_known_args()
 
-    defs = {}
+    gn_args = {}
+
     check_platform(args)
+    gn_args["target_os"] = args.target_os
+
     check_arch()
-    check_deps(args, defs)
+    check_deps(args, gn_args)
 
     with cfg.step("configure mode") as msg:
         msg(args.mode, color="green")
-    gn_args = {}
     gn_args["mode"] = args.mode
-    gn_args["target_os"] = args.target_os
+
     # gn_args["prefix"] = args.prefix
     if args.target_os == "mac":
         gn_args["macosx_version_min"] = "10.7"
@@ -164,15 +167,15 @@ def check_arch():
             msg(arch + " (untested)", color="yellow")
 
 
-def check_deps(args, defs):
+def check_deps(args, gn_args):
     checker = {
         "mac": check_mac,
         "linux": check_linux,
     }[args.target_os]
-    checker(args, defs)
+    checker(args, gn_args)
 
 
-def check_libs(args, defs, have_pkgconfig, package_manager, default):
+def check_libs(args, gn_args, have_pkgconfig, package_manager, default):
     missing_libs = {}
     for name, value in sorted(DEPS.items()):
         flag = getattr(args, name)
@@ -182,7 +185,7 @@ def check_libs(args, defs, have_pkgconfig, package_manager, default):
         if flag is BUNDLED:
             with cfg.step("checking for %s" % name) as msg:
                 msg("ok (bundled)", color="green")
-            defs["BUNDLED_%s" % name.upper()] = 1
+            gn_args[name] = "bundled"
             continue
 
         with cfg.step("checking for %s" % name) as msg:
@@ -213,17 +216,12 @@ def check_libs(args, defs, have_pkgconfig, package_manager, default):
                 missing_libs[name] = value[package_manager]
                 continue
 
-            defs["BUNDLED_%s" % name.upper()] = 0
-            defs["%s_INCLUDE_DIRS" % name.upper()] = " ".join(include_dirs)
-            defs["%s_DEFINES" % name.upper()] = " ".join(defines)
-            defs["%s_CFLAGS" % name.upper()] = " ".join(cflags)
-            defs["%s_LIBRARY_DIRS" % name.upper()] = " ".join(library_dirs)
-            defs["%s_LIBRARIES" % name.upper()] = " ".join("-l" + l for l in libraries)
+            gn_args[name] = "system"
 
     return missing_libs
 
 
-def check_mac(args, defs):
+def check_mac(args, gn_args):
     with cfg.step("checking Mac OS X version") as msg:
         ver = platform.mac_ver()[0]
         ver = tuple(int(x) for x in ver.split(".")[:2])
@@ -247,7 +245,7 @@ def check_mac(args, defs):
                 "* pkg-config can be installed with Homebrew:\n"
                 "    $ brew install pkg-config\n")
 
-    missing_libs = check_libs(args, defs, have_pkgconfig, "brew", default=BUNDLED)
+    missing_libs = check_libs(args, gn_args, have_pkgconfig, "brew", default=BUNDLED)
     missing_deps = list(missing) + list(missing_libs)
     if missing_libs:
         missing["libs"] = (
@@ -268,7 +266,7 @@ def check_mac(args, defs):
         sys.exit(1)
 
 
-def check_linux(args, defs):
+def check_linux(args, gn_args):
     with cfg.step("checking Linux distro") as msg:
         pretty, distro, codename = cfg.dist_proto()
         if distro == "Ubuntu":
@@ -285,7 +283,7 @@ def check_linux(args, defs):
     missing_pkgs = {}
     if not have_pkgconfig:
         missing_pkgs["pkg-config"] = "pkg-config"
-    missing.update(check_libs(args, defs, have_pkgconfig, "dpkg", SYSTEM))
+    missing.update(check_libs(args, gn_args, have_pkgconfig, "dpkg", SYSTEM))
 
     if missing:
         print("\nmissing dependencies: %s" % " ".join(missing.keys()))
