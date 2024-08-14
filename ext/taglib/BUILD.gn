@@ -195,10 +195,10 @@ if (taglib == "bundled") {
         aiff_srcs + wav_srcs + asf_srcs + mp4_srcs + mod_srcs + s3m_srcs +
         it_srcs + xm_srcs + opus_srcs + dsf_srcs + dsdiff_srcs +
         [
+          "taglib-2.0.1/taglib/audioproperties.cpp",
+          "taglib-2.0.1/taglib/fileref.cpp",
           "taglib-2.0.1/taglib/tag.cpp",
           "taglib-2.0.1/taglib/tagunion.cpp",
-          "taglib-2.0.1/taglib/fileref.cpp",
-          "taglib-2.0.1/taglib/audioproperties.cpp",
           "taglib-2.0.1/taglib/tagutils.cpp",
         ]
 
@@ -255,11 +255,19 @@ if (taglib == "bundled") {
 } else {
   import("//build/lib/pkg_config.gni")
 
-  config("taglib_public") {
-    libs = [ "tag" ]
+  pkg_config("taglib_public") {
+    lib = "taglib"
   }
 
   source_set("taglib") {
     public_configs = [ ":taglib_public" ]
+  }
+
+  pkg_config("taglib_c_public") {
+    lib = "taglib_c"
+  }
+
+  source_set("taglib_c") {
+    public_configs = [ ":taglib_c_public" ]
   }
 }
