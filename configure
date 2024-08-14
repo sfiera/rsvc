@@ -51,12 +51,6 @@ DEPS = {
         "brew": "mad",
         "headers": ["mad.h"],
     },
-    "mp4v2": {
-        "dpkg": "libmp4v2-dev",
-        "brew": "mp4v2",
-        "headers": ["mp4v2/mp4v2.h"],
-        "libraries": ["mp4v2"],
-    },
     "neon": {
         "pkgconfig": "neon",
         "dpkg": "libneon27-dev",

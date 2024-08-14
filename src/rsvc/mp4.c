@@ -209,10 +209,6 @@ static bool rsvc_mp4_tags_image_add(
 
 static bool rsvc_mp4_tags_save(rsvc_tags_t tags, rsvc_done_t fail) {
     rsvc_mp4_tags_t self = DOWN_CAST(struct rsvc_mp4_tags, tags);
-    // The mp4v2 C API doesn't have a way to say "clean up this file
-    // without saving its contents to disk", so rsvc_mp4_open_tags
-    // always opens the file in read-only mode.  To save the file,
-    // we reopen it in read-write mode, and copy over the tags.
     if (!taglib_file_save(self->file)) {
         rsvc_errorf(fail, __FILE__, __LINE__, "failed to save");
         return false;
