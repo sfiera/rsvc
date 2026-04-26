@@ -37,6 +37,9 @@
 
 static size_t formats_capacity = 0;
 
+rsvc_format_t*  rsvc_formats;
+size_t          rsvc_nformats;
+
 void rsvc_format_register(rsvc_format_t format) {
     if ((rsvc_nformats + 1) >= formats_capacity) {
         if (!formats_capacity) {
