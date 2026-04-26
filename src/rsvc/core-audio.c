@@ -203,12 +203,12 @@ static bool core_audio_encode(
     }
 
     size_t samples_per_channel_read = 0;
-    static const int kSamples = 4096;
-    uint8_t buffer[kSamples];
+#define SAMPLE_COUNT 4096
+    uint8_t buffer[SAMPLE_COUNT];
     while (true) {
         bool eof;
         size_t nsamples;
-        if (!rsvc_read(NULL, src_file, buffer, kSamples / info.block_align, info.block_align,
+        if (!rsvc_read(NULL, src_file, buffer, SAMPLE_COUNT / info.block_align, info.block_align,
                 &nsamples, &eof, fail)) {
             return false;
         } else if (eof) {

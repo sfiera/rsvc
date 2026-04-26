@@ -69,14 +69,14 @@ bool rsvc_lame_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opti
     }
 
     size_t samples_per_channel_read = 0;
-    static const int kSamples = 2048;
-    static const int kMp3BufSize = kSamples * 5 + 7200;
+#define SAMPLE_COUNT 2048
+    static const int kMp3BufSize = SAMPLE_COUNT * 5 + 7200;
     unsigned char* mp3buf = malloc(kMp3BufSize);
-    int16_t buffer[kSamples * 2];
+    int16_t buffer[SAMPLE_COUNT * 2];
     bool eof = false;
     while (!eof) {
         size_t nsamples;
-        if (!rsvc_read(  "pipe", src_file, buffer, kSamples, 2 * sizeof(int16_t),
+        if (!rsvc_read(  "pipe", src_file, buffer, SAMPLE_COUNT, 2 * sizeof(int16_t),
                          &nsamples, &eof, fail)) {
             return false;
         } else if (nsamples) {

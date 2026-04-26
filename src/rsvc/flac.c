@@ -186,17 +186,17 @@ bool rsvc_flac_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opti
         return false;
     }
 
-    static const int kSamples = 2048;
-    int16_t buffer[kSamples * 2];
+#define SAMPLE_COUNT 2048
+    int16_t buffer[SAMPLE_COUNT * 2];
     bool eof = false;
     while (!eof) {
         size_t nsamples;
-        if (!rsvc_read(  "pipe", src_file, buffer, kSamples, 2 * sizeof(int16_t),
+        if (!rsvc_read(  "pipe", src_file, buffer, SAMPLE_COUNT, 2 * sizeof(int16_t),
                          &nsamples, &eof, fail)) {
             return false;
         } else if (nsamples) {
             samples_per_channel_read += nsamples;
-            FLAC__int32 samples[kSamples * 2];
+            FLAC__int32 samples[SAMPLE_COUNT * 2];
             FLAC__int32* sp = samples;
             for (int16_t* p = buffer; p < buffer + (nsamples * 2); ++p) {
                 *(sp++) = *p;

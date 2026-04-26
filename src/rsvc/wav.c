@@ -223,12 +223,12 @@ bool wav_audio_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opts
     if (!rsvc_audio_info_validate(&opts->info, fail)) {
         return false;
     }
-    static const int header_size = 44;
-    uint8_t header[header_size];
+#define HEADER_SIZE 44
+    uint8_t header[HEADER_SIZE];
     size_t block = opts->info.block_align;
     static const int fmt_size = 16;
     size_t data_size = opts->info.samples_per_channel * block;
-    size_t riff_size = header_size - 4 + data_size;
+    size_t riff_size = HEADER_SIZE - 4 + data_size;
 
     u32le_out(header + 0,   WAV_RIFF);
     u32le_out(header + 4,   riff_size);
@@ -244,7 +244,7 @@ bool wav_audio_encode(FILE* src_file, FILE* dst_file, rsvc_encode_options_t opts
     u32le_out(header + 36,  WAV_DATA);
     u32le_out(header + 40,  data_size);
 
-    if (!rsvc_write(NULL, dst_file, header, header_size, fail)) {
+    if (!rsvc_write(NULL, dst_file, header, HEADER_SIZE, fail)) {
         return false;
     }
 
