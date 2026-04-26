@@ -117,6 +117,7 @@ static_library("librsvc") {
       "BlocksRuntime",
       "dispatch",
       "udev",
+      "fts",
     ]
   }
 }
