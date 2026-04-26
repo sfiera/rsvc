@@ -34,7 +34,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <vorbis/vorbisenc.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/param.h>
 
 #include "common.h"

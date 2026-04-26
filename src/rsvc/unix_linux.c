@@ -25,7 +25,7 @@
 
 #include <linux/limits.h>
 #include <string.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <sys/sendfile.h>
 #include <sys/stat.h>
 #include <sys/time.h>

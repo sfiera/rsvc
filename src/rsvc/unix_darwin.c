@@ -22,7 +22,7 @@
 
 #include <copyfile.h>
 #include <string.h>
-#include <sys/errno.h>
+#include <errno.h>
 #include <util.h>
 #include "common.h"
 
