@@ -55,6 +55,6 @@ RUN apk add --no-cache \
     zlib \
     llvm-libunwind
 
-COPY --from=builder /src/out/cur/cloak /bin
+COPY --from=builder /src/out/cur/cloak /src/out/cur/rsvc /bin
 
-CMD ["./cloak"]
+CMD ["/bin/rsvc"]
