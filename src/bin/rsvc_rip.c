@@ -32,7 +32,6 @@
 #include <rsvc/cd.h>
 #include <rsvc/disc.h>
 #include <rsvc/format.h>
-#include <rsvc/musicbrainz.h>
 #include "../rsvc/group.h"
 #include "../rsvc/progress.h"
 #include "../rsvc/unix.h"
@@ -290,12 +289,6 @@ static void get_tags(rsvc_cd_t cd, rsvc_cd_session_t session, rsvc_cd_track_t tr
         return;
     }
 
-    (void)rsvc_apply_musicbrainz_tags(tags, ^(rsvc_error_t error){
-        // MusicBrainz tagging could fail for a number of reasons:
-        // wasn't reachable; couldn't find album.  None of those is
-        // reason to stop ripping, so ignore and proceed.
-        (void)error;
-    });
     wrapped_done(NULL);
 }
 

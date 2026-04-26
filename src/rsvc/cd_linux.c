@@ -122,7 +122,7 @@ static bool read_leadout(rsvc_cd_t cd, rsvc_cd_track_t track, rsvc_done_t fail) 
     return true;
 }
 
-bool calculate_musicbrainz_discid(rsvc_cd_t cd, rsvc_done_t fail) {
+bool calculate_discid(rsvc_cd_t cd, rsvc_done_t fail) {
     for (size_t i = 0; i < cd->nsessions; ++i) {
         rsvc_cd_session_t session = &cd->sessions[i];
         int offsets[101] = {};
@@ -178,7 +178,7 @@ bool rsvc_cd_create(char* path, rsvc_cd_t* cd, rsvc_done_t fail) {
             if (build_tracks(*cd, &track, begin, end, fail) &&
                 read_leadout(*cd, track, fail) &&
                 build_sessions(*cd, begin, end, fail)) {
-                if (calculate_musicbrainz_discid(*cd, fail)) {
+                if (calculate_discid(*cd, fail)) {
                     ok = true;
                 }
                 if (!ok) {

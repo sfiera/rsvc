@@ -77,8 +77,6 @@ struct rsvc_long_option_name kLongFlags[] = {
     {"remove-all-images",   REMOVE_ALL_IMAGES},
     {"add-image",           ADD_IMAGE},
 
-    {"auto",                AUTO},
-
     {"move",                MOVE},
     {"path",                PATH},
 
@@ -117,7 +115,6 @@ bool cloak_options(int argc, char* const* argv, ops_t ops, string_list_t files, 
           case REMOVE_IMAGE:        return image_option(ops, get_value, opt, fail);
           case REMOVE_ALL_IMAGES:   return rsvc_boolean_option(&ops->remove_all_images);
           case ADD_IMAGE:           return image_option(ops, get_value, opt, fail);
-          case AUTO:                return rsvc_boolean_option(&ops->auto_mode);
           case MOVE:                return rsvc_boolean_option(&ops->move_mode);
           case PATH:                return all_path_option(ops, get_value, fail);
           default:                  return shorthand_option(ops, opt, get_value, fail);
@@ -156,8 +153,7 @@ int cloak_mode(ops_t ops) {
             || ops->add_tag_names.head
             || ops->remove_all_images
             || ops->add_images.head
-            || ops->remove_images.head
-            || ops->auto_mode) {
+            || ops->remove_images.head) {
         return RSVC_TAG_RDWR;
     } else if (ops->list_tags
             || ops->list_images
@@ -217,10 +213,6 @@ static bool help_option(const char* progname) {
             "        --remove-image      remove the embedded image\n"
             "        --remove-all-images remove all embedded images\n"
             "        --add-image PNG|JPG add an embedded image by path\n"
-            "\n"
-            "  MusicBrainz:\n"
-            "        --auto              fetch missing tags from MusicBrainz\n"
-            "                            (requires that MUSICBRAINZ_DISCID be set)\n"
             "\n"
             "  Organization:\n"
             "    -m, --move              move file according to new tags\n"

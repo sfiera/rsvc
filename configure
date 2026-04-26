@@ -39,23 +39,11 @@ DEPS = {
         "headers": ["lame/lame.h"],
         "libraries": ["mp3lame"],
     },
-    "mb5": {
-        "pkgconfig": "libmusicbrainz5",
-        "dpkg": "libmusicbrainz5-dev",
-        "brew": "libmusicbrainz",
-        "headers": ["musicbrainz5/mb5_c.h"],
-    },
     "mad": {
         "pkgconfig": "mad",
         "dpkg": "libmad0-dev",
         "brew": "mad",
         "headers": ["mad.h"],
-    },
-    "neon": {
-        "pkgconfig": "neon",
-        "dpkg": "libneon27-dev",
-        "brew": "neon",
-        "headers": ["ne_uri.h"],
     },
     "ogg": {
         "pkgconfig": "ogg",

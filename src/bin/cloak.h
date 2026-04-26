@@ -40,7 +40,6 @@
 #include <rsvc/audio.h>
 #include <rsvc/format.h>
 #include <rsvc/image.h>
-#include <rsvc/musicbrainz.h>
 #include <rsvc/tag.h>
 
 #include "../rsvc/common.h"
@@ -92,8 +91,6 @@ enum short_flag {
     REMOVE_IMAGE        = -1,
     REMOVE_ALL_IMAGES   = -2,
     ADD_IMAGE           = -3,
-
-    AUTO                = -4,
 
     MOVE                = 'm',
     PATH                = 'p',
@@ -167,8 +164,6 @@ struct ops {
     struct add_image_list     add_images;
     struct remove_image_list  remove_images;
     struct write_image_list   write_images;
-
-    bool                      auto_mode;
 
     bool                      dry_run;
 

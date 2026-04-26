@@ -114,6 +114,11 @@ static bool core_audio_encode(
     if (codec_id == kAudioFormatAppleLossless) {
         asbd_out.mFormatFlags = kAppleLosslessFormatFlag_16BitSourceData;
     }
+    if (codec_id == kAudioFormatMPEG4AAC) {
+        if (asbd_out.mSampleRate > 48e3) {
+            asbd_out.mSampleRate = 48e3;
+        }
+    }
 
     FILE* file = dst_file;
     AudioFileID file_id = NULL;

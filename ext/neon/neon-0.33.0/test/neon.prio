@@ -1,5 +1,0 @@
-[overrides]
-insecure-sig-for-cert = 
-
-[priorities]
-SYSTEM=LEGACY
