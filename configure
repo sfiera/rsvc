@@ -72,8 +72,9 @@ DEPS = {
     "utf8cpp": {
         "dpkg": "utf8cpp-dev",
         "brew": "utf8cpp",
-        "headers": ["utf8.h"],
+        "headers": ["utf8cpp/utf8.h"],
         "libraries": [],
+        "lang": "c++",
     },
     "vorbis": {
         "pkgconfig": "vorbis",
@@ -199,7 +200,8 @@ def check_libs(args, gn_args, have_pkgconfig, package_manager, default):
                     library_dirs = [os.path.join(flag, "lib")]
                 libraries = value["libraries"]
 
-            if not has_lib(name, include_dirs, defines, cflags, value["headers"], library_dirs, libraries):
+            if not has_lib(name, include_dirs, defines, cflags, value["headers"], library_dirs,
+                           libraries, lang=value.get("lang")):
                 msg("failed", color="red")
                 missing_libs[name] = value[package_manager]
                 continue
@@ -308,8 +310,8 @@ def pkg_settings(lib):
     return includes, defines, cflags, library_dirs, libraries
 
 
-def has_lib(name, includes, defines, cflags, headers, library_dirs, libraries):
-    """Compile a basic C++11, libc++ binary."""
+def has_lib(name, includes, defines, cflags, headers, library_dirs, libraries, lang="c"):
+    """Compile a basic C/C++ binary."""
     src = []
     src.extend("#include <%s>" % i for i in headers)
     src.append("int main() { return 1; }")
@@ -321,7 +323,7 @@ def has_lib(name, includes, defines, cflags, headers, library_dirs, libraries):
     flags.extend("-L%s" % x for x in library_dirs)
     flags.extend("-l%s" % x for x in libraries)
 
-    cmdline = ["clang"] + flags + ["-x", "c", "-", "-o", "/dev/null"]
+    cmdline = ["clang"] + flags + ["-x", lang or "c", "-", "-o", "/dev/null"]
 
     p = subprocess.Popen(
             cmdline, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8")
