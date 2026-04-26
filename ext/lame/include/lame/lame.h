@@ -1,1 +1,1 @@
-../../lame-3.99.5/include/lame.h
+../../lame-3.100/include/lame.h
